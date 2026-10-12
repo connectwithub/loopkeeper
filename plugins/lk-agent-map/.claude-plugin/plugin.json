@@ -1,15 +1,30 @@
 {
   "name": "lk-agent-map",
+  "displayName": "loopkeeper Agent Map",
   "version": "0.6.2",
   "description": "See and cap your subagents: cards with cost, tokens, context and progress, spawn caps with an override you approve, tree and team views, idle alerts and a Stop button.",
-  "author": { "name": "connectwithub" },
+  "author": {
+    "name": "connectwithub"
+  },
   "license": "MIT",
   "homepage": "https://github.com/connectwithub/loopkeeper",
   "repository": "https://github.com/connectwithub/loopkeeper",
-  "keywords": ["claude-code", "mods", "subagents", "agent-teams", "spawn-caps", "tokens", "context-window", "monitoring"],
+  "keywords": [
+    "claude-code",
+    "mods",
+    "subagents",
+    "agent-teams",
+    "spawn-caps",
+    "tokens",
+    "context-window",
+    "monitoring"
+  ],
   "documentationUrl": "https://github.com/connectwithub/loopkeeper/tree/main/plugins/lk-agent-map#readme",
   "supportUrl": "https://github.com/connectwithub/loopkeeper/issues",
-  "metadata": { "minimumClaudeCode": "2.1.294" },
+  "privacyPolicyUrl": "https://github.com/connectwithub/loopkeeper/blob/main/PRIVACY.md",
+  "metadata": {
+    "minimumClaudeCode": "2.1.294"
+  },
   "types": "./types/index.d.ts",
   "userConfig": {
     "stuckAfterMs": {

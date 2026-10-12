@@ -72,7 +72,7 @@ const gitRoots = new Map<string, string>()
 
 /** A call to watch; `creating` (a Write of a missing file) ends its id in CREATING, for the hero's plus. */
 type Watch = { verb: LkFilesActivity['verb']; path: string; pattern?: string; tool: string; creating?: boolean }
-type AnyNext = (e: never) => Promise<unknown>
+type AnyNext = (e: any) => Promise<any>
 type Failure = { error?: { kind?: string; message?: string }; called?: boolean }
 
 /** CLAUDE_MODS_DISABLE names loopkeeper (or all): nothing is tracked and no band line is drawn; /files still opens. */
@@ -168,7 +168,7 @@ async function watchCall($: EngineInterface, e: unknown, next: AnyNext, watch: W
   }
   let r: unknown
   try {
-    r = await next(e as never)
+    r = await next(e)
   } finally {
     try {
       await changeLive($, s => clearActivity(s, id))
@@ -327,7 +327,7 @@ async function statusLine($: EngineInterface): Promise<string> {
   return `files ● ${n} touched${last ? ` · last: ${last}` : ''}`
 }
 
-const failText = (next: Failure) =>
+const failText = (next: any) =>
   `${PLUGIN}: the Files pane could not open (${next.error?.kind ?? 'throw'}: ${String(next.error?.message ?? '').slice(0, 120)}).`
 
 const isGatesFiles = (args: unknown) => {
@@ -363,7 +363,7 @@ async function lk($: EngineInterface, e: { args?: unknown }, next: LkNext): Prom
   return (await next(e)) ?? {}
 }
 
-async function lkFailed($: EngineInterface, e: { args?: unknown }, next: LkNext & Failure): Promise<LkResult> {
+async function lkFailed($: EngineInterface, e: { args?: unknown }, next: any): Promise<LkResult> {
   if (next.called) return (await next(e)) ?? {}
   if (isGatesFiles(e?.args)) return { text: failText(next) }
   return (await next(e)) ?? {}
@@ -470,7 +470,7 @@ export function wireFiles(on: On): void {
     const path = await trackedPath($, editPath(e))
     if (path === null) return next(e)
     const tool = String(e.tool)
-    return watchCall($, e, next as AnyNext, { verb: 'reading', path, tool }, s => noteRead(s, path, 'read', tool))
+    return watchCall($, e, next, { verb: 'reading', path, tool }, s => noteRead(s, path, 'read', tool))
   }).catch(($, e, next) => next(e))
 
   on('tool.call', { tool: SEARCH_TOOLS }, async ($, e, next) => {
@@ -480,7 +480,7 @@ export function wireFiles(on: On): void {
     const dir = pattern === '' ? null : await trackedPath($, where)
     if (dir === null) return next(e)
     const tool = String(e.tool)
-    return watchCall($, e, next as AnyNext, { verb: 'searching', path: dir, pattern, tool }, s => noteSearch(s, tool, pattern, dir))
+    return watchCall($, e, next, { verb: 'searching', path: dir, pattern, tool }, s => noteSearch(s, tool, pattern, dir))
   }).catch(($, e, next) => next(e))
 
   on('tool.call', { tool: EDIT_TOOLS }, async ($, e, next) => {
@@ -488,7 +488,7 @@ export function wireFiles(on: On): void {
     if (path === null) return next(e)
     const tool = String(e.tool)
     const existed = tool === 'Write' ? await fileExists($, path) : true
-    const r = await watchCall($, e, next as AnyNext, { verb: 'editing', path, tool, creating: !existed }, s => noteEdit(s, path, !existed, tool))
+    const r = await watchCall($, e, next, { verb: 'editing', path, tool, creating: !existed }, s => noteEdit(s, path, !existed, tool))
     if (succeeded(r)) await refreshGit($)
     return r
   }).catch(($, e, next) => next(e))
@@ -511,14 +511,10 @@ export function wireFiles(on: On): void {
   on('command.run', { command: 'files' }, async $ => {
     await openFiles($)
     return {}
-  }).catch(async ($, e, next) => ({ text: failText(next as Failure) }))
+  }).catch(async ($, e, next) => ({ text: failText(next) }))
 
-  on('command.run', { command: 'lk' }, async ($, e, next) => lk($, e as { args?: unknown }, next as LkNext)).catch(($, e, next) =>
-    lkFailed($, e as { args?: unknown }, next as unknown as LkNext & Failure),
-  )
-  on('command.run', { command: 'loopkeeper' }, async ($, e, next) => lk($, e as { args?: unknown }, next as LkNext)).catch(($, e, next) =>
-    lkFailed($, e as { args?: unknown }, next as unknown as LkNext & Failure),
-  )
+  on('command.run', { command: 'lk' }, async ($, e, next) => lk($, e, next)).catch(($, e, next) => lkFailed($, e, next))
+  on('command.run', { command: 'loopkeeper' }, async ($, e, next) => lk($, e, next)).catch(($, e, next) => lkFailed($, e, next))
 
   // Before the Files pane opens its folders are listed and git read: here for an open from a hook (/files, /lk gates
   // files); a Button's onPress runs beneath every hook, so its open skips this plugin's own ui.open hooks.

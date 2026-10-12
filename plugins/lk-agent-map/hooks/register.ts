@@ -312,6 +312,37 @@ async function changeAgent($: Api, id: string, fn: (a: AgentRecord, now: number)
 }
 
 /** Shows ⏸ waiting for a pending ask now (its grace ran out, or a dialog opened for it). */
+// An ask waits out its grace: when the grace runs out it shows ⏸ waiting, unless a dialog signal says it was approved.
+function armGrace($: Api, toolUseId: string, grace: number): void {
+  const p = pendingAsks.get(toolUseId)
+  if (!p) return
+  p.timer = $.clock.after(grace, () => {
+    if (p.timer === null) return
+    p.timer = null
+    // With a dialog signal in this session, an ask the grace outlived without a dialog was approved: it runs
+    if (dialogSignal) pendingAsks.delete(toolUseId)
+    else void markWaiting($, toolUseId).catch(() => undefined)
+  })
+}
+
+// The call a settings PreToolUse point saw is going to run: its pending ask is dropped and a shown ⏸ waiting clears.
+async function clearApprovedWait($: Api, e: unknown): Promise<void> {
+  let toolUseId = str(e, 'tool_use_id')
+  if (!toolUseId) {
+    const tool = str(e, 'tool_name', 'tool')
+    for (const [k, p] of pendingAsks) if (p.tool === tool && p.loop === (str(e, 'agentId', 'agent_id') ?? MAIN)) toolUseId = k
+  }
+  if (!toolUseId) return
+  const id = toolUseId
+  cancelAsk(id)
+  let waited: string[] = []
+  await update($, agentsAtom, (m: Agents) => {
+    waited = Object.values(m).filter(a => a.waiting?.some(w => w.toolUseId === id)).map(a => a.id)
+    return clearWaiting(m, id)
+  })
+  for (const w of waited) await logEvent($, w, 'resumed', 'approved: ' + (str(e, 'tool', 'tool_name') ?? 'tool'))
+}
+
 async function markWaiting($: Api, toolUseId: string): Promise<void> {
   const p = pendingAsks.get(toolUseId)
   if (!p) return
@@ -938,19 +969,8 @@ export const register: Register = (on, options) => {
         const grace = (await read($, capsAtom)).waitGraceMs
         cancelAsk(toolUseId)
         pendingAsks.set(toolUseId, { loop: id, tool, timer: null })
-        if (grace <= 0) {
-          await markWaiting($, toolUseId)
-        } else {
-          const p = pendingAsks.get(toolUseId)
-          if (p)
-            p.timer = $.clock.after(grace, () => {
-              if (p.timer === null) return
-              p.timer = null
-              // With a dialog signal in this session, an ask the grace outlived without a dialog was approved: it runs
-              if (dialogSignal) pendingAsks.delete(toolUseId)
-              else void markWaiting($, toolUseId).catch(() => undefined)
-            })
-        }
+        if (grace <= 0) await markWaiting($, toolUseId)
+        else armGrace($, toolUseId, grace)
       }
     } catch {
       // Observing only
@@ -1021,21 +1041,7 @@ export const register: Register = (on, options) => {
   // pending ask for it is dropped and a shown ⏸ waiting clears
   on('classic.PreToolUse', async ($, e, next) => {
     try {
-      let toolUseId = str(e, 'tool_use_id')
-      if (!toolUseId) {
-        const tool = str(e, 'tool_name', 'tool')
-        for (const [k, p] of pendingAsks) if (p.tool === tool && p.loop === (str(e, 'agentId', 'agent_id') ?? MAIN)) toolUseId = k
-      }
-      if (toolUseId) {
-        const id = toolUseId
-        cancelAsk(id)
-        let waited: string[] = []
-        await update($, agentsAtom, (m: Agents) => {
-          waited = Object.values(m).filter(a => a.waiting?.some(w => w.toolUseId === id)).map(a => a.id)
-          return clearWaiting(m, id)
-        })
-        for (const w of waited) await logEvent($, w, 'resumed', 'approved: ' + (str(e, 'tool', 'tool_name') ?? 'tool'))
-      }
+      await clearApprovedWait($, e)
     } catch {
       // Observing only
     }

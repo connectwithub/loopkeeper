@@ -144,15 +144,6 @@ type LkNext = (e: any) => Promise<{ text?: string } | undefined>
 
 // ---- Fail closed, and the kill switch (both borrowed from scope-guard) ---------------------------------------
 
-// One catch handler per gating hook: the directory follows a handler only when one top-level function serves one hook.
-async function failClosedEdit($: EngineInterface, e: unknown, next: { error?: { kind?: string; message?: string } }): Promise<CheckResult> {
-  return { decision: 'deny', reason: failClosedReason(next.error?.kind ?? 'throw', String(next.error?.message ?? '')) }
-}
-
-async function failClosedBash($: EngineInterface, e: unknown, next: { error?: { kind?: string; message?: string } }): Promise<CheckResult> {
-  return { decision: 'deny', reason: failClosedReason(next.error?.kind ?? 'throw', String(next.error?.message ?? '')) }
-}
-
 /** The same refusal's reason for an error caught inside a gating hook. */
 function refusedReason(err: unknown): string {
   const text = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
@@ -1302,7 +1293,10 @@ export function wireGates(on: On): void {
     }
     if (why !== null) return { decision: 'deny', reason: why }
     return next(e)
-  }).catch(failClosedEdit)
+  }).catch(($, e, next) => {
+    const error = next.error
+    return { decision: 'deny', reason: failClosedReason(error?.kind ?? 'throw', String(error?.message ?? '')) }
+  })
 
   on('tool.check', { tool: 'Bash' }, async ($, e, next) => {
     const command = (typeof e.input === 'object' && e.input !== null ? (e.input as Record<string, unknown>) : {}).command
@@ -1327,7 +1321,10 @@ export function wireGates(on: On): void {
     }
     if (why !== null) return { decision: 'deny', reason: why }
     return next(e)
-  }).catch(failClosedBash)
+  }).catch(($, e, next) => {
+    const error = next.error
+    return { decision: 'deny', reason: failClosedReason(error?.kind ?? 'throw', String(error?.message ?? '')) }
+  })
 
   // The rules block: what the gates enforce this session, with the limit in force.
   on('prompt.context', {}, async ($, e, next) => {
@@ -1344,8 +1341,8 @@ export function wireGates(on: On): void {
     }
   })
 
-  on('command.run', { command: 'lk' }, async ($, e, next) => lk($, e as { args?: unknown }, next as LkNext)).catch(lkFailed)
-  on('command.run', { command: 'loopkeeper' }, async ($, e, next) => lk($, e as { args?: unknown }, next as LkNext)).catch(lkFailed)
+  on('command.run', { command: 'lk' }, async ($, e, next) => lk($, e, next)).catch(($, e, next) => lkFailed($, e, next))
+  on('command.run', { command: 'loopkeeper' }, async ($, e, next) => lk($, e, next)).catch(($, e, next) => lkFailed($, e, next))
 
   // The band, one kit line: `gates  ● 3/10 files  ● plan ok  ● merge gate  ● ship held   budget 23`.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {

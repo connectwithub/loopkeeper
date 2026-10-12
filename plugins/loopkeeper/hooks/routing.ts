@@ -448,8 +448,8 @@ export function wireRouting(on: On): void {
     return next(withIt)
   })
 
-  on('command.run', { command: 'lk' }, async ($, e, next) => lk($, e as { args?: unknown }, next as LkNext)).catch(lkFailed)
-  on('command.run', { command: 'loopkeeper' }, async ($, e, next) => lk($, e as { args?: unknown }, next as LkNext)).catch(lkFailed)
+  on('command.run', { command: 'lk' }, async ($, e, next) => lk($, e, next)).catch(($, e, next) => lkFailed($, e, next))
+  on('command.run', { command: 'loopkeeper' }, async ($, e, next) => lk($, e, next)).catch(($, e, next) => lkFailed($, e, next))
 
   // The Routing pane (/lk routes), drawn with the kit: hero, tiles, routes, recent spawns, the loop, buttons.
   on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e, next) => {

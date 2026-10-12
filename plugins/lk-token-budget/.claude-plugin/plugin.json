@@ -1,14 +1,28 @@
 {
   "name": "lk-token-budget",
+  "displayName": "loopkeeper Token Budget",
   "version": "0.4.1",
   "description": "Stop runaway token spend: budgets per session and per subagent with warn, deny-agents or stop actions, plus a prompt-cache countdown, cold-cache pings and keep-warm.",
-  "author": { "name": "connectwithub" },
+  "author": {
+    "name": "connectwithub"
+  },
   "license": "MIT",
   "homepage": "https://github.com/connectwithub/loopkeeper",
   "repository": "https://github.com/connectwithub/loopkeeper",
-  "keywords": ["claude-code", "mods", "tokens", "token-budget", "prompt-cache", "cost-control", "subagents"],
+  "keywords": [
+    "claude-code",
+    "mods",
+    "tokens",
+    "token-budget",
+    "prompt-cache",
+    "cost-control",
+    "subagents"
+  ],
   "documentationUrl": "https://github.com/connectwithub/loopkeeper/tree/main/plugins/lk-token-budget#readme",
   "supportUrl": "https://github.com/connectwithub/loopkeeper/issues",
-  "metadata": { "minimumClaudeCode": "2.1.294" },
+  "privacyPolicyUrl": "https://github.com/connectwithub/loopkeeper/blob/main/PRIVACY.md",
+  "metadata": {
+    "minimumClaudeCode": "2.1.294"
+  },
   "types": "./types/index.d.ts"
 }

@@ -1,14 +1,28 @@
 {
   "name": "lk-where-am-i",
+  "displayName": "loopkeeper Where Am I",
   "version": "0.3.1",
   "description": "Know where the session is at a glance: repo, branch, worktree, uncommitted and unpushed work, usage windows and the prompt cache in one line above the prompt.",
-  "author": { "name": "connectwithub" },
+  "author": {
+    "name": "connectwithub"
+  },
   "license": "MIT",
   "homepage": "https://github.com/connectwithub/loopkeeper",
   "repository": "https://github.com/connectwithub/loopkeeper",
-  "keywords": ["claude-code", "mods", "git", "worktrees", "branches", "usage-limits", "prompt-cache"],
+  "keywords": [
+    "claude-code",
+    "mods",
+    "git",
+    "worktrees",
+    "branches",
+    "usage-limits",
+    "prompt-cache"
+  ],
   "documentationUrl": "https://github.com/connectwithub/loopkeeper/tree/main/plugins/lk-where-am-i#readme",
   "supportUrl": "https://github.com/connectwithub/loopkeeper/issues",
-  "metadata": { "minimumClaudeCode": "2.1.294" },
+  "privacyPolicyUrl": "https://github.com/connectwithub/loopkeeper/blob/main/PRIVACY.md",
+  "metadata": {
+    "minimumClaudeCode": "2.1.294"
+  },
   "types": "./types/index.d.ts"
 }

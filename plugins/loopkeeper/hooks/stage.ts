@@ -1603,7 +1603,10 @@ export function wireStage(on: On): void {
     if (judged.held) return { decision: 'deny', reason: judged.held.reason }
     if (judged.reserved !== undefined) reservedFor.set(e.tool_use_id, judged.reserved)
     return next(e)
-  }).catch(($, e, next) => (next.called ? { decision: 'ask' } : next(e)))
+  }).catch(($, e, next) => {
+    if (next.called) return { decision: 'ask' }
+    return next(e)
+  })
 
   on('tool.call', { tool: GUARDED_TOOLS }, async ($, e, next) => {
     const r = await next(e)
@@ -1621,11 +1624,11 @@ export function wireStage(on: On): void {
     return r
   }).catch(($, e, next) => next(e))
 
-  on('command.run', { command: 'lk' }, async ($, e, next) => lk($, e as { args?: unknown; origin?: unknown }, next as LkNext)).catch(async ($, e, next) => {
+  on('command.run', { command: 'lk' }, async ($, e, next) => lk($, e, next)).catch(async ($, e, next) => {
     const r = next.called ? ((await next(e)) as { text?: string } | undefined) : undefined
     return { ...(r ?? {}), text: joinText(PLUGIN + ': the stage command failed. ' + USAGE, r?.text) }
   })
-  on('command.run', { command: 'loopkeeper' }, async ($, e, next) => lk($, e as { args?: unknown; origin?: unknown }, next as LkNext)).catch(async ($, e, next) => {
+  on('command.run', { command: 'loopkeeper' }, async ($, e, next) => lk($, e, next)).catch(async ($, e, next) => {
     const r = next.called ? ((await next(e)) as { text?: string } | undefined) : undefined
     return { ...(r ?? {}), text: joinText(PLUGIN + ': the stage command failed. ' + USAGE, r?.text) }
   })

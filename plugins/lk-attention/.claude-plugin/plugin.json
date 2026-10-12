@@ -1,14 +1,28 @@
 {
   "name": "lk-attention",
+  "displayName": "loopkeeper Attention",
   "version": "0.3.1",
   "description": "Look away while Claude works: a GNOME notification, a sound, a toast and a band when it needs you or finishes something long, plus an /attention inbox.",
-  "author": { "name": "connectwithub" },
+  "author": {
+    "name": "connectwithub"
+  },
   "license": "MIT",
   "homepage": "https://github.com/connectwithub/loopkeeper",
   "repository": "https://github.com/connectwithub/loopkeeper",
-  "keywords": ["claude-code", "mods", "notifications", "desktop-notifications", "gnome", "linux", "permission-prompts"],
+  "keywords": [
+    "claude-code",
+    "mods",
+    "notifications",
+    "desktop-notifications",
+    "gnome",
+    "linux",
+    "permission-prompts"
+  ],
   "documentationUrl": "https://github.com/connectwithub/loopkeeper/tree/main/plugins/lk-attention#readme",
   "supportUrl": "https://github.com/connectwithub/loopkeeper/issues",
-  "metadata": { "minimumClaudeCode": "2.1.294" },
+  "privacyPolicyUrl": "https://github.com/connectwithub/loopkeeper/blob/main/PRIVACY.md",
+  "metadata": {
+    "minimumClaudeCode": "2.1.294"
+  },
   "types": "./types/index.d.ts"
 }

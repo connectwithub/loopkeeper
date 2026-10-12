@@ -1,14 +1,29 @@
 {
   "name": "loopkeeper",
+  "displayName": "loopkeeper",
   "version": "0.1.0",
   "description": "Keep Claude Code on a plan: stages, approval gates and a plan-scoped file budget enforced by hooks, plus model routing, review loops and a decision log.",
-  "author": { "name": "connectwithub" },
+  "author": {
+    "name": "connectwithub"
+  },
   "license": "MIT",
   "homepage": "https://github.com/connectwithub/loopkeeper",
   "repository": "https://github.com/connectwithub/loopkeeper",
-  "keywords": ["claude-code", "mods", "workflow", "approval-gates", "change-control", "model-routing", "code-review", "decision-log"],
+  "keywords": [
+    "claude-code",
+    "mods",
+    "workflow",
+    "approval-gates",
+    "change-control",
+    "model-routing",
+    "code-review",
+    "decision-log"
+  ],
   "documentationUrl": "https://github.com/connectwithub/loopkeeper/tree/main/plugins/loopkeeper#readme",
   "supportUrl": "https://github.com/connectwithub/loopkeeper/issues",
-  "metadata": { "minimumClaudeCode": "2.1.294" },
+  "privacyPolicyUrl": "https://github.com/connectwithub/loopkeeper/blob/main/PRIVACY.md",
+  "metadata": {
+    "minimumClaudeCode": "2.1.294"
+  },
   "types": "./types/index.d.ts"
 }

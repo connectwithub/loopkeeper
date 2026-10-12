@@ -1,14 +1,28 @@
 {
   "name": "lk-secret-guard",
+  "displayName": "loopkeeper Secret Guard",
   "version": "0.3.1",
   "description": "A seatbelt for secrets: stops credential-shaped strings and your private deny-list of words before Claude writes them into files or shell commands.",
-  "author": { "name": "connectwithub" },
+  "author": {
+    "name": "connectwithub"
+  },
   "license": "MIT",
   "homepage": "https://github.com/connectwithub/loopkeeper",
   "repository": "https://github.com/connectwithub/loopkeeper",
-  "keywords": ["claude-code", "mods", "secrets", "credentials", "secret-scanning", "security", "safety"],
+  "keywords": [
+    "claude-code",
+    "mods",
+    "secrets",
+    "credentials",
+    "secret-scanning",
+    "security",
+    "safety"
+  ],
   "documentationUrl": "https://github.com/connectwithub/loopkeeper/tree/main/plugins/lk-secret-guard#readme",
   "supportUrl": "https://github.com/connectwithub/loopkeeper/issues",
-  "metadata": { "minimumClaudeCode": "2.1.294" },
+  "privacyPolicyUrl": "https://github.com/connectwithub/loopkeeper/blob/main/PRIVACY.md",
+  "metadata": {
+    "minimumClaudeCode": "2.1.294"
+  },
   "types": "./types/index.d.ts"
 }
