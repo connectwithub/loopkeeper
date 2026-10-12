@@ -12,7 +12,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import type { LkFilesActivity, LkFilesGit, LkFilesLive, LkFilesView, LkFolderListing, LkTouchEntry } from '../types/index.d.ts'
+import type { LkAnyNext, LkFilesActivity, LkFilesGit, LkFilesLive, LkFilesView, LkFolderListing, LkNext, LkTouchEntry } from '../types/index.d.ts'
 import {
   absOf,
   applyGitStatus,
@@ -72,7 +72,6 @@ const gitRoots = new Map<string, string>()
 
 /** A call to watch; `creating` (a Write of a missing file) ends its id in CREATING, for the hero's plus. */
 type Watch = { verb: LkFilesActivity['verb']; path: string; pattern?: string; tool: string; creating?: boolean }
-type AnyNext = (e: any) => Promise<any>
 type Failure = { error?: { kind?: string; message?: string }; called?: boolean }
 
 /** CLAUDE_MODS_DISABLE names loopkeeper (or all): nothing is tracked and no band line is drawn; /files still opens. */
@@ -158,7 +157,7 @@ async function changeLive($: EngineInterface, change: (s: FilesState) => FilesSt
 }
 
 /** "Claude is <verb> <path>" while the call runs, then the change recorded when the call succeeded. */
-async function watchCall($: EngineInterface, e: unknown, next: AnyNext, watch: Watch, change: (s: FilesState) => FilesState): Promise<never> {
+async function watchCall($: EngineInterface, e: unknown, next: LkAnyNext, watch: Watch, change: (s: FilesState) => FilesState): Promise<never> {
   const { creating, ...act } = watch
   const id = `${MODULE_TAG}:${++actSeq}${creating ? CREATING : ''}`
   try {
@@ -335,7 +334,6 @@ const isGatesFiles = (args: unknown) => {
   return sub === 'gates' && (rest[0] ?? '').toLowerCase() === 'files'
 }
 
-type LkNext = (e: unknown) => Promise<{ text?: string } | undefined>
 type LkResult = { text?: string }
 
 /** /lk gates files opens the pane (the gates pass that word on); /lk status gets the files line. */

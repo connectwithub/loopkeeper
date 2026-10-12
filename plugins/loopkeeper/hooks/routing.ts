@@ -8,7 +8,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
-import type { LkRole, LkRouteDecision, LkRoutingConfig } from '../types/index.d.ts'
+import type { LkNext, LkRole, LkRouteDecision, LkRoutingConfig } from '../types/index.d.ts'
 import { decide, explain } from './lib/classify.ts'
 import type { SpawnDecision } from './lib/classify.ts'
 import { TONES, makeKit } from './lib/kit.ts'
@@ -189,9 +189,6 @@ async function textAnswer($: EngineInterface): Promise<string> {
 
 // ---- /lk ---------------------------------------------------------------------------------------------------------
 
-type LkNext = (e: any) => Promise<{ text?: string } | undefined>
-
-/** /lk band [concerns] on|off: the routing line, or '' when the words name other concerns only. */
 /** The words routing owns. Undefined when the word is not routing's, so the chain moves on. */
 async function ownWord($: EngineInterface, sub: string, rest: string[], text: string): Promise<{ text?: string } | undefined> {
   if (sub === 'routes') {

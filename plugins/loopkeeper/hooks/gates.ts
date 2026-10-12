@@ -60,7 +60,7 @@ import { HUB_ID, HUB_ROWS, PANES } from './lib/panes.ts'
 import { bare, cdTargets, prNumber, resolveDir } from './lib/shell.ts'
 import { DEFAULT_STAGES, killSwitchOn, stageForRole } from './lib/stageModel.ts'
 import type { Stage } from './lib/stageModel.ts'
-import type { LkFilesLive, LkGateConfig, LkGateLogRow, LkTouchEntry } from '../types/index.d.ts'
+import type { LkFilesLive, LkGateConfig, LkGateLogRow, LkNext, LkTouchEntry } from '../types/index.d.ts'
 
 const PANE_ID = 'loopkeeper-gates'
 const CONTEXT_BLOCK = 'changeControl'
@@ -140,7 +140,6 @@ let hydrated = false
 let killed: boolean | null = null
 
 type CheckResult = { decision: 'allow' | 'ask' | 'deny'; reason?: string; rule?: string }
-type LkNext = (e: any) => Promise<{ text?: string } | undefined>
 
 // ---- Fail closed, and the kill switch (both borrowed from scope-guard) ---------------------------------------
 

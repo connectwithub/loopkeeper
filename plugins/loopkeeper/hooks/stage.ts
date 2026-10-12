@@ -90,7 +90,7 @@ import {
   wantsHold,
 } from './lib/stageModel.ts'
 import type { Approval, By, Config, Limits, Size, Stage, Transition, Verdict } from './lib/stageModel.ts'
-import type { LkGateConfig, LkSubject } from '../types/index.d.ts'
+import type { LkGateConfig, LkNext, LkSubject } from '../types/index.d.ts'
 
 // ---- State: everything a drawing reads lives in $.state, so it survives a hot reload ---------------------------
 
@@ -1262,9 +1262,6 @@ async function ownCommand($: EngineInterface, args: string, fromPerson: boolean)
   if (findStage(await read($, stageStages), verb)) return { text: (await moveTo($, verb, 'command', words.slice(1).join(' '))).text }
   return undefined
 }
-
-// /lk band [stage|gates|…] on|off: no concern named means every band, so the stage acts too
-type LkNext = (e: any) => Promise<{ text?: string } | undefined>
 
 // Shared words (status, text, reload, band, on, off, loop) let the concerns after this one answer, then put the stage's
 // line first; a stage word is answered here; anything else goes on down the chain.

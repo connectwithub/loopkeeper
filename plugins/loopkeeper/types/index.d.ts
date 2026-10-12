@@ -96,6 +96,12 @@ export type LkRouteDecision = {
   isTeammate: boolean
 }
 
+// The next function a /lk command.run hook passes the run on with, and the one a tool hook passes it on with. Kept
+// here, not in the hook files: the directory reads a function-type alias in a hook file as an expression that runs
+// into the line after it.
+export type LkNext = (e: any) => Promise<{ text?: string } | undefined>
+export type LkAnyNext = (e: any) => Promise<any>
+
 export type LkReviewKind = 'critic' | 'review' | 'plan' | 'qa' | 'copy' | 'design'
 export type LkReviewItem = {
   text: string
