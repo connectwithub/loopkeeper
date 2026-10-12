@@ -1264,47 +1264,16 @@ async function ownCommand($: EngineInterface, args: string, fromPerson: boolean)
 }
 
 // /lk band [stage|gates|…] on|off: no concern named means every band, so the stage acts too
-async function stageBandLine($: EngineInterface, rest: string[]): Promise<string> {
-  const words = rest.map(w => w.toLowerCase())
-  const named = words.filter(w => CONCERN_WORDS.includes(w))
-  if (named.length > 0 && !named.includes('stage')) return ''
-  const word = words.find(w => w === 'on' || w === 'off')
-  if (!word) return 'The stage band is ' + ((await read($, stageBand)) ? 'on' : 'off') + '. Usage: /lk band [stage] on|off'
-  await update($, stageBand, () => word === 'on')
-  const saved = await stageStoreSet($, BAND_KEY, word === 'on')
-  return 'The stage band is ' + word + '.' + (saved ? '' : ' (this session only)')
-}
-
 type LkNext = (e: any) => Promise<{ text?: string } | undefined>
 
 // Shared words (status, text, reload, band, on, off, loop) let the concerns after this one answer, then put the stage's
 // line first; a stage word is answered here; anything else goes on down the chain.
-// The stage's line for a /lk word other concerns also answer (status, text, reload, band, on, off, loop)
-async function stageSharedLine($: EngineInterface, sub: string, rest: string[], was: unknown): Promise<string> {
-  if (sub === 'status' || sub === 'text') {
-    const status = await statusText($)
-    return status
-  }
-  if (sub === 'reload') {
-    const reloaded = await reloadConfig($)
-    return reloaded.text
-  }
-  if (sub === 'band') {
-    const band = await stageBandLine($, rest)
-    return band
-  }
-  if (sub === 'on' || sub === 'off') {
-    const loopOn = await read($, routeLoop)
-    if (was === (sub === 'on') || !loopOn) return ''
-    const preset = await gsdPreset($, sub === 'on')
-    return preset
-  }
-  const word = (rest[0] ?? '').toLowerCase()
-  if (word !== 'on' && word !== 'off') return ''
-  const modeOn = await read($, routeMode)
-  if (!modeOn) return ''
-  const preset = await gsdPreset($, word === 'on')
-  return preset
+// /lk band [concern…] on|off: null when another concern was named, '' when no on/off word was given
+function bandWordOf(rest: string[]): string | null {
+  const words = rest.map(w => w.toLowerCase())
+  const named = words.filter(w => CONCERN_WORDS.includes(w))
+  if (named.length > 0 && !named.includes('stage')) return null
+  return words.find(w => w === 'on' || w === 'off') ?? ''
 }
 
 async function lk($: EngineInterface, e: { args?: unknown; origin?: unknown }, next: LkNext): Promise<{ text?: string } | undefined> {
@@ -1320,7 +1289,34 @@ async function lk($: EngineInterface, e: { args?: unknown; origin?: unknown }, n
     const r = await next(e)
     let line = ''
     try {
-      line = await stageSharedLine($, sub, rest, was)
+      if (sub === 'status' || sub === 'text') {
+        line = await statusText($)
+      } else if (sub === 'reload') {
+        const reloaded = await reloadConfig($)
+        line = reloaded.text
+      } else if (sub === 'band') {
+        const want = bandWordOf(rest)
+        if (want === '') {
+          const shown = await read($, stageBand)
+          line = 'The stage band is ' + (shown ? 'on' : 'off') + '. Usage: /lk band [stage] on|off'
+        } else if (want !== null) {
+          await update($, stageBand, () => want === 'on')
+          let saved = true
+          try {
+            await $.store.set(BAND_KEY, want === 'on')
+          } catch {
+            saved = false
+          }
+          line = 'The stage band is ' + want + '.' + (saved ? '' : ' (this session only)')
+        }
+      } else if (sub === 'on' || sub === 'off') {
+        const loopOn = await read($, routeLoop)
+        if (was !== (sub === 'on') && loopOn) line = await gsdPreset($, sub === 'on')
+      } else {
+        const word = (rest[0] ?? '').toLowerCase()
+        const modeOn = await read($, routeMode)
+        if ((word === 'on' || word === 'off') && modeOn) line = await gsdPreset($, word === 'on')
+      }
     } catch {
       line = PLUGIN + ': the stage could not answer "' + sub + '".'
     }

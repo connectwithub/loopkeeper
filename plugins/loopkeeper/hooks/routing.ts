@@ -138,11 +138,6 @@ async function setLoop($: EngineInterface, isLoop: boolean): Promise<void> {
   if ((await read($, routeMode)) === true) rerender($)
 }
 
-async function setRoutingBand($: EngineInterface, isBand: boolean): Promise<boolean> {
-  await update($, routeBand, () => isBand)
-  return routingStoreSet($, BAND_KEY, isBand)
-}
-
 async function nowOf($: EngineInterface): Promise<number> {
   try {
     const t = await $.clock.now()
@@ -197,19 +192,6 @@ async function textAnswer($: EngineInterface): Promise<string> {
 type LkNext = (e: any) => Promise<{ text?: string } | undefined>
 
 /** /lk band [concerns] on|off: the routing line, or '' when the words name other concerns only. */
-async function routingBandLine($: EngineInterface, rest: string[]): Promise<string> {
-  const words = rest.map(w => w.toLowerCase())
-  const named = words.filter(w => CONCERN_WORDS.includes(w))
-  if (named.length > 0 && !named.includes('routing')) return ''
-  const word = words.find(w => w === 'on' || w === 'off')
-  if (!word) {
-    const shown = (await read($, routeBand)) !== false
-    return `The routing band is ${shown ? 'on' : 'off'}. Usage: /lk band [routing] on|off`
-  }
-  const saved = await setRoutingBand($, word === 'on')
-  return `The routing band is ${word}.${saved ? '' : ' (this session only)'}`
-}
-
 /** The words routing owns. Undefined when the word is not routing's, so the chain moves on. */
 async function ownWord($: EngineInterface, sub: string, rest: string[], text: string): Promise<{ text?: string } | undefined> {
   if (sub === 'routes') {
@@ -248,26 +230,12 @@ async function ownWord($: EngineInterface, sub: string, rest: string[], text: st
 }
 
 // The routing line for a /lk word other concerns also answer (status, reload, band, on, off)
-async function routingSharedLine($: EngineInterface, sub: string, rest: string[]): Promise<string> {
-  if (sub === 'status') {
-    return statusLine(
-      (await read($, routeMode)) === true,
-      (await read($, routeLoop)) !== false,
-      await currentConfig($),
-      (await read($, routeRouted)) ?? 0,
-      (await read($, routeDisabled)) === true,
-    )
-  }
-  if (sub === 'reload') {
-    await loadKill($)
-    return 'Routing config re-read. Routing table:\n' + tableRows(await loadAll($))
-  }
-  if (sub === 'band') {
-    const band = await routingBandLine($, rest)
-    return band
-  }
-  await setMode($, sub === 'on')
-  return modeText($, sub === 'on')
+// /lk band [concern…] on|off: null when another concern was named, '' when no on/off word was given
+function bandWordOf(rest: string[]): string | null {
+  const words = rest.map(w => w.toLowerCase())
+  const named = words.filter(w => CONCERN_WORDS.includes(w))
+  if (named.length > 0 && !named.includes('routing')) return null
+  return words.find(w => w === 'on' || w === 'off') ?? ''
 }
 
 async function lk($: EngineInterface, e: { args?: unknown }, next: LkNext): Promise<{ text?: string } | undefined> {
@@ -276,7 +244,36 @@ async function lk($: EngineInterface, e: { args?: unknown }, next: LkNext): Prom
     const r = await next(e)
     let line = ''
     try {
-      line = await routingSharedLine($, sub, rest)
+      if (sub === 'status') {
+        const modeOn = (await read($, routeMode)) === true
+        const loopOn = (await read($, routeLoop)) !== false
+        const config = await currentConfig($)
+        const routed = (await read($, routeRouted)) ?? 0
+        const disabled = (await read($, routeDisabled)) === true
+        line = statusLine(modeOn, loopOn, config, routed, disabled)
+      } else if (sub === 'reload') {
+        await loadKill($)
+        const config = await loadAll($)
+        line = 'Routing config re-read. Routing table:\n' + tableRows(config)
+      } else if (sub === 'band') {
+        const want = bandWordOf(rest)
+        if (want === '') {
+          const shown = (await read($, routeBand)) !== false
+          line = `The routing band is ${shown ? 'on' : 'off'}. Usage: /lk band [routing] on|off`
+        } else if (want !== null) {
+          await update($, routeBand, () => want === 'on')
+          let saved = true
+          try {
+            await $.store.set(BAND_KEY, want === 'on')
+          } catch {
+            saved = false
+          }
+          line = `The routing band is ${want}.${saved ? '' : ' (this session only)'}`
+        }
+      } else {
+        await setMode($, sub === 'on')
+        line = await modeText($, sub === 'on')
+      }
     } catch {
       line = `${PLUGIN}: routing could not answer "${sub}".`
     }
