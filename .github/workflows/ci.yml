@@ -1,0 +1,103 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # Checks the set's layout and lists the plugin folders for the matrix. Needs no Claude Code.
+  layout:
+    runs-on: ubuntu-latest
+    outputs:
+      plugins: ${{ steps.list.outputs.plugins }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Every marketplace source folder exists, and every plugin folder is listed
+        run: |
+          status=0
+          for src in $(jq -r '.plugins[].source' .claude-plugin/marketplace.json); do
+            if [ ! -f "$src/.claude-plugin/plugin.json" ]; then
+              echo "::error::marketplace source $src has no .claude-plugin/plugin.json"
+              status=1
+            fi
+          done
+          for dir in plugins/*/; do
+            src="./${dir%/}"
+            if ! jq -e --arg s "$src" 'any(.plugins[]; .source == $s)' .claude-plugin/marketplace.json > /dev/null; then
+              echo "::error::$src is not listed in .claude-plugin/marketplace.json"
+              status=1
+            fi
+          done
+          exit $status
+      - name: Every add-on's kit equals the core's
+        run: |
+          status=0
+          for kit in plugins/lk-*/hooks/kit.ts; do
+            if ! cmp -s "$kit" plugins/loopkeeper/hooks/lib/kit.ts; then
+              echo "::error file=$kit::differs from plugins/loopkeeper/hooks/lib/kit.ts; copy the core's kit over it"
+              status=1
+            fi
+          done
+          exit $status
+      - name: List the plugin folders
+        id: list
+        run: echo "plugins=$(ls -d plugins/*/ | xargs -n1 basename | jq -R . | jq -cs .)" >> "$GITHUB_OUTPUT"
+
+  # Validates the marketplace manifest at the root.
+  marketplace:
+    name: marketplace (Claude Code ${{ matrix.claude }})
+    runs-on: ubuntu-latest
+    # 2.1.294 is the pinned minimum and must pass; latest flags API drift and may fail.
+    continue-on-error: ${{ matrix.claude == 'latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        claude: ['2.1.294', 'latest']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Claude Code ${{ matrix.claude }}
+        run: npm install --global @anthropic-ai/claude-code@${{ matrix.claude }}
+      - name: Empty home
+        run: |
+          mkdir -p "$RUNNER_TEMP/empty-home"
+          echo "HOME=$RUNNER_TEMP/empty-home" >> "$GITHUB_ENV"
+          echo "CLAUDE_CONFIG_DIR=$RUNNER_TEMP/empty-home" >> "$GITHUB_ENV"
+      - run: claude --version
+      - name: Validate the marketplace
+        run: claude plugin validate --strict .
+
+  # Validates and tests each plugin from its own folder: every folder under plugins/ times both versions.
+  plugin:
+    name: ${{ matrix.plugin }} (Claude Code ${{ matrix.claude }})
+    needs: layout
+    runs-on: ubuntu-latest
+    # 2.1.294 is the pinned minimum and must pass; latest flags API drift and may fail.
+    continue-on-error: ${{ matrix.claude == 'latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: ${{ fromJSON(needs.layout.outputs.plugins) }}
+        claude: ['2.1.294', 'latest']
+    defaults:
+      run:
+        working-directory: plugins/${{ matrix.plugin }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Claude Code ${{ matrix.claude }}
+        run: npm install --global @anthropic-ai/claude-code@${{ matrix.claude }}
+      - name: Empty home
+        run: |
+          mkdir -p "$RUNNER_TEMP/empty-home"
+          echo "HOME=$RUNNER_TEMP/empty-home" >> "$GITHUB_ENV"
+          echo "CLAUDE_CONFIG_DIR=$RUNNER_TEMP/empty-home" >> "$GITHUB_ENV"
+      - run: claude --version
+      - name: Validate ${{ matrix.plugin }}
+        run: claude plugin validate --strict .
+      - name: Test ${{ matrix.plugin }}
+        run: claude plugin test .

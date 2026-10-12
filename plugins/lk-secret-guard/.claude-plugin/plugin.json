@@ -1,0 +1,12 @@
+{
+  "name": "lk-secret-guard",
+  "version": "0.3.1",
+  "description": "A seatbelt that stops credential-shaped strings and a private deny-list of words from being written into files or shell commands",
+  "author": { "name": "connectwithub" },
+  "license": "MIT",
+  "homepage": "https://github.com/connectwithub/loopkeeper",
+  "repository": "https://github.com/connectwithub/loopkeeper",
+  "keywords": ["secrets", "credentials", "safety", "function-hooks"],
+  "metadata": { "minimumClaudeCode": "2.1.294" },
+  "types": "./types/index.d.ts"
+}

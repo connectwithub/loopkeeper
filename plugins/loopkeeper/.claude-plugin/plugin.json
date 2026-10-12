@@ -1,0 +1,11 @@
+{
+  "name": "loopkeeper",
+  "version": "0.1.0",
+  "description": "A stage machine with approval gates, change-control gates with a plan-scoped file budget, model routing, bounded review loops and a decision log in one plugin.",
+  "author": { "name": "connectwithub" },
+  "license": "MIT",
+  "homepage": "https://github.com/connectwithub/loopkeeper",
+  "repository": "https://github.com/connectwithub/loopkeeper",
+  "metadata": { "minimumClaudeCode": "2.1.294" },
+  "types": "./types/index.d.ts"
+}

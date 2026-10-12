@@ -1,0 +1,43 @@
+MIT License
+
+Copyright (c) 2026 connectwithub
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Third-party notices
+
+Parts of the change-control gates are borrowed or adapted from other MIT
+licensed projects, as their source headers state:
+
+- Shell reading (plugins/loopkeeper/hooks/lib/shell.ts): borrowed VERBATIM
+  from hamzafer/claude-code-mods, mods/merge-gate/hooks/register.tsx
+  (MIT, Copyright (c) 2026 Hamza Zafar).
+
+- Files a Bash command writes (plugins/loopkeeper/hooks/lib/gateRules.ts):
+  adapted from yash-gadodia/claude-mods scope-guard
+  (MIT, Copyright (c) 2026 Yash Gadodia): heredoc bodies and quoted strings
+  blanked, then sed -i, a redirection, tee, cp/mv's destination and touch read
+  for targets. `rm` and the cwd-relative result are ours.
+
+Parts of lk-pr-watch are borrowed from another MIT licensed project, as the
+source headers of plugins/lk-pr-watch/hooks/pr.ts and hooks/register.ts state:
+
+- The GraphQL poll, the check buckets, the lineage key, latestPerName, clean(),
+  linkable(), the poll diff and the bare-URL prompt handling: borrowed from
+  sezaakgun/cc-pr-tracker (MIT, Copyright (c) 2026 Seza Akgün).

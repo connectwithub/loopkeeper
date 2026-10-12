@@ -1,0 +1,11 @@
+{
+  "name": "lk-where-am-i",
+  "version": "0.3.1",
+  "description": "One line above the prompt that says which repo, branch and worktree the session is in, how dirty it is, and how the account's usage windows and prompt cache are doing, with a /where pane",
+  "author": { "name": "connectwithub" },
+  "license": "MIT",
+  "homepage": "https://github.com/connectwithub/loopkeeper",
+  "repository": "https://github.com/connectwithub/loopkeeper",
+  "metadata": { "minimumClaudeCode": "2.1.294" },
+  "types": "./types/index.d.ts"
+}

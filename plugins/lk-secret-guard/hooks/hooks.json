@@ -1,0 +1,4 @@
+{
+  "description": "lk-secret-guard: checks the new text of Write, Edit, MultiEdit, NotebookEdit and Bash calls for credentials and deny-listed words, blocks or asks, and logs each decision masked",
+  "modules": ["./register.ts"]
+}

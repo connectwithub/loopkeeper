@@ -1,0 +1,11 @@
+{
+  "name": "lk-token-budget",
+  "version": "0.4.1",
+  "description": "Enforces a token budget for the session and for each subagent, and times the prompt cache: a band above the prompt with the cache countdown and cold-resend cost, pings before it goes cold, a note on a cold send, a manual Keep warm and an opt-in capped auto keep-warm, a /budget pane, and warn, deny-agents or stop actions",
+  "author": { "name": "connectwithub" },
+  "license": "MIT",
+  "homepage": "https://github.com/connectwithub/loopkeeper",
+  "repository": "https://github.com/connectwithub/loopkeeper",
+  "metadata": { "minimumClaudeCode": "2.1.294" },
+  "types": "./types/index.d.ts"
+}

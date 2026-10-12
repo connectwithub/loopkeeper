@@ -1,0 +1,49 @@
+{
+  "name": "lk-agent-map",
+  "version": "0.6.2",
+  "description": "An agent deck for the session's subagents: cards with cost, tokens, context %, model, effort and task progress, spawn caps with a user-approved override, the context cost of each result, tree and team views with a lifecycle log, permission waits, idle alerts and a per-agent Stop button, in a pane and a one-line band.",
+  "author": { "name": "connectwithub" },
+  "license": "MIT",
+  "homepage": "https://github.com/connectwithub/loopkeeper",
+  "repository": "https://github.com/connectwithub/loopkeeper",
+  "metadata": { "minimumClaudeCode": "2.1.294" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "stuckAfterMs": {
+      "title": "Idle alert after (ms)",
+      "description": "A running agent with no tool call and no model request for this long gets an idle note and one toast; 0 turns it off",
+      "type": "number",
+      "default": 300000
+    },
+    "maxConcurrent": {
+      "title": "Max subagents running at once",
+      "description": "Running subagents at once, forks and teammates included; a spawn past it is refused. A whole number; 0 means no cap",
+      "type": "number",
+      "default": 4
+    },
+    "maxPerTurn": {
+      "title": "Max subagents per turn",
+      "description": "Spawns in one main-loop turn; forks and teammates don't count. A whole number; 0 means no cap",
+      "type": "number",
+      "default": 8
+    },
+    "maxPerSession": {
+      "title": "Max subagents per session",
+      "description": "Spawns in the session. A whole number; 0 means no cap",
+      "type": "number",
+      "default": 40
+    },
+    "warnAtPercent": {
+      "title": "Warn at (% of a cap)",
+      "description": "From 1 to 100: once a cap reaches this share, the band shows near cap and one toast goes out",
+      "type": "number",
+      "default": 75
+    },
+    "maxReturnedTokens": {
+      "title": "Max tokens subagent results add to the main context per session",
+      "description": "Estimated as characters / 4. Past the warn share, one toast suggests /compact or a handoff; no spawn is refused for it. A whole number; 0 means no cap",
+      "type": "number",
+      "default": 150000
+    }
+  }
+}

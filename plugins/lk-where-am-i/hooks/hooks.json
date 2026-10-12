@@ -1,0 +1,4 @@
+{
+  "description": "The lk-where-am-i hooks module",
+  "modules": ["./register.ts"]
+}

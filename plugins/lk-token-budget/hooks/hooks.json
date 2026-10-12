@@ -1,0 +1,4 @@
+{
+  "description": "The lk-token-budget hooks module",
+  "modules": ["./register.ts"]
+}

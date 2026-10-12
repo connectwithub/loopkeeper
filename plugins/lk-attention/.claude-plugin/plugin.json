@@ -1,0 +1,11 @@
+{
+  "name": "lk-attention",
+  "version": "0.3.1",
+  "description": "Tells you when Claude needs you or finished something long: a native GNOME notification, a sound, a toast, a band above the prompt and an /attention inbox.",
+  "author": { "name": "connectwithub" },
+  "license": "MIT",
+  "homepage": "https://github.com/connectwithub/loopkeeper",
+  "repository": "https://github.com/connectwithub/loopkeeper",
+  "metadata": { "minimumClaudeCode": "2.1.294" },
+  "types": "./types/index.d.ts"
+}

@@ -1,0 +1,47 @@
+{
+  "name": "loopkeeper",
+  "owner": { "name": "connectwithub" },
+  "metadata": { "description": "The loopkeeper core and its add-on plugins for Claude Code" },
+  "plugins": [
+    {
+      "name": "loopkeeper",
+      "source": "./plugins/loopkeeper",
+      "description": "A stage machine with approval gates, change-control gates with a plan-scoped file budget, model routing, bounded review loops and a decision log in one plugin."
+    },
+    {
+      "name": "lk-pr-watch",
+      "source": "./plugins/lk-pr-watch",
+      "description": "PR and CI state for the current branch above the prompt, a /pr pane, toasts on transitions, and a note to Claude when a check fails."
+    },
+    {
+      "name": "lk-token-budget",
+      "source": "./plugins/lk-token-budget",
+      "description": "A token budget for the session and each subagent, and a prompt-cache timer: a band with the cache countdown and cold-resend cost, pings before it goes cold, a manual Keep warm and an opt-in capped auto keep-warm, and a /budget pane."
+    },
+    {
+      "name": "lk-agent-map",
+      "source": "./plugins/lk-agent-map",
+      "description": "An agent deck for the session's subagents: cards with cost, tokens, context, model, effort and progress, spawn caps, tree and team views, permission waits, idle alerts and a per-agent Stop button, in an /agent-map pane and a band."
+    },
+    {
+      "name": "lk-attention",
+      "source": "./plugins/lk-attention",
+      "description": "Tells you when Claude needs you or finished something long: a native GNOME notification, a sound, a toast, a band above the prompt and an /attention inbox."
+    },
+    {
+      "name": "lk-handoff-guard",
+      "source": "./plugins/lk-handoff-guard",
+      "description": "Never lose a session to the context limit: watches context fill, writes a session handoff into the project's .claude/brain/ folder before it is too late, then clears and resumes from it."
+    },
+    {
+      "name": "lk-secret-guard",
+      "source": "./plugins/lk-secret-guard",
+      "description": "A seatbelt that stops credential-shaped strings and a private deny-list of words from being written into files or shell commands, with a band and a /secret-guard pane."
+    },
+    {
+      "name": "lk-where-am-i",
+      "source": "./plugins/lk-where-am-i",
+      "description": "One line above the prompt with the repo, branch and worktree, how dirty it is, and the account's usage windows and prompt cache, with a /where pane."
+    }
+  ]
+}

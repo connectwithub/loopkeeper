@@ -1,0 +1,12 @@
+{
+  "name": "lk-pr-watch",
+  "version": "0.3.1",
+  "description": "PR and CI state for the current branch above the prompt, a /pr pane, toasts on transitions, and a note to Claude when a check fails",
+  "author": { "name": "connectwithub" },
+  "license": "MIT",
+  "homepage": "https://github.com/connectwithub/loopkeeper",
+  "repository": "https://github.com/connectwithub/loopkeeper",
+  "keywords": ["github", "pull-requests", "ci", "function-hooks"],
+  "metadata": { "minimumClaudeCode": "2.1.294" },
+  "types": "./types/index.d.ts"
+}

@@ -1,0 +1,7 @@
+.claude/
+**/.claude-plugin/types/
+tsconfig.json
+.impeccable/
+node_modules/
+*.log
+.DS_Store
