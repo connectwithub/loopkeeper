@@ -15,7 +15,7 @@ For people who hand Claude Code real, multi-file work and want it to plan first,
 
 loopkeeper is a set of Claude Code plugins in one repository, which is also their marketplace. The core plugin, `loopkeeper`, runs a task loop (plan, validate the plan, execute, verify, QA, ship) and enforces it with hooks that share state: approval gates, a file budget per turn tied to the approved plan, protected paths, a ship gate, merge and amend guards, model routing by role, bounded review loops and a decision log. A call the rules refuse does not run. The seven `lk-` add-ons are optional: each works with or without the core, and each turns on or off on its own.
 
-**Contents:** [Why loopkeeper](#why-loopkeeper) · [Install](#install) · [A 60-second tour](#a-60-second-tour) · [The plugins](#the-plugins) · [/lk](#lk-the-hub-and-every-command) · [/agent-map](#agent-map-parts-and-commands) · [Use cases](#use-cases) · [Requirements](#requirements) · [Data handling](#data-handling-and-footprint) · [Turning things off](#turning-things-off) · [FAQ](#faq) · [Contributing](#contributing) · [Credits](#credits) · [License](#license)
+**Contents:** [Why loopkeeper](#why-loopkeeper) · [Mods with a real UI](#mods-with-a-real-ui) · [Install](#install) · [A 60-second tour](#a-60-second-tour) · [The plugins](#the-plugins) · [/lk](#lk-the-hub-and-every-command) · [Decisions](#decisions-a-log-that-keeps-itself) · [/agent-map](#agent-map-parts-and-commands) · [Use cases](#use-cases) · [Requirements](#requirements) · [Data handling](#data-handling-and-footprint) · [Turning things off](#turning-things-off) · [FAQ](#faq) · [Contributing](#contributing) · [Credits](#credits) · [License](#license)
 
 ## Why loopkeeper
 
@@ -25,6 +25,54 @@ loopkeeper is a set of Claude Code plugins in one repository, which is also thei
 - **One hub for every pane.** `/lk` opens a hub with the stage, a row per panel (digits `1` to `6`) and a key for each installed add-on.
 - **Take only what you need.** The seven add-ons cover subagents, tokens and the prompt cache, the context limit, alerts, the repo you are in, pull requests and secrets. Each is its own plugin and turns off with one command.
 - **Tested and disclosed.** Every plugin has its own test suite, and CI runs them on Claude Code 2.1.294 and, as a canary, on the latest release. No plugin sends telemetry; the core has no network of its own; [SECURITY.md](SECURITY.md) lists what each plugin reads, writes, runs and calls. MIT licensed.
+
+## Mods with a real UI
+
+loopkeeper's plugins are Claude Code mods. A mod is a hooks module that draws inside the session, not only a slash command that prints text. The set draws four kinds of thing:
+
+- **Panes**: a screen of cards, tiles, chips and buttons. The desktop app opens a pane as a panel. The terminal draws the same pane as text.
+- **Bands**: one line above the prompt, with a bold label, a few coloured chips and a count or a button.
+- **Buttons and single keys**: a band or a pane can carry buttons (Approve, Record, Skip, Write, Stop), and the single keys in a pane press them or switch panel.
+- **Toasts and notices**: a short message when something changes, and a dim next-step line in the chat after each answer.
+
+The desktop app, VS Code and mobile draw rounded chips, avatars and progress bars. The terminal draws the same panes as text, with each chip as `● text`. Nothing is left out on the terminal; it is only plainer.
+
+### The hub: `/lk` controls everything
+
+Type `/lk` with no words to open the hub. It shows:
+
+- the **hero**: the stage you are in and the next step, in one sentence;
+- a **row per panel**, keys `1` to `6`;
+- a **key per installed add-on**: `m` Agents, `u` Budget, `h` Handoff, `t` Attention, `w` Where, `p` PRs, `s` Secrets;
+- the **actions**: `a` approves what waits (shown only while something waits), `o` turns loopkeeper on or off, `c` closes the hub.
+
+Every loopkeeper pane starts with a nav row, `0 Hub 1 Stage 2 Gates 3 Files 4 Routes 5 Reviews 6 Decisions`. Press `0` in any pane to go back to the hub, or a digit to switch panel. Claude Code lets a plugin bind keys only inside its own panes and band, so the keys work while a loopkeeper pane has the focus. From the prompt box, `ctrl+x` then `tab` moves the focus to the band or to a pane that opened without it.
+
+An add-on key opens that add-on's pane (for Handoff, `/handoff show`; it never writes a handoff by itself). On the desktop app a press runs the command. On the terminal it fills an empty prompt box with the command for you to send with Enter.
+
+### Every pane in the set
+
+| Pane | Open it with | What you see |
+| --- | --- | --- |
+| Hub | `/lk` | The stage hero with the next step, the panel rows, the add-on keys and the actions. |
+| Stage (`1`) | `/lk stage` | The stage stepper, where the task is, and what waits for you. |
+| Gates (`2`) | `/lk gates` | The plan, file budget and ship gates, and the session switches. |
+| Files (`3`) | `/files`, or `/lk gates files` | What Claude read and edited this session, and the project tree. |
+| Routes (`4`) | `/lk routes` | The model each role's subagents get. |
+| Reviews (`5`) | `/reviews` | Each review loop's cycle, score and open items. |
+| Decisions (`6`) | `/decisions` | Today's count, the log in use, major decisions waiting for Record or Skip, recent decisions and learned preferences. |
+| Agents (`m`) | `/agent-map cards` | A card per subagent with cost, tokens, context, model, effort and progress. Tree and team views too. |
+| Budget (`u`) | `/budget` | Tiles for context, cache, cold resend and session cost. |
+| Handoff (`h`) | `/handoff show` | The handoff state, the last 10 readings, the last brief and a Write button. |
+| Attention (`t`) | `/attention` | The inbox of moments when Claude needed you or finished a long turn, with Mark all seen. |
+| Where (`w`) | `/where` | Where you are: repo, branch and worktree, with changed, unpushed, cache and cost tiles. |
+| PRs (`p`) | `/pr` | The branch's pull request as a hero, a tile per watched PR, and a card per PR with its checks bar and a link to each check's run. |
+| Secrets (`s`) | `/secret-guard` | The last block, blocked and allowed counts, the on or off switch, the last 20 decisions (masked) and the rules. |
+
+### Bands on and off
+
+- The core's bands: `/lk band [stage|gates|files|routing|review|decisions] on|off`. With no name, every core band.
+- Each add-on has its own: `/agent-map band on|off`, `/budget band on|off`, `/handoff band on|off`, `/attention band on|off`, `/where band on|off`, `/pr band on|off`, `/secret-guard band on|off`.
 
 ## Install
 
@@ -75,61 +123,45 @@ There is nothing else to install: no `npm install` and no build step.
 
 ## A 60-second tour
 
-The blocks below are terminal renderings from [docs/renderings.md](docs/renderings.md) and the [lk-agent-map README](plugins/lk-agent-map/README.md). The state behind them and every figure in them are illustrative. On the desktop app, VS Code and mobile the same panes draw icons, pills, avatars and progress bars as Svg; the terminal draws them as text.
+Screenshots from the Claude Code desktop app, taken while this repository was being built with loopkeeper itself. Costs, token totals, paths from the author's machine and the entries of the decision log are blurred. In the terminal the same panes draw as text.
 
-**The band.** One line per concern above the prompt. Here a large plan of 13 files was validated and approved, so the turn may touch 13 + 10 = 23 files; two are done, and shipping is held until you approve it.
+**The band.** One line per concern above the prompt: the stage, the gates, the files touched, routing, decisions and each add-on (agents, attention, handoff, budget, where you are).
 
-```text
-stage ✓ ─ ✓ ⚑ ⇄ ─ ● Execute ─ ○ ⇄ ─ ○ ─ ○ ⚑ · in Execute <1m · budget 23
-gates  ● 2/23 files  ● plan ok  ● merge gate  ● ship held              budget 23
-files  ● 2 touched
-routing  ● on  ● loop  recon→haiku · exec→sonnet · verify→sonnet · hard→opus · …
-review  ● landing-page.png cycle 2/4  ● 1 open                         8.0 → 9.0
-decisions  ● 2 this session
-```
+<img src="docs/assets/screens/band.png" alt="The band above the prompt: one line per concern, from agents and budget to the stage, gates, files, routing and decisions." width="860">
 
-**The hub** (`/lk`). The stage and the next step, one row per panel, a key per add-on, and the actions.
+**The hub** (`/lk`) and the **Stage** panel (`1`). The hub holds the stage, the next step, a row per panel and a key per add-on. The Stage panel shows the loop, the gates still waiting and the recent history of moves.
 
-```text
-╭──────────────────────────────────────────────────────────────────────────────╮
-│ LOOPKEEPER                                                                   │
-│ ⚑ Execute · 3 of 6                                                           │
-│ preset gsd · approval auto · GSD on                                          │
-╰──────────────────────────────────────────────────────────────────────────────╯
-Next: Validate. Claude moves on when it starts that work, or /lk next.
+<table>
+<tr>
+<td><img src="docs/assets/screens/hub.png" alt="The /lk hub: the current stage, the next step, one row per panel and a key for each add-on." width="300"></td>
+<td><img src="docs/assets/screens/stage.png" alt="The Stage panel: the loop from Plan to Ship, the gates with their state, and the history of moves." width="300"></td>
+</tr>
+</table>
 
-PANELS
-1: Stage ✓ Plan ─ ✓ Validate plan ⚑ ⇄ ─ ● Execute ─ ○ Validate ⇄ ─ ○ QA ─ ○ Shi…
-2: Gates on · 2/23 files · plan ok · merge gate · ship held · budget 23
-3: Files 2 touched · last: edited cache.test.ts
-4: Routes GSD on · routed 0
-5: Reviews 1 active of 1 subjects
-6: Decisions 2 this session · watch off
+**Gates** (`2`) and **Files** (`3`). The rules in force with where each came from, the protected paths, this turn's files and the last 20 gate decisions; then what Claude is reading or editing right now, the branch, and every file Claude touched, with chips for opened, edited and created.
 
-OTHER MODS
-m: Agents  u: Budget  h: Handoff  t: Attention  w: Where  p: PRs  s: Secrets
+<table>
+<tr>
+<td><img src="docs/assets/screens/gates.png" alt="The Gates panel: files per turn, plan and ship state, the rules and their sources, protected paths and the decision log." width="300"></td>
+<td><img src="docs/assets/screens/files.png" alt="The Files panel: what Claude is doing now, the branch, and the files Claude touched with chips; machine paths blurred." width="300"></td>
+</tr>
+</table>
 
-o: GSD off  c: Close
-```
+**Routes** (`4`), **Reviews** (`5`) and **Decisions** (`6`). Which model each role runs on and the recent routed spawns; each bounded review loop with its rounds and open items; the project's decision log.
 
-**The agent map** (`/agent-map`). Tiles over all subagents, then one card per agent: what it is doing, the model and effort it runs on, its own task list's progress, and its context, tokens, cost estimate and time.
+<table>
+<tr>
+<td><img src="docs/assets/screens/routes.png" alt="The Routes panel: GSD mode, the route per role and the recent routed spawns." width="260"></td>
+<td><img src="docs/assets/screens/reviews.png" alt="The Reviews panel: a review loop's round, open items by priority and the verdict, and every subject." width="260"></td>
+<td><img src="docs/assets/screens/decisions.png" alt="The Decisions panel: totals, the log file and the recent decisions; entry text blurred." width="260"></td>
+</tr>
+</table>
 
-```text
-┌──────────────────────┐ ┌──────────────────────┐ ┌────────────────────┐
-│ Cost                 │ │ Tokens               │ │ Time               │
-│ ≈$0.10               │ │ 60k                  │ │ 1:10               │
-└──────────────────────┘ └──────────────────────┘ └────────────────────┘
+**The agent map** (`/agent-map`, add-on). Tiles over all subagents, then one card per agent: what it is doing, its effort and model, its tool count and progress bar, and a Stop button while it runs.
 
-[ Collapse ]  [ Cards ]  [ Tree ]  [ Team ]
+<img src="docs/assets/screens/agent-map.png" alt="lk-agent-map's cards: one per subagent with an avatar, effort, model, tool count and a progress bar; costs and tokens blurred." width="300">
 
-AGENTS · 2                                                     1 RUNNING
-╭──────────────────────────────────────────────────────────────────────╮
-│ ◆ ▸ build the signup form                                    ●  Stop │
-│   careful Opus 5.5 · high                                            │
-│   4/5 · Signup                             ctx 20% · 40k ≈$0.10 0:40 │
-│   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╌╌╌╌╌╌╌╌╌╌╌╌ 80%  │
-╰──────────────────────────────────────────────────────────────────────╯
-```
+Text renderings of every pane, for the terminal, are in [docs/renderings.md](docs/renderings.md).
 
 ## The plugins
 
@@ -259,6 +291,55 @@ The core registers five tools, named `mcp__loopkeeper__<name>`. Claude calls the
 | `review_item` | Adds an open review item, or closes one with a proof. |
 | `review_status` | Shows one subject's loop state, or all of them. |
 | `record_decision` | Appends a decision to the project's log. |
+
+## Decisions: a log that keeps itself
+
+A project makes choices all the time: a library, a data model, a naming rule, a trade-off. Without a record, the next session, a subagent or a teammate asks the same question again and argues it out again. The decision log keeps each choice with its reason, in a file in your repo, so the answer stays put.
+
+### Where the entries go
+
+The log is found in this order, and the first file that exists is used:
+
+1. `docs/decisions/decisions.jsonl`
+2. `.claude/brain/decisions.md`
+3. `brain/decisions.md`
+4. `DECISION_JOURNAL.md`
+
+If none exists and `docs/decisions/` holds ADR files (`ADR-0001-…` or `0001-….md`), a new `docs/decisions/decisions.jsonl` is started there. Otherwise the log is `.claude/decisions.jsonl`.
+
+To choose the file yourself, set these in `<project>/.claude/loopkeeper.json`, under `decisions`:
+
+- `file`: a path inside the project, such as `docs/decisions/decisions.jsonl`.
+- `format`: `jsonl`, `markdown` (`brain-md` is accepted as an alias) or `journal-md`.
+
+Both are read from the project file only. Each write appends one entry. A write that would change text already in the file is refused.
+
+### How entries get there
+
+- **Claude records them.** `record_decision` is a tool every session has. With GSD mode on, Claude's rules tell it to record each settled decision with that tool, right after the choice is made. Each entry keeps the decision, the why, the tags, the date and the session.
+- **You record them.** `/decide <decision> -- <why> #tag #tag`. The `-- <why>` and the tags are optional.
+- **The watch** (optional, off by default) reads your turns and proposes entries. See below.
+
+### The Decisions pane and band
+
+The band above the prompt shows `decisions  N this session`, with a `watch on` chip while the watch runs. Key `6` in the hub, or `/decisions`, opens the pane: decisions today, the log in use, major decisions waiting for Record or Skip, the last 20 decisions, the learned preferences and the watch button. `/decisions text` prints the list in the chat. `/decisions band on|off` hides or shows the band.
+
+### Learned preferences
+
+`/decide prefs` lists the preferences the watch has learned for this project, newest last. `/decide prefs clear` forgets them. Only the watch adds them, and only from things you showed or said, such as "Prefer small commits".
+
+### The decision watch
+
+The watch is off by default. Turn it on with `/decide watch on`, or set `decisions.watch` to `true` in the config. `/decide watch status` shows its state, and `/decide watch model <haiku|sonnet|model id>` picks its model (`haiku` by default).
+
+When it is on, a turn is read only if it has at least 200 characters and a cue word such as "decide", "use", "prefer", "switch" or "convention". The last prompt and answer of that turn, the recent logged decisions and the learned preferences go to the model on your own session, through Claude Code. The watch makes at most 20 calls an hour across sessions.
+
+- A **minor** decision (naming, a local default, a small trade-off) is recorded at once, with one toast.
+- A **major** decision (an architecture, library, framework or data-model choice, an API contract, security, a convention for the project, anything costly to reverse) waits in the band as a card with **Record** (`r`) and **Skip** (`s`). A skipped decision is never offered again for that project.
+
+### Why it helps
+
+Say a session settles on a SQLite cache because the app runs on one machine. The choice and its reason go into the log, and the band reads `decisions  1 this session`. Months later a new session suggests a network cache. The entry is there with its reason, so the answer is a short look at the file, not a new debate. If the reason no longer holds, the team changes the decision on purpose, and the log shows what was decided and why.
 
 ## /agent-map: parts and commands
 

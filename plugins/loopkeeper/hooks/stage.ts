@@ -173,7 +173,7 @@ const CONCERN_WORDS = ['stage', 'gates', 'files', 'routing', 'review', 'decision
 const HUB_MODS = [
   { key: 'mod-agents', hotkey: 'm', label: 'Agents', command: 'agent-map', args: 'cards', plugins: ['lk-agent-map', 'agent-map'], text: '/agent-map cards' },
   { key: 'mod-budget', hotkey: 'u', label: 'Budget', command: 'budget', args: '', plugins: ['lk-token-budget', 'token-budget'], text: '/budget' },
-  { key: 'mod-handoff', hotkey: 'h', label: 'Handoff', command: 'handoff', args: '', plugins: ['lk-handoff-guard', 'handoff-guard'], text: '/handoff' },
+  { key: 'mod-handoff', hotkey: 'h', label: 'Handoff', command: 'handoff', args: 'show', plugins: ['lk-handoff-guard', 'handoff-guard'], text: '/handoff show' },
   { key: 'mod-attention', hotkey: 't', label: 'Attention', command: 'attention', args: '', plugins: ['lk-attention', 'attention'], text: '/attention' },
   { key: 'mod-where', hotkey: 'w', label: 'Where', command: 'where', args: '', plugins: ['lk-where-am-i', 'where-am-i'], text: '/where' },
   { key: 'mod-prs', hotkey: 'p', label: 'PRs', command: 'pr', args: '', plugins: ['lk-pr-watch', 'pr-watch'], text: '/pr' },

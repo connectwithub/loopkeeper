@@ -1003,9 +1003,8 @@ export const register: Register = (on, options) => {
   on('classic.PermissionRequest', async ($, e, next) => {
     try {
       dialogSignal = true
-      const o = e as unknown as Record<string, unknown>
-      const loop = str(o, 'agent_id', 'agentId') ?? MAIN
-      const tool = str(o, 'tool_name', 'tool')
+      const loop = str(e, 'agent_id', 'agentId') ?? MAIN
+      const tool = str(e, 'tool_name', 'tool')
       for (const [k, p] of pendingAsks) {
         if (p.loop === loop && (!tool || p.tool === tool)) {
           await markWaiting($, k)
@@ -1022,11 +1021,10 @@ export const register: Register = (on, options) => {
   // pending ask for it is dropped and a shown ⏸ waiting clears
   on('classic.PreToolUse', async ($, e, next) => {
     try {
-      const o = e as unknown as Record<string, unknown>
-      let toolUseId = str(o, 'tool_use_id')
+      let toolUseId = str(e, 'tool_use_id')
       if (!toolUseId) {
-        const tool = str(o, 'tool_name', 'tool')
-        for (const [k, p] of pendingAsks) if (p.tool === tool && p.loop === (str(o, 'agentId', 'agent_id') ?? MAIN)) toolUseId = k
+        const tool = str(e, 'tool_name', 'tool')
+        for (const [k, p] of pendingAsks) if (p.tool === tool && p.loop === (str(e, 'agentId', 'agent_id') ?? MAIN)) toolUseId = k
       }
       if (toolUseId) {
         const id = toolUseId
@@ -1036,7 +1034,7 @@ export const register: Register = (on, options) => {
           waited = Object.values(m).filter(a => a.waiting?.some(w => w.toolUseId === id)).map(a => a.id)
           return clearWaiting(m, id)
         })
-        for (const w of waited) await logEvent($, w, 'resumed', 'approved: ' + (str(o, 'tool', 'tool_name') ?? 'tool'))
+        for (const w of waited) await logEvent($, w, 'resumed', 'approved: ' + (str(e, 'tool', 'tool_name') ?? 'tool'))
       }
     } catch {
       // Observing only

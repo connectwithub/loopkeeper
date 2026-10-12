@@ -144,7 +144,12 @@ type LkNext = (e: any) => Promise<{ text?: string } | undefined>
 
 // ---- Fail closed, and the kill switch (both borrowed from scope-guard) ---------------------------------------
 
-async function failClosed($: EngineInterface, e: unknown, next: { error?: { kind?: string; message?: string } }): Promise<CheckResult> {
+// One catch handler per gating hook: the directory follows a handler only when one top-level function serves one hook.
+async function failClosedEdit($: EngineInterface, e: unknown, next: { error?: { kind?: string; message?: string } }): Promise<CheckResult> {
+  return { decision: 'deny', reason: failClosedReason(next.error?.kind ?? 'throw', String(next.error?.message ?? '')) }
+}
+
+async function failClosedBash($: EngineInterface, e: unknown, next: { error?: { kind?: string; message?: string } }): Promise<CheckResult> {
   return { decision: 'deny', reason: failClosedReason(next.error?.kind ?? 'throw', String(next.error?.message ?? '')) }
 }
 
@@ -1297,7 +1302,7 @@ export function wireGates(on: On): void {
     }
     if (why !== null) return { decision: 'deny', reason: why }
     return next(e)
-  }).catch(failClosed)
+  }).catch(failClosedEdit)
 
   on('tool.check', { tool: 'Bash' }, async ($, e, next) => {
     const command = (typeof e.input === 'object' && e.input !== null ? (e.input as Record<string, unknown>) : {}).command
@@ -1322,7 +1327,7 @@ export function wireGates(on: On): void {
     }
     if (why !== null) return { decision: 'deny', reason: why }
     return next(e)
-  }).catch(failClosed)
+  }).catch(failClosedBash)
 
   // The rules block: what the gates enforce this session, with the limit in force.
   on('prompt.context', {}, async ($, e, next) => {

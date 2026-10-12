@@ -244,41 +244,37 @@ async function ownWord($: EngineInterface, sub: string, rest: string[], text: st
   return undefined
 }
 
+// The routing line for a /lk word other concerns also answer (status, reload, band, on, off)
+async function sharedLine($: EngineInterface, sub: string, rest: string[]): Promise<string> {
+  if (sub === 'status') {
+    return statusLine(
+      (await read($, routeMode)) === true,
+      (await read($, routeLoop)) !== false,
+      await currentConfig($),
+      (await read($, routeRouted)) ?? 0,
+      (await read($, routeDisabled)) === true,
+    )
+  }
+  if (sub === 'reload') {
+    await loadKill($)
+    return 'Routing config re-read. Routing table:\n' + tableRows(await loadAll($))
+  }
+  if (sub === 'band') return bandWord($, rest)
+  await setMode($, sub === 'on')
+  return modeText($, sub === 'on')
+}
+
 async function lk($: EngineInterface, e: { args?: unknown }, next: LkNext): Promise<{ text?: string } | undefined> {
   const { sub, rest, text } = subOf(e?.args)
-  const shared = async (mine: () => Promise<string>) => {
+  if (sub === 'status' || sub === 'reload' || sub === 'band' || sub === 'on' || sub === 'off') {
     const r = await next(e)
     let line = ''
     try {
-      line = await mine()
+      line = await sharedLine($, sub, rest)
     } catch {
       line = `${PLUGIN}: routing could not answer "${sub}".`
     }
     return { ...(r ?? {}), text: joinText(line, r?.text) }
-  }
-  if (sub === 'status') {
-    return shared(async () =>
-      statusLine(
-        (await read($, routeMode)) === true,
-        (await read($, routeLoop)) !== false,
-        await currentConfig($),
-        (await read($, routeRouted)) ?? 0,
-        (await read($, routeDisabled)) === true,
-      ),
-    )
-  }
-  if (sub === 'reload') {
-    return shared(async () => {
-      await loadKill($)
-      return 'Routing config re-read. Routing table:\n' + tableRows(await loadAll($))
-    })
-  }
-  if (sub === 'band') return shared(() => bandWord($, rest))
-  if (sub === 'on' || sub === 'off') {
-    return shared(async () => {
-      await setMode($, sub === 'on')
-      return modeText($, sub === 'on')
-    })
   }
   let own: { text?: string } | undefined
   try {
