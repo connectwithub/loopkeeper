@@ -1,6 +1,20 @@
 # lk-handoff-guard
 
-An add-on plugin of the loopkeeper set (its command stays `/handoff`). Never lose a session to the context limit. The plugin watches context fill and writes a session handoff into the project's handoff folder, `.claude/brain/` (see [The handoff folder](#the-handoff-folder)), before the limit is reached. It then clears the session and continues from that handoff.
+An add-on plugin of the loopkeeper set (its command stays `/handoff`). Never lose a session to the context limit. The plugin watches context fill and writes a session handoff into the project's handoff folder, `.claude/brain/` (see [The handoff folder](#the-handoff-folder)), before the limit is reached. It then clears the session and continues from that handoff. What the session knew is written down as plain Markdown (status, next steps, dead ends, decisions, open questions) that you and the next session can read, instead of living only in the summary a compaction makes.
+
+**Use it when**
+
+- Long sessions keep running into the context limit, or auto-compaction lands in the middle of a task.
+- You want a plain-file record in the repo of where each session left off and what was decided.
+- You pick work up in a later session, or hand it to someone else, and want it to start from a written brief.
+
+**Install:** `/plugin install lk-handoff-guard@loopkeeper`, after `/plugin marketplace add connectwithub/loopkeeper` (more under [Install](#install)). Requires Claude Code 2.1.294 or later.
+
+**Data handling:** it keeps its settings, the last brief and a pending resume entry in its own plugin store, and its context readings in session state. It reads `~/.claude/handoff-guard.json` and `<project>/.claude/handoff-guard.json`, and writes only the four handoff files in `<project>/.claude/brain/`. It runs read-only `git rev-parse` and `git log`. Each handoff makes one model call on your own Claude Code session, which spends tokens on your account; it sends nothing over the network of its own. It collects no personal data; the handoff files and saved settings stay until you delete them. Details under [Footprint](#footprint).
+
+**Commands:** `/handoff` and its options are listed under [Commands](#commands).
+
+How it behaves as the context fills:
 
 - Below `warnAt` (70%): a quiet band, `handoff ● ctx 41%` in the ok colour.
 - At `warnAt`: the chip turns to the Claude orange (the kit's accent tone, not the theme's warning colour), and one toast says "context 72%: run /handoff when you reach a stopping point".

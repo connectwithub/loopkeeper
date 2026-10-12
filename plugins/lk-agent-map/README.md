@@ -1,6 +1,18 @@
 # lk-agent-map
 
-An add-on plugin of the loopkeeper set (its command stays `/agent-map`). An agent deck for the session's subagents. It caps how many agents a session may spawn, warns before their results eat the main context, and shows each agent as a card with its cost, tokens, context fill, model, effort and task progress, a tree row, or a member of its team's lane. It also shows who spawned whom, what each one is doing right now, how long it has run, the messages between agents, and which ones wait on you. Each running agent has a Stop button.
+An add-on plugin of the loopkeeper set (its command stays `/agent-map`). An agent deck for the session's subagents. It caps how many agents a session may spawn, warns before their results eat the main context, and shows each agent as a card with its cost, tokens, context fill, model, effort and task progress, a tree row, or a member of its team's lane. It also shows who spawned whom, what each one is doing right now, how long it has run, the messages between agents, and which ones wait on you. Each running agent has a Stop button. When a run fans out, you see at a glance which agents are working, which are stuck or waiting on you and what each costs, and a runaway spawn loop stops at a cap you set.
+
+**Use it when**
+
+- You run orchestrated work that spawns many subagents and want to see what each one is doing and what it costs.
+- You want a ceiling on how many agents run at once, per turn or per session, so a spawn loop can't run away.
+- Subagent results fill the main context and you want a warning while there is still room to `/compact` or hand off.
+
+**Install:** `/plugin install lk-agent-map@loopkeeper`, after `/plugin marketplace add connectwithub/loopkeeper` (more under [Install](#install)). Requires Claude Code 2.1.294 or later.
+
+**Data handling:** it keeps the band setting, the caps you save with `/agent-map cap` and the chosen view in its own plugin store, and the agents' state in session state; the cap rows set in `/config` live in Claude Code's own settings. It reads `~/.claude/agent-map.json` and `<project>/.claude/agent-map.json` and writes no file. It runs no process, makes no model calls and sends nothing over the network; the only tool it calls is `TaskStop`, for one agent, after you press that agent's **Stop** twice. It collects no personal data; the saved settings stay until you delete them. Details under [Footprint](#footprint).
+
+**Commands:** `/agent-map` and its options are listed under [Commands](#commands).
 
 The pane opens on the **Agents** cards, drawn with the kit (`hooks/kit.ts`, a verbatim copy of the loopkeeper core's kit v3): round, unfilled cards whose colors are theme keys, so they read in light and dark themes. In the Desktop app each card has a pixel critter avatar and a progress bar drawn as Svg; in the terminal the avatar is the role glyph and the bar is text. An example (the figures are illustrative):
 
@@ -52,6 +64,22 @@ main (orchestrator) · 1.0M tok · 14 tools
 ● running · ✓ done · ✗ failed (API error, refusal, or a failed hook) · ○ aborted (interrupted) · ■ stopped (with who stopped it)
 
 ⑂ a fork of its parent · ◇ a teammate · ⏸ a tool call waiting on your permission answer · ⚠ idle past the alert threshold · ⊘ muted
+
+## Commands
+
+| Command | What it does |
+| :- | :- |
+| `/agent-map` | Open the pane and focus it (Esc closes it) |
+| `/agent-map clear` | Remove finished agents (done, failed, aborted). Running agents stay. |
+| `/agent-map band on` / `off` | Show or hide the band. The setting is saved in `$.store` and kept between sessions. |
+| `/agent-map text` | Print the chosen view (tree, cards or team) as plain text in the transcript; the tree when none was chosen. Use it on the mobile app or anywhere panes don't draw. |
+| `/agent-map cards` / `tree` / `team` | Switch the pane's view and open it. Saved between sessions. `/agent-map view cards\|tree\|team` does the same. |
+| `/agent-map log` | Print the last 40 lifecycle events |
+| `/agent-map cap` | Show the caps and where each stands |
+| `/agent-map cap concurrent <n>` / `turn <n>` / `session <n>` | Set a spawn cap; `0` turns it off |
+| `/agent-map cap returned <k>` | Set the returned-tokens budget in thousands (`200` or `200k`) |
+| `/agent-map cap warn <0.1-1>` / `grace <ms>` | Set `warnAt`, or the waiting grace (`0` marks at once) |
+| `/agent-map cap reset [kind]` | Clear what `/agent-map cap` saved for that kind (`concurrent`, `turn`, `session`, `returned`, `warn`, `grace`), or for every kind; the value from the files, the settings or the defaults comes back |
 
 ## What it shows
 
@@ -131,22 +159,6 @@ The text each Agent tool call returns to its caller is measured (characters / 4)
 - **Team** (`/agent-map team`): lanes by parent. `team of main: 3 running · 2 done` first, then each agent's children in a lane indented under it, and teammates (◇) in a `teammates` lane of their own.
 - The choice is saved in `$.store`. The header's **Cards**, **Tree** and **Team** buttons switch, and **Log** shows the last 12 lifecycle events at the bottom. Until you choose, the pane draws the cards and `/agent-map text` prints the tree.
 - **Lifecycle log**: spawned (with cap counts), denied (with the cap), override answers, first tool, waiting, resumed, idle, stopped or muted, returned (result tokens), and done, failed or aborted with duration and tokens. `/agent-map log` prints the last 40.
-
-## Commands
-
-| Command | What it does |
-| :- | :- |
-| `/agent-map` | Open the pane and focus it (Esc closes it) |
-| `/agent-map clear` | Remove finished agents (done, failed, aborted). Running agents stay. |
-| `/agent-map band on` / `off` | Show or hide the band. The setting is saved in `$.store` and kept between sessions. |
-| `/agent-map text` | Print the chosen view (tree, cards or team) as plain text in the transcript; the tree when none was chosen. Use it on the mobile app or anywhere panes don't draw. |
-| `/agent-map cards` / `tree` / `team` | Switch the pane's view and open it. Saved between sessions. `/agent-map view cards\|tree\|team` does the same. |
-| `/agent-map log` | Print the last 40 lifecycle events |
-| `/agent-map cap` | Show the caps and where each stands |
-| `/agent-map cap concurrent <n>` / `turn <n>` / `session <n>` | Set a spawn cap; `0` turns it off |
-| `/agent-map cap returned <k>` | Set the returned-tokens budget in thousands (`200` or `200k`) |
-| `/agent-map cap warn <0.1-1>` / `grace <ms>` | Set `warnAt`, or the waiting grace (`0` marks at once) |
-| `/agent-map cap reset [kind]` | Clear what `/agent-map cap` saved for that kind (`concurrent`, `turn`, `session`, `returned`, `warn`, `grace`), or for every kind; the value from the files, the settings or the defaults comes back |
 
 ## Configuration
 

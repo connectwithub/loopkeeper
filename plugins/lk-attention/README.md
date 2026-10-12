@@ -1,6 +1,18 @@
 # lk-attention
 
-A Claude Code plugin, an add-on of the loopkeeper set (its command stays `/attention`), that tells you when Claude needs you or has finished something long, so you can look away while it works. It is built for Linux with GNOME, and it keeps an inbox of those moments.
+A Claude Code plugin, an add-on of the loopkeeper set (its command stays `/attention`), that tells you when Claude needs you or has finished something long, so you can look away while it works. It is built for Linux with GNOME, and it keeps an inbox of those moments. You stop checking back every few minutes for a permission prompt that has been sitting there all along.
+
+**Use it when**
+
+- You switch to another window while Claude works and want to know the moment a permission prompt or a question waits on you.
+- Long turns or background subagents finish while you are away, and you want a banner and a sound when they do.
+- You want one list of what happened while you were not looking.
+
+**Install:** `/plugin install lk-attention@loopkeeper`, after `/plugin marketplace add connectwithub/loopkeeper`; it needs Linux with GNOME (more under [Install](#install) and [Linux notes](#linux-notes)). Requires Claude Code 2.1.294 or later.
+
+**Data handling:** it keeps the settings you change with `/attention` in its own plugin store, and the inbox (its last 50 events) in session state only, so a new session starts empty. It reads `~/.claude/attention.json` and `<project>/.claude/attention.json` and writes no file. It runs `notify-send` (only when Claude Code's own notification call is missing) and `paplay` or `pw-play` for the sound, all on your machine; it makes no model calls and sends nothing over the network. Notifications carry Bash commands and questions clipped to one line, and your desktop's notification history keeps them. The bundled `assets/ding.wav` is a short tone generated for this plugin, not a recording, covered by its MIT license (see [Assets](#assets)). It collects no personal data; the saved settings stay until you delete them. Details under [Footprint](#footprint).
+
+**Commands:** `/attention` and its options are listed under [Commands](#commands).
 
 It raises an event when:
 

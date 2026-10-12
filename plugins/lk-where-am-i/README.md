@@ -1,6 +1,18 @@
 # lk-where-am-i
 
-A loopkeeper add-on for Claude Code that keeps one line above the prompt saying which repo, branch and worktree the session is in, how dirty it is, and how the account's usage windows and prompt cache are doing. Made for running many repos and worktrees at once.
+A loopkeeper add-on for Claude Code that keeps one line above the prompt saying which repo, branch and worktree the session is in, how dirty it is, and how the account's usage windows and prompt cache are doing. Made for running many repos and worktrees at once. A glance tells you which checkout this session will change before you ask it to change anything, and how close you are to a usage limit.
+
+**Use it when**
+
+- You run Claude Code in several repos or worktrees at once and want to see, before you type, which one this session is in.
+- You are on a subscription and want the 5-hour and 7-day usage windows in view without opening another tool.
+- You come back after a break and want to know whether the prompt cache is still warm and what is uncommitted or unpushed.
+
+**Install:** `/plugin install lk-where-am-i@loopkeeper`, after `/plugin marketplace add connectwithub/loopkeeper` (more under [Install](#install)). Requires Claude Code 2.1.294 or later. Its usage-window chips need a Claude subscription.
+
+**Data handling:** it keeps the settings you save with `/where` in its own plugin store (a JSON file under your Claude Code configuration folder) and the last git reading in session state. It reads `~/.claude/where-am-i.json`, runs read-only `git` in the session's folder and writes no file. It makes no model calls and sends nothing over the network. It collects no personal data; the saved settings stay until you delete them. Details under [What it runs](#what-it-runs).
+
+**Commands:** `/where` and its options are listed under [Commands](#commands).
 
 The band (the figures are examples):
 

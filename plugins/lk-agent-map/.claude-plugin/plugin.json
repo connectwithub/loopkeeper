@@ -1,11 +1,14 @@
 {
   "name": "lk-agent-map",
   "version": "0.6.2",
-  "description": "An agent deck for the session's subagents: cards with cost, tokens, context %, model, effort and task progress, spawn caps with a user-approved override, the context cost of each result, tree and team views with a lifecycle log, permission waits, idle alerts and a per-agent Stop button, in a pane and a one-line band.",
+  "description": "See and cap your subagents: cards with cost, tokens, context and progress, spawn caps with an override you approve, tree and team views, idle alerts and a Stop button.",
   "author": { "name": "connectwithub" },
   "license": "MIT",
   "homepage": "https://github.com/connectwithub/loopkeeper",
   "repository": "https://github.com/connectwithub/loopkeeper",
+  "keywords": ["claude-code", "mods", "subagents", "agent-teams", "spawn-caps", "tokens", "context-window", "monitoring"],
+  "documentationUrl": "https://github.com/connectwithub/loopkeeper/tree/main/plugins/lk-agent-map#readme",
+  "supportUrl": "https://github.com/connectwithub/loopkeeper/issues",
   "metadata": { "minimumClaudeCode": "2.1.294" },
   "types": "./types/index.d.ts",
   "userConfig": {

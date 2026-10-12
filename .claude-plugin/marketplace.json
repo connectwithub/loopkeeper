@@ -1,47 +1,73 @@
 {
   "name": "loopkeeper",
   "owner": { "name": "connectwithub" },
-  "metadata": { "description": "The loopkeeper core and its add-on plugins for Claude Code" },
+  "metadata": {
+    "description": "Keep Claude Code on a plan: stages, approval gates and a plan-scoped file budget enforced by hooks, plus seven add-ons for subagents, tokens, context, CI, secrets and alerts."
+  },
   "plugins": [
     {
       "name": "loopkeeper",
       "source": "./plugins/loopkeeper",
-      "description": "A stage machine with approval gates, change-control gates with a plan-scoped file budget, model routing, bounded review loops and a decision log in one plugin."
+      "description": "Keep Claude on a plan: a staged loop with approval gates, a plan-scoped file budget, protected paths, a ship gate, model routing, review loops and a decision log.",
+      "category": "workflow",
+      "tags": ["workflow", "gates", "approval", "planning", "file-budget", "model-routing", "code-review", "hooks"],
+      "keywords": ["workflow", "gates", "approval", "planning", "file-budget", "model-routing", "code-review", "hooks"]
     },
     {
       "name": "lk-pr-watch",
       "source": "./plugins/lk-pr-watch",
-      "description": "PR and CI state for the current branch above the prompt, a /pr pane, toasts on transitions, and a note to Claude when a check fails."
+      "description": "PR and CI state for the current branch above the prompt, toasts on transitions, and a note to Claude when a check fails. Works through your gh sign-in.",
+      "category": "workflow",
+      "tags": ["github", "pull-requests", "ci", "checks", "gh", "notifications"],
+      "keywords": ["github", "pull-requests", "ci", "checks", "gh", "notifications"]
     },
     {
       "name": "lk-token-budget",
       "source": "./plugins/lk-token-budget",
-      "description": "A token budget for the session and each subagent, and a prompt-cache timer: a band with the cache countdown and cold-resend cost, pings before it goes cold, a manual Keep warm and an opt-in capped auto keep-warm, and a /budget pane."
+      "description": "A token budget for the session and each subagent that warns, refuses new subagents or stops tool calls, and a prompt-cache timer with an opt-in keep-warm.",
+      "category": "monitoring",
+      "tags": ["tokens", "budget", "cost", "prompt-cache", "keep-warm", "subagents"],
+      "keywords": ["tokens", "budget", "cost", "prompt-cache", "keep-warm", "subagents"]
     },
     {
       "name": "lk-agent-map",
       "source": "./plugins/lk-agent-map",
-      "description": "An agent deck for the session's subagents: cards with cost, tokens, context, model, effort and progress, spawn caps, tree and team views, permission waits, idle alerts and a per-agent Stop button, in an /agent-map pane and a band."
+      "description": "See and steer your subagents: cards with cost, tokens, context and progress, tree and team views, spawn caps, permission waits, idle alerts and a Stop button.",
+      "category": "monitoring",
+      "tags": ["subagents", "agents", "dashboard", "monitoring", "cost", "tokens", "spawn-caps"],
+      "keywords": ["subagents", "agents", "dashboard", "monitoring", "cost", "tokens", "spawn-caps"]
     },
     {
       "name": "lk-attention",
       "source": "./plugins/lk-attention",
-      "description": "Tells you when Claude needs you or finished something long: a native GNOME notification, a sound, a toast, a band above the prompt and an /attention inbox."
+      "description": "Know when Claude needs you or finished something long: a desktop notification, a sound, a toast, a band and an /attention inbox. Linux with GNOME.",
+      "category": "productivity",
+      "tags": ["notifications", "alerts", "desktop", "sound", "gnome", "linux", "inbox"],
+      "keywords": ["notifications", "alerts", "desktop", "sound", "gnome", "linux", "inbox"]
     },
     {
       "name": "lk-handoff-guard",
       "source": "./plugins/lk-handoff-guard",
-      "description": "Never lose a session to the context limit: watches context fill, writes a session handoff into the project's .claude/brain/ folder before it is too late, then clears and resumes from it."
+      "description": "Don't lose a session to the context limit: watches context fill, writes a handoff into .claude/brain/ before the limit, then clears and resumes from it.",
+      "category": "productivity",
+      "tags": ["context", "context-window", "handoff", "session", "memory", "resume"],
+      "keywords": ["context", "context-window", "handoff", "session", "memory", "resume"]
     },
     {
       "name": "lk-secret-guard",
       "source": "./plugins/lk-secret-guard",
-      "description": "A seatbelt that stops credential-shaped strings and a private deny-list of words from being written into files or shell commands, with a band and a /secret-guard pane."
+      "description": "Stops credential-shaped strings and a private deny-list of words from being written into files or shell commands, by Claude or by any subagent.",
+      "category": "security",
+      "tags": ["secrets", "credentials", "security", "api-keys", "guard", "deny-list"],
+      "keywords": ["secrets", "credentials", "security", "api-keys", "guard", "deny-list"]
     },
     {
       "name": "lk-where-am-i",
       "source": "./plugins/lk-where-am-i",
-      "description": "One line above the prompt with the repo, branch and worktree, how dirty it is, and the account's usage windows and prompt cache, with a /where pane."
+      "description": "One line above the prompt with the repo, branch and worktree, how dirty it is, and the account's usage windows and prompt cache, plus a /where pane.",
+      "category": "productivity",
+      "tags": ["git", "branch", "worktree", "status-line", "usage", "prompt-cache"],
+      "keywords": ["git", "branch", "worktree", "status-line", "usage", "prompt-cache"]
     }
   ]
 }

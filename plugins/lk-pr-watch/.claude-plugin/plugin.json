@@ -1,12 +1,14 @@
 {
   "name": "lk-pr-watch",
   "version": "0.3.1",
-  "description": "PR and CI state for the current branch above the prompt, a /pr pane, toasts on transitions, and a note to Claude when a check fails",
+  "description": "Know when CI breaks without leaving the session: PR and check state above the prompt, a /pr pane, toasts on changes and a note to Claude when a check fails.",
   "author": { "name": "connectwithub" },
   "license": "MIT",
   "homepage": "https://github.com/connectwithub/loopkeeper",
   "repository": "https://github.com/connectwithub/loopkeeper",
-  "keywords": ["github", "pull-requests", "ci", "function-hooks"],
+  "keywords": ["claude-code", "mods", "github", "pull-requests", "ci", "status-checks", "gh-cli"],
+  "documentationUrl": "https://github.com/connectwithub/loopkeeper/tree/main/plugins/lk-pr-watch#readme",
+  "supportUrl": "https://github.com/connectwithub/loopkeeper/issues",
   "metadata": { "minimumClaudeCode": "2.1.294" },
   "types": "./types/index.d.ts"
 }

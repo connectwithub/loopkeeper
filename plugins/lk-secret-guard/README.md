@@ -1,6 +1,18 @@
 # lk-secret-guard
 
-A loopkeeper add-on for Claude Code: a seatbelt that stops credential-shaped strings, and a private deny-list of words, from being written into files or shell commands, by Claude or by any subagent.
+A loopkeeper add-on for Claude Code: a seatbelt that stops credential-shaped strings, and a private deny-list of words, from being written into files or shell commands, by Claude or by any subagent. A rule in a prompt can be forgotten; this check runs before every write, so a pasted API key or a word you never want in the repo does not end up in a file, a commit or a shell command.
+
+**Use it when**
+
+- You paste logs, configs or `.env` lines into prompts and want to be sure no key lands in a file Claude writes.
+- Some names (a client, a project, an internal host) must never appear in a public repo: put them on the private deny-list.
+- Subagents write files you don't read line by line.
+
+**Install:** `/plugin install lk-secret-guard@loopkeeper`, after `/plugin marketplace add connectwithub/loopkeeper` (more under [Install](#install)). Requires Claude Code 2.1.294 or later.
+
+**Data handling:** it keeps one setting (the band on or off) in its own plugin store, and its log and counts, masked, in session state. It reads `~/.claude/secret-guard.json` and `<project>/.claude/secret-guard.json` and writes no file. It runs no process, makes no model calls and sends nothing over the network. A matched value is only ever shown masked and is never stored. It collects no personal data; the saved setting stays until you delete it. Details under [What it runs and touches](#what-it-runs-and-touches).
+
+**Commands:** `/secret-guard` and its options are listed under [Commands](#commands).
 
 Needs Claude Code 2.1.294 or later.
 

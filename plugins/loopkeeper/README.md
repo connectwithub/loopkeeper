@@ -1,6 +1,18 @@
 # loopkeeper
 
-loopkeeper is a Claude Code plugin, the core of the [loopkeeper set](../../README.md), that runs a task loop (plan, validate the plan, execute, verify, QA, ship) and enforces its rules. It adds approval gates, a file budget per turn tied to the approved plan, protected paths, a ship gate, merge and amend guards, model routing by role, bounded review loops and a decision log. The rules are hooks with shared state, not instructions the model may ignore: a call the rules refuse does not run.
+loopkeeper is a Claude Code plugin, the core of the [loopkeeper set](../../README.md), that runs a task loop (plan, validate the plan, execute, verify, QA, ship) and enforces its rules. It adds approval gates, a file budget per turn tied to the approved plan, protected paths, a ship gate, merge and amend guards, model routing by role, bounded review loops and a decision log. The rules are hooks with shared state, not instructions the model may ignore: a call the rules refuse does not run. You agree on a plan once; with the gates on, Claude cannot edit before that plan is approved, change more files than it allows, or commit and push before you say so, and after `/lk approve` it carries on by itself.
+
+**Use it when**
+
+- A large change should follow a plan you approved, with Claude held at the gate instead of asked to wait.
+- Parts of the repo are off limits or need your OK first, such as `docs/decisions/`, migrations or `.env` files.
+- You want commits, pushes and merges held until you approve them, and merges to the default branch held until CI is green.
+
+**Install:** `/plugin install loopkeeper@loopkeeper`, after `/plugin marketplace add connectwithub/loopkeeper` (the add-ons are listed in the [set's README](../../README.md)).
+
+**Data handling:** it keeps its saved settings (such as the preset, the approval mode and the routes) in its own plugin store, and the loop's state in session state. It reads `~/.claude/loopkeeper.json` and `<project>/.claude/loopkeeper.json`, and writes only the review log, `.claude/loopkeeper-review.jsonl`, and the project's decision log. It runs read-only `git` and `gh` queries for the merge gate and the Files pane; the `gh` ones reach GitHub through your own `gh` sign-in. It has no network of its own and makes no model calls, except the decision watch, which is off by default and, when on, makes model calls on your own Claude Code session. It collects no personal data; what it saves stays until you delete it. Details under [Footprint](#footprint).
+
+**Commands:** `/lk` (also `/loopkeeper`), `/files`, `/reviews`, `/decide` and `/decisions` are listed under [Commands](#commands), and the five tools it gives the model under [Tools](#tools).
 
 Requires Claude Code 2.1.294 or later.
 
@@ -37,6 +49,92 @@ loopkeeper uses its own command names. The built-ins own `/loop` and `/code-revi
 | `/review` | `/reviews` | Same words: `text`, `status`, `clear`, `kinds`, `kind`, `target`, `max`, `ship`, `reopen`, `stop`, `band`, `context`. |
 | `/decide`, `/decisions`, `/files` | unchanged | |
 | tools `set_stage`, `review_cycle`, `review_item`, `review_status`, `record_decision` | `mcp__loopkeeper__<name>` | Same names and inputs. |
+
+## Commands
+
+Everything is under `/lk` (or `/loopkeeper`), except `/reviews`, `/decide`, `/decisions` and `/files`. Each word is answered by the concern that owns it; shared words (`status`, `text`, `reload`, `band`, `on`, `off`) are answered by every concern and joined in one reply.
+
+### `/lk`
+
+| Form | What it does |
+| --- | --- |
+| `/lk` | Opens the loopkeeper hub: the stage, one row per panel with its live status, the other mods and the actions. |
+| `/lk stage` | Opens the Stage pane. |
+| `/lk help` | Lists the keys (below). |
+| `/lk status`, `/lk text` | Status: stage, routing and gates. `text` is plain text. `/lk status` also says `Continue after approval: on` or `off`. |
+| `/lk <stage>`, `/lk next`, `/lk back` | Moves the stage. `<stage>` is an id of the current stages. `stage` and `help` are read as the words above, so a custom stage with one of those ids is reached with `next`, `back` or `set_stage`. |
+| `/lk approve` | Approves the current stage's gate or, from the stage before a gate, the next one, then asks the model to carry on (see Continue after approval). From the stage before (no gate of its own waiting, no budget waiting) it opens the next stage's gate and moves into it: at Plan in the gsd preset the Validate plan gate ("Approved the Validate plan gate and moved to Validate plan; Claude may start Execute."), at QA the Ship gate. The approval also vouches for the verifier of the stage it leaves and of the gate's stage. It never opens a gate two stages ahead; a gate already approved (after `/lk back`) is moved into without approving it again. At Validate plan, or opening it from Plan, it approves the planned file budget with the plan. At any other gate a planned budget that still waits comes first: this `/lk approve` approves the budget, the next one the gate. With the gate already open, or no gate, it approves a waiting budget. |
+| `/lk waive` | Waives the gate for the current task. |
+| `/lk size small\|large` | Sizes the task. |
+| `/lk small-max <n>` | The small-task limit for this session, 1 to 20. |
+| `/lk preset <name>` | Sets the stage preset for the project. |
+| `/lk approval auto\|ask` | Plan approval mode for the project. |
+| `/lk auto on\|off` | Automatic stage moves. |
+| `/lk reset` | Clears size, verdict, hold, waiver, files and the approved budget. |
+| `/lk on\|off` | GSD mode. |
+| `/lk loop on\|off` | The loop: the `gsd` preset and the plan gate with it. |
+| `/lk reload` | Re-reads `loopkeeper.json` for every concern. |
+| `/lk band [stage\|gates\|files\|routing\|review\|decisions] on\|off` | Shows or hides a band. With no concern named, all of them. |
+| `/lk routes` | Opens the routing pane. |
+| `/lk route <recon\|execute\|verify\|hard\|default> <haiku\|sonnet\|opus\|model-id>` | Overrides a role's model. Saved in the plugin store for every session on this machine until `/lk route reset`. |
+| `/lk route reset` | Drops every `/lk route` override. |
+| `/lk explain <text>` | Says which role and model a subagent with this description would get. |
+| `/lk gates …` | The gates, below. |
+
+### Keys
+
+`/lk` is the way in. Claude Code 2.1.294 lets a plugin bind keys only inside its own panes and band, so there is no global shortcut. The keys work while a loopkeeper pane has the focus; a pane opened from the hub or the nav row takes the focus when it can ([ADR 0014](../../docs/adr/0014-hub-and-keys.md)).
+
+| Where | Key | What it does |
+| --- | --- | --- |
+| Stage, Gates, Files, Routes, Reviews and Decisions panes | `0` to `6` | The nav row on the first line: `0` Hub, `1` Stage, `2` Gates, `3` Files, `4` Routes, `5` Reviews, `6` Decisions. Closes this pane and opens that one. |
+| Hub | `1` to `6` | Opens that panel, as above. |
+| Hub | `m`, `u`, `h`, `t`, `w`, `p`, `s` | The add-ons: Agents (`/agent-map cards`, lk-agent-map), Budget (`/budget`, lk-token-budget), Handoff (`/handoff`, lk-handoff-guard), Attention (`/attention`, lk-attention), Where (`/where`, lk-where-am-i), PRs (`/pr`, lk-pr-watch), Secrets (`/secret-guard`, lk-secret-guard). Each shows only when that add-on's command is listed. On the desktop a press closes the hub and runs the command, which opens the mod's own pane. On the terminal, or if the run is refused, it fills an empty prompt box with the command and says "Press Enter"; with a draft it keeps the draft and names the command to type. |
+| Hub | `a` | Approves what waits, the way `/lk approve` does (a planned budget before a gate other than Validate plan); shown only while something waits, or, while a task is in play, when `/lk approve` can open the next stage's gate. Then the model carries on. |
+| Hub | `o` | Puts `/lk on` or `/lk off` in the prompt box. |
+| Hub | `c` | Closes the hub. |
+| Prompt box | ctrl+x tab | Focuses the band, or a pane that opened without the focus. On the terminal a toast says so, once per session; the desktop shows no such toast. |
+
+A pane's own buttons keep their letter keys where they have one (`b: Back`, `n: Next` and so on); no digit is used by them. The Files pane's name filter takes every key while it has the focus, so digits switch panes there only once the focus leaves it.
+
+Status chips in the panes (`Not committed`, `Reading`, `ask`, `deny`, `asked`, `p0` to `p2` and the like) are rounded Svg pills on the desktop app, VS Code and mobile: white text on a fill dark enough for a contrast ratio of 4.5:1 or more (the kit's `CHIP_HEX`). The terminal draws a chip as `● text` in the tone's colour ([ADR 0013](../../docs/adr/0013-kit-v3-svg-and-theme-fills.md)).
+
+### `/lk gates`
+
+From the gates' own usage line: `pane`, `text`, `files`, `max <n>`, `plan ok`, `plan required on|off`, `plan paths`, `ship ok`, `ship gate on|off`, `on`, `off`, `reload`, `band on|off`.
+
+- `/lk gates on|off` is the session switch for every gate. `/lk on|off` is GSD mode. The two are different.
+- `/lk gates max <n>` sets a per-turn limit for the session. `/lk gates reload` is the same as `/lk reload`.
+- `/lk gates plan ok` allows edits for the session. While the pipeline's plan gate (gsd: Validate plan) is still pending, the reply says that gate is separate: moving past it still needs `/lk approve` (in auto approval a plan validator's consistent verdict also opens it).
+- The config is read from the project root, and the plan and protected-path checks resolve paths against it, so a shell `cd` does not move them.
+
+### `/reviews`
+
+```
+/reviews [text | status [subject] | clear <subject> | kinds | kind <subject> <kind> | target <n> [subject] |
+          max <n> [subject] | ship <subject> | reopen <subject> | stop <subject> |
+          band on|off | context on|off]
+```
+
+With no words it opens the review pane. `kind` is one of `critic`, `review`, `plan`, `qa`, `copy`, `design`.
+
+### `/decide`, `/decisions`, `/files`
+
+- `/decide <decision> -- <why> #tag #tag` records a decision. `/decide prefs [clear]` lists or clears the learned preferences. `/decide watch on|off|status` and `/decide watch model <haiku|sonnet|model id>` control the decision watch (off by default).
+- `/decisions` opens the decision pane. `/decisions text`, `/decisions reload`, and `/decisions band on|off` do the rest.
+- `/files` opens the Files pane: what Claude read and edited this session, and the project tree. It still opens when loopkeeper is off.
+
+## Tools
+
+Claude calls these tools; they are named `mcp__loopkeeper__<name>`.
+
+| Tool | Inputs | What it does |
+| --- | --- | --- |
+| `set_stage` | `stage` (required), `note`, `size` (`small` or `large`), `files` (a number, for the plan's budget), `verdict` (`consistent` or `issues`) | Moves the stage, sizes the task, records the file count or a plan verdict. |
+| `review_cycle` | `subject` (required), `kind`, `doneBy` (`score` or `items`), `score`, `target`, `maxCycles`, `cycle`, `verdict` (`ship`, `iterate` or `stop`), `items` (`text`, `priority` `p0`/`p1`/`p2`, `done`) | Records one pass of a review loop. It is wrapped by the stage, which records a plan pass as the plan verdict when the review is done. |
+| `review_item` | `subject`, `text` (required), `done`, `proof`, `priority` | Adds an open item, or closes one with a proof (a path, output or commit). |
+| `review_status` | `subject` (optional) | Shows one subject's loop state, or all of them. |
+| `record_decision` | `decision` (required), `why`, `tags` | Appends a decision to the project's log. |
 
 ## The loop
 
@@ -175,92 +273,6 @@ Notes:
 - Protected rules are checked on every edit, including plan files.
 - A gate that fails on an error refuses the call and says so. See [Kill switch and failing closed](#kill-switch-and-failing-closed).
 - The ship gate and the merge gate read the commands in the Bash call. A command assembled in a script is not seen.
-
-## Commands
-
-Everything is under `/lk` (or `/loopkeeper`), except `/reviews`, `/decide`, `/decisions` and `/files`. Each word is answered by the concern that owns it; shared words (`status`, `text`, `reload`, `band`, `on`, `off`) are answered by every concern and joined in one reply.
-
-### `/lk`
-
-| Form | What it does |
-| --- | --- |
-| `/lk` | Opens the loopkeeper hub: the stage, one row per panel with its live status, the other mods and the actions. |
-| `/lk stage` | Opens the Stage pane. |
-| `/lk help` | Lists the keys (below). |
-| `/lk status`, `/lk text` | Status: stage, routing and gates. `text` is plain text. `/lk status` also says `Continue after approval: on` or `off`. |
-| `/lk <stage>`, `/lk next`, `/lk back` | Moves the stage. `<stage>` is an id of the current stages. `stage` and `help` are read as the words above, so a custom stage with one of those ids is reached with `next`, `back` or `set_stage`. |
-| `/lk approve` | Approves the current stage's gate or, from the stage before a gate, the next one, then asks the model to carry on (see Continue after approval). From the stage before (no gate of its own waiting, no budget waiting) it opens the next stage's gate and moves into it: at Plan in the gsd preset the Validate plan gate ("Approved the Validate plan gate and moved to Validate plan; Claude may start Execute."), at QA the Ship gate. The approval also vouches for the verifier of the stage it leaves and of the gate's stage. It never opens a gate two stages ahead; a gate already approved (after `/lk back`) is moved into without approving it again. At Validate plan, or opening it from Plan, it approves the planned file budget with the plan. At any other gate a planned budget that still waits comes first: this `/lk approve` approves the budget, the next one the gate. With the gate already open, or no gate, it approves a waiting budget. |
-| `/lk waive` | Waives the gate for the current task. |
-| `/lk size small\|large` | Sizes the task. |
-| `/lk small-max <n>` | The small-task limit for this session, 1 to 20. |
-| `/lk preset <name>` | Sets the stage preset for the project. |
-| `/lk approval auto\|ask` | Plan approval mode for the project. |
-| `/lk auto on\|off` | Automatic stage moves. |
-| `/lk reset` | Clears size, verdict, hold, waiver, files and the approved budget. |
-| `/lk on\|off` | GSD mode. |
-| `/lk loop on\|off` | The loop: the `gsd` preset and the plan gate with it. |
-| `/lk reload` | Re-reads `loopkeeper.json` for every concern. |
-| `/lk band [stage\|gates\|files\|routing\|review\|decisions] on\|off` | Shows or hides a band. With no concern named, all of them. |
-| `/lk routes` | Opens the routing pane. |
-| `/lk route <recon\|execute\|verify\|hard\|default> <haiku\|sonnet\|opus\|model-id>` | Overrides a role's model. Saved in the plugin store for every session on this machine until `/lk route reset`. |
-| `/lk route reset` | Drops every `/lk route` override. |
-| `/lk explain <text>` | Says which role and model a subagent with this description would get. |
-| `/lk gates …` | The gates, below. |
-
-### Keys
-
-`/lk` is the way in. Claude Code 2.1.294 lets a plugin bind keys only inside its own panes and band, so there is no global shortcut. The keys work while a loopkeeper pane has the focus; a pane opened from the hub or the nav row takes the focus when it can ([ADR 0014](../../docs/adr/0014-hub-and-keys.md)).
-
-| Where | Key | What it does |
-| --- | --- | --- |
-| Stage, Gates, Files, Routes, Reviews and Decisions panes | `0` to `6` | The nav row on the first line: `0` Hub, `1` Stage, `2` Gates, `3` Files, `4` Routes, `5` Reviews, `6` Decisions. Closes this pane and opens that one. |
-| Hub | `1` to `6` | Opens that panel, as above. |
-| Hub | `m`, `u`, `h`, `t`, `w`, `p`, `s` | The add-ons: Agents (`/agent-map cards`, lk-agent-map), Budget (`/budget`, lk-token-budget), Handoff (`/handoff`, lk-handoff-guard), Attention (`/attention`, lk-attention), Where (`/where`, lk-where-am-i), PRs (`/pr`, lk-pr-watch), Secrets (`/secret-guard`, lk-secret-guard). Each shows only when that add-on's command is listed. On the desktop a press closes the hub and runs the command, which opens the mod's own pane. On the terminal, or if the run is refused, it fills an empty prompt box with the command and says "Press Enter"; with a draft it keeps the draft and names the command to type. |
-| Hub | `a` | Approves what waits, the way `/lk approve` does (a planned budget before a gate other than Validate plan); shown only while something waits, or, while a task is in play, when `/lk approve` can open the next stage's gate. Then the model carries on. |
-| Hub | `o` | Puts `/lk on` or `/lk off` in the prompt box. |
-| Hub | `c` | Closes the hub. |
-| Prompt box | ctrl+x tab | Focuses the band, or a pane that opened without the focus. On the terminal a toast says so, once per session; the desktop shows no such toast. |
-
-A pane's own buttons keep their letter keys where they have one (`b: Back`, `n: Next` and so on); no digit is used by them. The Files pane's name filter takes every key while it has the focus, so digits switch panes there only once the focus leaves it.
-
-Status chips in the panes (`Not committed`, `Reading`, `ask`, `deny`, `asked`, `p0` to `p2` and the like) are rounded Svg pills on the desktop app, VS Code and mobile: white text on a fill dark enough for a contrast ratio of 4.5:1 or more (the kit's `CHIP_HEX`). The terminal draws a chip as `● text` in the tone's colour ([ADR 0013](../../docs/adr/0013-kit-v3-svg-and-theme-fills.md)).
-
-### `/lk gates`
-
-From the gates' own usage line: `pane`, `text`, `files`, `max <n>`, `plan ok`, `plan required on|off`, `plan paths`, `ship ok`, `ship gate on|off`, `on`, `off`, `reload`, `band on|off`.
-
-- `/lk gates on|off` is the session switch for every gate. `/lk on|off` is GSD mode. The two are different.
-- `/lk gates max <n>` sets a per-turn limit for the session. `/lk gates reload` is the same as `/lk reload`.
-- `/lk gates plan ok` allows edits for the session. While the pipeline's plan gate (gsd: Validate plan) is still pending, the reply says that gate is separate: moving past it still needs `/lk approve` (in auto approval a plan validator's consistent verdict also opens it).
-- The config is read from the project root, and the plan and protected-path checks resolve paths against it, so a shell `cd` does not move them.
-
-### `/reviews`
-
-```
-/reviews [text | status [subject] | clear <subject> | kinds | kind <subject> <kind> | target <n> [subject] |
-          max <n> [subject] | ship <subject> | reopen <subject> | stop <subject> |
-          band on|off | context on|off]
-```
-
-With no words it opens the review pane. `kind` is one of `critic`, `review`, `plan`, `qa`, `copy`, `design`.
-
-### `/decide`, `/decisions`, `/files`
-
-- `/decide <decision> -- <why> #tag #tag` records a decision. `/decide prefs [clear]` lists or clears the learned preferences. `/decide watch on|off|status` and `/decide watch model <haiku|sonnet|model id>` control the decision watch (off by default).
-- `/decisions` opens the decision pane. `/decisions text`, `/decisions reload`, and `/decisions band on|off` do the rest.
-- `/files` opens the Files pane: what Claude read and edited this session, and the project tree. It still opens when loopkeeper is off.
-
-## Tools
-
-Claude calls these tools; they are named `mcp__loopkeeper__<name>`.
-
-| Tool | Inputs | What it does |
-| --- | --- | --- |
-| `set_stage` | `stage` (required), `note`, `size` (`small` or `large`), `files` (a number, for the plan's budget), `verdict` (`consistent` or `issues`) | Moves the stage, sizes the task, records the file count or a plan verdict. |
-| `review_cycle` | `subject` (required), `kind`, `doneBy` (`score` or `items`), `score`, `target`, `maxCycles`, `cycle`, `verdict` (`ship`, `iterate` or `stop`), `items` (`text`, `priority` `p0`/`p1`/`p2`, `done`) | Records one pass of a review loop. It is wrapped by the stage, which records a plan pass as the plan verdict when the review is done. |
-| `review_item` | `subject`, `text` (required), `done`, `proof`, `priority` | Adds an open item, or closes one with a proof (a path, output or commit). |
-| `review_status` | `subject` (optional) | Shows one subject's loop state, or all of them. |
-| `record_decision` | `decision` (required), `why`, `tags` | Appends a decision to the project's log. |
 
 ## Config
 

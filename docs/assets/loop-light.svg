@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="160" viewBox="0 0 760 160" role="img" aria-labelledby="t d">
+  <title id="t">The loopkeeper loop</title>
+  <desc id="d">Six stages in a row: Plan, Validate plan, Execute, Validate, QA, Ship. Validate plan and Ship are gates that wait for /lk approve. Validate plan and Validate need a verifier subagent to finish. A return arrow labelled /lk back runs from Ship to Plan.</desc>
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; fill: #1f2328; }
+    .stage { font-size: 13px; font-weight: 600; }
+    .sub { font-size: 11px; }
+    .note, .sub { fill: #59636e; }
+    .note { font-size: 12px; }
+    .cmd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 12px; fill: #59636e; }
+    .box { fill: none; stroke: #1f2328; stroke-width: 1.5; }
+    .line { fill: none; stroke: #59636e; stroke-width: 1.5; }
+    .head { fill: #59636e; }
+    .gate { fill: #bc4c00; }
+    .pole { stroke: #bc4c00; stroke-width: 1.5; }
+    .ver { fill: none; stroke: #1a7f37; stroke-width: 1.5; }
+  </style>
+  <rect x="0" y="0" width="760" height="160" rx="10" fill="#ffffff"/>
+
+  <!-- stages -->
+  <rect class="box" x="6" y="16" width="108" height="56" rx="8"/>
+  <text class="stage" x="60" y="40" text-anchor="middle">Plan</text>
+  <text class="sub" x="60" y="61" text-anchor="middle">steps · files</text>
+  <rect class="box" x="134" y="16" width="108" height="56" rx="8"/>
+  <text class="stage" x="188" y="40" text-anchor="middle">Validate plan</text>
+  <rect class="box" x="262" y="16" width="108" height="56" rx="8"/>
+  <text class="stage" x="316" y="40" text-anchor="middle">Execute</text>
+  <text class="sub" x="316" y="61" text-anchor="middle">subagents</text>
+  <rect class="box" x="390" y="16" width="108" height="56" rx="8"/>
+  <text class="stage" x="444" y="40" text-anchor="middle">Validate</text>
+  <rect class="box" x="518" y="16" width="108" height="56" rx="8"/>
+  <text class="stage" x="572" y="40" text-anchor="middle">QA</text>
+  <text class="sub" x="572" y="61" text-anchor="middle">tests · build</text>
+  <rect class="box" x="646" y="16" width="108" height="56" rx="8"/>
+  <text class="stage" x="700" y="40" text-anchor="middle">Ship</text>
+
+  <!-- forward arrows -->
+  <path class="line" d="M116 44 H126 M244 44 H254 M372 44 H382 M500 44 H510 M628 44 H638"/>
+  <polygon class="head" points="125,40 132,44 125,48"/>
+  <polygon class="head" points="253,40 260,44 253,48"/>
+  <polygon class="head" points="381,40 388,44 381,48"/>
+  <polygon class="head" points="509,40 516,44 509,48"/>
+  <polygon class="head" points="637,40 644,44 637,48"/>
+
+  <!-- marks: gate flag on Validate plan and Ship, verifier check on Validate plan and Validate -->
+  <line class="pole" x1="177" y1="52" x2="177" y2="65"/>
+  <polygon class="gate" points="177,52 186,55 177,58"/>
+  <circle class="ver" cx="199" cy="58" r="6"/>
+  <path class="ver" d="M196 58 L198.5 60.5 L202.5 55.5"/>
+  <circle class="ver" cx="444" cy="58" r="6"/>
+  <path class="ver" d="M441 58 L443.5 60.5 L447.5 55.5"/>
+  <line class="pole" x1="697" y1="52" x2="697" y2="65"/>
+  <polygon class="gate" points="697,52 706,55 697,58"/>
+
+  <!-- return arrow -->
+  <path class="line" d="M700 74 V96 H60 V82"/>
+  <polygon class="head" points="56,82 60,75 64,82"/>
+  <text class="cmd" x="380" y="113" text-anchor="middle">/lk back</text>
+
+  <!-- legend -->
+  <line class="pole" x1="9" y1="136" x2="9" y2="149"/>
+  <polygon class="gate" points="9,136 18,139 9,142"/>
+  <text class="note" x="24" y="146">gate: waits for /lk approve</text>
+  <circle class="ver" cx="252" cy="142" r="6"/>
+  <path class="ver" d="M249 142 L251.5 144.5 L255.5 139.5"/>
+  <text class="note" x="264" y="146">a verifier subagent must finish first</text>
+  <text class="note" x="754" y="146" text-anchor="end">stages of the gsd preset</text>
+</svg>

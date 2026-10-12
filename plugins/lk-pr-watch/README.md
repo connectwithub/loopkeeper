@@ -1,6 +1,20 @@
 # lk-pr-watch
 
-A loopkeeper add-on for Claude Code that shows the pull request and CI state for the current branch above the prompt, and gives Claude a one-line note when a check fails. It adds:
+A loopkeeper add-on for Claude Code that shows the pull request and CI state for the current branch above the prompt, and gives Claude a one-line note when a check fails. You see a red check or a change request while you are still in the session, and Claude learns which check failed and where its run is without you copying it over.
+
+**Use it when**
+
+- You push from the session and wait on CI before you can merge.
+- You work on something else while a PR is in review and want a toast when the review decision changes, instead of reloading GitHub.
+- You follow several PRs at once: paste their URLs as a prompt and they are all watched in one pane.
+
+**Install:** `/plugin install lk-pr-watch@loopkeeper`, after `/plugin marketplace add connectwithub/loopkeeper`; it needs `gh` signed in (more under [Requirements](#requirements) and [Install](#install)). Requires Claude Code 2.1.294 or later.
+
+**Data handling:** it keeps one setting (the band on or off) in its own plugin store and the watched PRs in session state; it reads `~/.claude/pr-watch.json` and `<project>/.claude/pr-watch.json` and writes no file. Its only network traffic is `gh pr view` and `gh api graphql`, which reach GitHub's API through your own `gh` sign-in; it reads and stores no token. It makes no model calls; a newly failed check adds one note to the transcript. It collects no personal data; the saved setting stays until you delete it. Details under [What it runs and touches](#what-it-runs-and-touches).
+
+**Commands:** `/pr` and its options are listed under [Commands](#commands).
+
+lk-pr-watch adds:
 
 - **A band above the prompt**, one kit line, only while a PR is watched:
   `PR #42  ● checks 3/5 ✓ 1 ✗ 1 …  ● changes requested  ● mergeable      +1 more`

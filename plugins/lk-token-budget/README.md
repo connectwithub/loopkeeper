@@ -1,6 +1,18 @@
 # lk-token-budget
 
-A loopkeeper add-on for Claude Code that puts a token budget on the session, so an orchestrated multi-agent run can't quietly use up the plan.
+A loopkeeper add-on for Claude Code that puts a token budget on the session, so an orchestrated multi-agent run can't quietly use up the plan. You set the number once; the band shows where you stand, and the action you chose takes over when the budget is spent.
+
+**Use it when**
+
+- You run fan-out work with many subagents and want a hard ceiling on what one session can spend.
+- One runaway subagent should hit its own limit without the rest of the run being stopped.
+- You step away mid-session and want to know whether the prompt cache will still be warm when you come back, or keep it warm while you wait.
+
+**Install:** `/plugin install lk-token-budget@loopkeeper`, after `/plugin marketplace add connectwithub/loopkeeper` (more under [Install](#install)). Requires Claude Code 2.1.294 or later.
+
+**Data handling:** it keeps the settings you save with `/budget` and a lifetime token total per project folder in its own plugin store, and the session's counts in session state. It reads `~/.claude/token-budget.json` and `<project>/.claude/token-budget.json`, runs no process and writes no file. Its only model requests are for Keep warm: one small request per press of **Keep warm** or `/budget keepwarm`, and, only after `/budget autowarm on`, a capped number of automatic ones while the session is idle. Each one spends tokens on your account. Nothing else is sent anywhere. It collects no personal data; the saved settings and totals stay until you delete them. Details under [What it runs](#what-it-runs).
+
+**Commands:** `/budget` and its options are listed under [Commands](#commands).
 
 It counts the tokens in every model request, from the main loop and from each subagent. It shows the running total in a one-line band above the prompt. At a threshold you set, it warns you. Once the budget is spent, it warns, refuses new subagents, or stops tool calls, depending on the action you choose. Each subagent also has its own limit.
 

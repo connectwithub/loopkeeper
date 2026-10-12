@@ -1,11 +1,14 @@
 {
   "name": "lk-handoff-guard",
   "version": "0.3.1",
-  "description": "Never lose a session to the context limit: watches context fill, writes a session handoff into the project's .claude/brain/ folder before it is too late, then clears and resumes from it.",
+  "description": "Never lose a session to the context limit: it watches context fill, writes a handoff into .claude/brain/ in time, then clears and resumes from it.",
   "author": { "name": "connectwithub" },
   "license": "MIT",
   "homepage": "https://github.com/connectwithub/loopkeeper",
   "repository": "https://github.com/connectwithub/loopkeeper",
+  "keywords": ["claude-code", "mods", "context-window", "handoff", "session-memory", "compaction", "long-sessions"],
+  "documentationUrl": "https://github.com/connectwithub/loopkeeper/tree/main/plugins/lk-handoff-guard#readme",
+  "supportUrl": "https://github.com/connectwithub/loopkeeper/issues",
   "metadata": { "minimumClaudeCode": "2.1.294" },
   "types": "./types/index.d.ts"
 }
