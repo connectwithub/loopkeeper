@@ -2,7 +2,7 @@
 //
 // It watches rather than rules. tool.call hooks on Read, NotebookRead, Glob, Grep and the edit tools set "what Claude
 // is doing right now" before `await next(e)`, clear it after, and record the file when the call was not refused and did
-// not fail; prompt.mention records an @-mentioned file. Bash writes come from the gates: only they parse Bash, so
+// not fail; prompt.submit records the files a prompt @-mentions. Bash writes come from the gates: only they parse Bash, so
 // gates.ts records the writes it lets through into the same atoms (filesTouched, filesActivity.last).
 // Every change to filesTouched and filesActivity goes through update (compare-and-set) and never writes a stale copy,
 // so the gates' Bash writes and parallel tool calls all land.
@@ -117,6 +117,18 @@ async function trackedPath($: EngineInterface, raw: unknown): Promise<string | n
   } catch {
     return null
   }
+}
+
+/** The @path tokens in a prompt (a quoted @"a b.md" too), without a `#L…` line suffix or trailing punctuation; at most 20. */
+function mentionedPaths(text: unknown): string[] {
+  if (typeof text !== 'string' || !text.includes('@')) return []
+  const found: string[] = []
+  for (const m of text.matchAll(/(?:^|\s)@(?:"([^"\n]+)"|(\S+))/g)) {
+    const raw = (m[1] ?? m[2] ?? '').replace(/#L\d.*$/, '').replace(/[.,;:!?)\]}'"]+$/, '')
+    if (raw !== '' && !found.includes(raw)) found.push(raw)
+    if (found.length >= 20) break
+  }
+  return found
 }
 
 /** A tool call's result that counts: not refused (deny) and not failed (isError). */
@@ -481,19 +493,19 @@ export function wireFiles(on: On): void {
     return r
   }).catch(($, e, next) => next(e))
 
-  // A file a prompt @-mentions is read for Claude: recorded as opened when it was attached.
-  on('prompt.mention', async ($, e, next) => {
-    const r = await next(e)
+  // A file a prompt @-mentions is read for Claude: recorded as opened when it exists. The prompt passes on unchanged.
+  on('prompt.submit', {}, async ($, e, next) => {
     try {
-      const attached = (r as unknown as { type?: unknown } | null)?.type
-      if (typeof attached === 'string' && attached !== '') {
-        const path = await trackedPath($, (e as unknown as { path?: unknown }).path)
-        if (path !== null) await noteTouch($, s => noteRead(s, path, 'mention'))
+      for (const raw of mentionedPaths(e.text)) {
+        const path = await trackedPath($, raw)
+        if (path === null || path === '') continue
+        const there = await $.fs.exists(absOf(await sessionCwd($), path)).catch(() => false)
+        if (there) await noteTouch($, s => noteRead(s, path, 'mention'))
       }
     } catch {
-      // The mention stands; the pane misses one file.
+      // The prompt stands; the pane misses a file.
     }
-    return r
+    return next(e)
   }).catch(($, e, next) => next(e))
 
   on('command.run', { command: 'files' }, async $ => {

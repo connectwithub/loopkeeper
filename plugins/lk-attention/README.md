@@ -120,7 +120,7 @@ Native notifications and sounds are rate-limited to one per kind every 10 second
 
 A `tool.check` verdict of `ask` doesn't mean you will be asked. It means "let the permission mode decide". In auto permission mode the classifier answers most asks itself, often while a long command is already running. So by default (`permissionSignal: "dialog"`) a permission wait is raised only by `classic.PermissionRequest`, which fires when a dialog is really on screen. That event has no `tool_use_id`, so it is matched to the newest call in flight with the same tool, and that call settling clears the wait. A bare `ask` raises and schedules nothing in this mode. Subagent asks are ignored unless `includeSubagents` is on, because auto mode decides them and you can't approve them.
 
-`permissionSignal: "grace"` is the 0.1.2 behaviour, for builds where `classic.PermissionRequest` never fires. An `ask` is held for `permissionGraceMs` (4 s), and dropped if its call runs (the terminal's `ToolProgress` pill) or settles, or the turn ends or is interrupted. Only an ask still open after that notifies. Once a dialog event has fired in the session, it alone decides for the main loop. `classic.PreToolUse` can't be the "approved" signal, because it fires before `tool.check`.
+`permissionSignal: "grace"` is the 0.1.2 behaviour, for builds where `classic.PermissionRequest` never fires. The `tool.check` hook learns the verdict by asking the permission check first (`$.tool.check`, which runs nothing and opens no dialog), then passes the call on unchanged. An `ask` is held for `permissionGraceMs` (4 s), and dropped if its call runs (the terminal's `ToolProgress` pill) or settles, or the turn ends or is interrupted. Only an ask still open after that notifies. Once a dialog event has fired in the session, it alone decides for the main loop. `classic.PreToolUse` can't be the "approved" signal, because it fires before `tool.check`.
 
 ## Linux notes
 
@@ -147,7 +147,7 @@ What `claude plugin validate --strict .` reports for this plugin (Claude Code 2.
 | Hooks module | One: `./register.ts`, in `hooks/hooks.json`. |
 | Hook events | `session.start`, `classic.SessionStart` (clear, resume, fork), `prompt.submit`, `agent.spawn`, `tool.call`, `tool.check`, `classic.PermissionRequest`, `turn.complete`, `command.run` (`attention`), `ui.render` (the `AskUserQuestion` dialog, `ToolProgress`, the band, the `attention` pane). |
 | Refusals | None. Its gating hooks only watch and pass every event on. |
-| Calls (`$.…`) | `audio.play`; `clock` (`after`, `now`); `command.register`; `env.get`; `fs` (`exists`, `read`); `process.run`; `session.cwd`; `state` (`get`, `set`); `store` (`get`, `set`); `ui` (`close`, `notify`, `open`, `resolve`, `toast`). |
+| Calls (`$.…`) | `audio.play`; `clock` (`after`, `now`); `command.register`; `env.get`; `fs` (`exists`, `read`); `process.run`; `session.cwd`; `state` (`get`, `set`); `store` (`get`, `set`); `tool.check` (grace mode only); `ui` (`close`, `notify`, `open`, `resolve`, `toast`). |
 | State | 6 atoms under `lk-attention`. |
 | Store | The settings saved by `/attention`. |
 | Env | Reads `HOME`; writes nothing. |
@@ -159,6 +159,27 @@ What it runs:
   exist; writes nothing.
 - **Model calls**: none.
 - **Network**: none.
+
+## Notes for directory reviewers
+
+The directory's validator listed these items for this plugin. Each bullet says what the code does and where (`hooks/register.ts` unless named).
+
+- **Programs it runs** (policy holds `MOD_RUNS_PROCESS`, `MOD_PROCESS_COMMAND_COMPUTED`). Three programs, all to deliver a notice, through `$.process.run`:
+  - `notify-send -a 'Claude Code' -i dialog-information <title> <body>` in `sendNative()` (line 197; the argv comes from `notifyArgv()` in `hooks/attention.ts`), only when `$.ui.notify` is missing, with a 5-second timeout;
+  - `paplay <file>`, then `pw-play <file>` when `paplay` is missing, in `playFile()` (line 208; argv from `soundArgvs()`), with a 10-second timeout. The file is the user's `soundFile`, else `/usr/share/sounds/freedesktop/stereo/complete.oga`, else the bundled `assets/ding.wav` when `$.audio.play` cannot play it.
+
+  The program names and flags are fixed text; only the title, the body and the sound file's path vary.
+- **Local data and the conversation** (policy holds `MOD_LOCAL_DATA_LEAVES`, `MOD_SESSION_DATA_LEAVES`). Nothing leaves the machine: `notify-send` shows a desktop notification on the user's own screen and the players play a local file. A notice's title and body are built in the code and clipped to 100 and 160 characters (`raise()`, line 298): which tool waits for an OK and the command or path it would act on, the first line of a question Claude asks, or the first line of a finished turn's or subagent's answer. The `prompt.submit` hook (line 572) reads only the prompt's origin, to note that the user is back; it does not read the prompt's text and passes the prompt on unchanged. The files it reads are its own config files; for the sound files it only checks that they exist.
+- **The permission hooks** (policy hold `MOD_HOOKS_PERMISSION_CHECK`). The `tool.check` hook (line 628) decides nothing: it always returns `next(e)` unchanged, so the user's own rules and answers decide every call. Only with `permissionSignal: "grace"` (the default is `"dialog"`) does it first ask Claude Code what the user's rules would answer, with `$.tool.check({ tool, input })`, which runs no tool and opens no dialog; when that answer is `ask`, it holds a "needs your OK" notice for the grace period and raises it only if the call is still waiting. `classic.PermissionRequest` (line 648) only notes that a permission dialog is on screen, so the notice is raised at once, and returns `next(e)` unchanged.
+- **`assets/ding.wav`** (policy hold `BINARIES_NOT_INSPECTED`). A sound file, not a program: a tone generated for this plugin, 0.3 s of mono 16-bit PCM at 22,050 Hz, an 880 Hz sine with a quieter one at 1,320 Hz (see [Assets](#assets)). The code only hands it to `$.audio.play({ asset: 'assets/ding.wav' })` or, as the file argument, to `paplay` / `pw-play`; nothing executes it.
+- **The name** (policy hold `NAME_CONFUSABLE`). `lk-attention` is the attention add-on of the loopkeeper set: each add-on carries the set's `lk-` prefix (`lk-agent-map`, `lk-handoff-guard`, `lk-token-budget`, `lk-where-am-i`, `lk-pr-watch`, `lk-secret-guard`) and ships from the same marketplace and author as the `loopkeeper` core. It is not the directory's `attention` connector and has no tie to it.
+- **Fields in `plugin.json`** (warnings `UNKNOWN_KEY`). `documentationUrl` and `supportUrl` are listing fields the directory reads. `types` points at `types/index.d.ts`, the `$.state` contract that `claude plugin validate` checks. Claude Code ignores all three at load time.
+- **Icon** (warning `ICON_MISSING`). Added at `.claude-plugin/icon.png` (512 × 512); its source is `docs/assets/icons/lk-attention.svg` in the repo.
+- **Calls named in text** (note `MOD_CALL_NAMED_IN_TEXT`). `agent.spawn`, `command.run`, `prompt.submit`, `tool.call`, `tool.check` and `classic.PreToolUse` are named in the header comment (lines 4–18), which lists the hooks and says why `classic.PreToolUse` is not used.
+- **A call the directory does not know** (note `MOD_UNKNOWN_CALL`, line 191). `$.ui.notify({ title, body })` is Claude Code's own desktop-notification call, newer than the 2.1.294 typings the plugin is checked against (the comment above it notes 2.1.295); no other plugin provides it. On a build without it the call throws and the plugin uses `notify-send` instead.
+- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/attention`, at session start (line 550). It registers no tools or agents.
+- **Classic hooks** (note `MOD_HOOKS_POLICY_EVENT`). `classic.SessionStart` with source `clear`, `resume` or `fork` (line 563) loads the config again, because those resets clear `$.state`; `classic.PermissionRequest` (line 648) is described above. Both return `next(e)` unchanged and alter nothing that passes through them. The third mention is `classic.PreToolUse` in the header comment (line 12).
+- **Hooks on events that are also calls** (note `MOD_HOOKS_OPERATION`). `prompt.submit` (line 572) is described above. `command.run` (line 670) has the matcher `{ command: 'attention' }`, so it runs only for `/attention`. `agent.spawn` (line 588) and `tool.call` (line 603) return what `next(e)` gave back, unchanged; they only note a subagent's label and which loop a call runs in. None of them makes the call it hooks.
 
 ## Limits
 

@@ -114,6 +114,25 @@ From `claude plugin validate --strict .` and the code:
 - **Model calls**: none. A failed check adds one user-role note to the transcript; Claude reads it on its next turn.
 - **Other**: toasts, the clipboard (**Copy URL**), a 10 second timer.
 
+## Notes for directory reviewers
+
+The directory's validator listed these items for this plugin. Each bullet says what the code does and where.
+
+- **Programs it runs** (policy holds `MOD_RUNS_PROCESS`, `MOD_PROCESS_COMMAND_COMPUTED`). Every program starts from one helper, `run()` in `hooks/register.ts` (line 102): `$.process.run(argv, { cwd, timeoutMs: 30000 })`, in the session's directory. The commands are:
+  - `gh pr view --json number,url,title,state,isDraft,mergeable,reviewDecision,headRefName,baseRefName`, to find the current branch's PR (`discover()`), and `gh pr view <number> --json …` the same, for `/pr add <number>`;
+  - `gh api graphql -f query=<QUERY> -f o=<owner> -f r=<repo> -F n=<number>`, to poll one PR (`graphqlArgv()` in `hooks/pr.ts`, line 222; `QUERY` is the fixed query at line 18 of that file);
+  - `xdg-open <url>`, then `open <url>` if that fails, only when the user presses **Open in browser** (`openUrl()`). The URL is always `https://github.com/<owner>/<repo>/pull/<number>`, built by `refOf()` in `hooks/pr.ts`.
+
+  The program names and flags are fixed text. Only the owner, repo, PR number and URL vary; they come from `gh`'s own answer or from a GitHub PR URL the user pasted.
+- **Network use.** The plugin has no network code of its own. It reaches GitHub only through the user's installed `gh`, signed in with the user's own `gh auth login`; it never reads, stores or passes on that sign-in. By default it polls every 120 seconds (`pollSec`), and every 30 seconds (`hotPollSec`) while a check is pending in the 20 minutes after a `git push` or `gh pr create` (see [Polling](#polling)).
+- **Local data and the conversation** (policy holds `MOD_LOCAL_DATA_LEAVES`, `MOD_SESSION_DATA_LEAVES`). What reaches GitHub is the owner, repo and PR number, with the fixed query. The files it reads are its own config, `~/.claude/pr-watch.json` and `<cwd>/.claude/pr-watch.json` (poll intervals, which changes to announce, whether to add the failure note); nothing from them goes into a command. The `prompt.submit` hook (line 423) checks only whether a prompt is nothing but GitHub PR URLs (`bareUrls()` in `hooks/pr.ts`, line 84). If it is, the plugin watches those PRs and answers `{ drop: 'pr-watch: watching …' }`, so that prompt does not go to the model; every other prompt is passed on unchanged with `next(e)`. When a watched check fails, `announce()` (line 213) appends one user-role message to the transcript, `[pr-watch: automated notice, not typed by the user] Check "<name>" failed on PR #<number> (<owner>/<repo>): <link>`, built from GitHub's answer; `appendNoteOnFailure: false` turns it off.
+- **Fields in `plugin.json`** (warnings `UNKNOWN_KEY`). `documentationUrl` and `supportUrl` are listing fields the directory reads. `types` points at `types/index.d.ts`, the `$.state` contract that `claude plugin validate` checks. Claude Code ignores all three at load time.
+- **Icon** (warning `ICON_MISSING`). Added at `.claude-plugin/icon.png` (512 × 512); its source is `docs/assets/icons/lk-pr-watch.svg` in the repo.
+- **Calls named in text** (note `MOD_CALL_NAMED_IN_TEXT`). `tool.call`, `prompt.submit` and `command.run` are named in the header comment of `hooks/register.ts` (lines 6–9), which lists the hooks. The `tool.call` hook (line 406) watches `Bash` calls: it returns what `next(e)` gave back, unchanged, and after a call that was not refused and that ran `gh pr create`, `gh pr merge` or `git push`, it looks up the branch's PR again.
+- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/pr`, at session start (line 383). It registers no tools or agents.
+- **Classic hook** (note `MOD_HOOKS_POLICY_EVENT`). `classic.SessionStart` with source `clear`, `resume` or `fork` (line 396) loads the config and the band setting again, because those resets clear `$.state`, and looks up the branch's PR. It returns `next(e)` unchanged and alters nothing that passes through it.
+- **Hooks on events that are also calls** (note `MOD_HOOKS_OPERATION`). `prompt.submit` (line 423) is described above. `command.run` (line 445) has the matcher `{ command: 'pr' }`, so it runs only for `/pr`. Neither makes the call it hooks.
+
 ## Borrowed from
 
 [cc-pr-tracker](https://github.com/sezaakgun/cc-pr-tracker) by Seza Akgün, MIT licence, Copyright (c) 2026 Seza Akgün:

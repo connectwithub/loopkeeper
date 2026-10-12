@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>lk-token-budget: a gauge</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26386a"/>
+      <stop offset="1" stop-color="#121a33"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#tile)"/>
+  <rect x="5" y="5" width="502" height="502" rx="107" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="10"/>
+  <path d="M338.6,100.6 A176 176 0 1 1 173.4,100.6" fill="none" stroke="#ffb35c" stroke-width="32" stroke-linecap="round"/>
+  <polygon points="224.6,73.4 185.9,137.0 150.2,69.9" fill="#ffb35c" stroke="#ffb35c" stroke-width="8" stroke-linejoin="round"/>
+  <g transform="translate(256 256) scale(1.08) translate(-256 -256)" fill="#f5f7fc" stroke="#f5f7fc" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M152 296 A104 104 0 0 1 360 296" fill="none" stroke-width="28"/>
+    <line x1="256" y1="296" x2="313.5" y2="232.1" stroke-width="22" fill="none"/>
+    <circle cx="256" cy="296" r="24" stroke="none"/>
+    <line x1="152" y1="330" x2="360" y2="330" stroke-width="18" fill="none"/>
+  </g>
+</svg>

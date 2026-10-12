@@ -48,8 +48,6 @@ export type WorldOptions = {
   tool?: (e: any) => unknown
   /** What $.fs.stat says for a path (mtimeMs); a path not here is refused. */
   stats?: Record<string, number>
-  /** How prompt.mention attaches a file: 'file' by default, null for nothing attached. */
-  mention?: 'file' | 'already_read_file' | 'pdf_reference' | null
   /**
    * loopkeeper atoms answered beneath every concern, by key (a stage atom the gates read, say). A key here is read and
    * written in this object from then on; add or change one on `w.atoms` mid-test to seed it there.
@@ -227,7 +225,6 @@ export function world(on: any, opts: WorldOptions = {}): World {
     const t = opts.stats?.[e.path]
     return t === undefined ? { deny: 'ENOENT' } : { value: { kind: 'file', size: 1, mtimeMs: t } }
   })
-  on('prompt.mention', () => ({ type: opts.mention === undefined ? 'file' : opts.mention }))
   on('ui.open', ($: unknown, e: { id: string }) => {
     w.panes.push(e.id)
     return { value: { isPlaced: true } }

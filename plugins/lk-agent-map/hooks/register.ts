@@ -929,9 +929,9 @@ export const register: Register = (on, options) => {
 
   // Permission verdicts: a call put to the person shows ⏸ waiting on its loop's row until it runs
   on('tool.check', async ($, e, next) => {
-    const verdict = await next(e)
     try {
       const toolUseId = str(e, 'tool_use_id')
+      const verdict = toolUseId ? await $.tool.check({ tool: e.tool, input: e.input }) : null
       if (toolUseId && verdict && verdict.decision === 'ask') {
         const id = callLoop.get(toolUseId) ?? str(e, 'agentId') ?? MAIN
         const tool = str(e, 'tool') ?? 'tool'
@@ -955,7 +955,7 @@ export const register: Register = (on, options) => {
     } catch {
       // Observing only
     }
-    return verdict
+    return next(e)
   })
 
   on('agent.spawn', async ($, e, next) => {

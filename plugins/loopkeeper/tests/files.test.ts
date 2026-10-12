@@ -104,13 +104,13 @@ test('pin: await next(e) in a tool.call hook resolves to { result }, { result, i
 // ---------------------------------------------------------------- what is recorded
 
 test('reads from Read, NotebookRead, Grep, Glob and an @-mention are recorded with their badges', { timeoutMs: 20_000 }, async ($, on) => {
-  world(on, { dirs: DIRS })
+  world(on, { dirs: DIRS, files: { [`${CWD}/README.md`]: '# readme' } })
   await start($)
   expect(await $.tool.call({ tool: 'Read', file_path: `${CWD}/tests/client.test.js` } as never)).toEqual({ result: 'ran' })
   await $.tool.call({ tool: 'NotebookRead', notebook_path: `${CWD}/nb/plot.ipynb` } as never)
   await $.tool.call({ tool: 'Grep', pattern: 'TODO', path: `${CWD}/src` } as never)
   await $.tool.call({ tool: 'Glob', pattern: '**/*.ts' } as never)
-  expect(await $.prompt.mention({ mention: 'README.md', path: `${CWD}/README.md` } as never)).toEqual({ type: 'file' })
+  await $.prompt.submit({ text: 'please read @README.md#L3-9, and write to a@b.example' } as never)
   const ui = await $.ui.mount(FILES)
   expect(await ui.find({ type: 'Text', text: '3 FILES' })).toBeDefined()
   const read = textOf(await ui.find({ key: 'files-touched:tests/client.test.js' }))
@@ -130,12 +130,12 @@ test('reads from Read, NotebookRead, Grep, Glob and an @-mention are recorded wi
   expect(await ui.find({ type: 'Text', text: 'last: opened README.md' })).toBeDefined()
 })
 
-test('a refused or failed read, and a mention that attached nothing, are not recorded', async ($, on) => {
-  world(on, { mention: null, tool: e => (e.tool === 'Read' ? (String(e.file_path).endsWith('gone.ts') ? { result: 'no such file', isError: true } : { deny: 'denied by a rule' }) : undefined) })
+test('a refused or failed read, and an @-mention of a file that is not there, are not recorded', async ($, on) => {
+  world(on, { tool: e => (e.tool === 'Read' ? (String(e.file_path).endsWith('gone.ts') ? { result: 'no such file', isError: true } : { deny: 'denied by a rule' }) : undefined) })
   await start($)
   await $.tool.call({ tool: 'Read', file_path: `${CWD}/gone.ts` } as never)
   await $.tool.call({ tool: 'Read', file_path: `${CWD}/secret.ts` } as never)
-  await $.prompt.mention({ mention: 'big.bin', path: `${CWD}/big.bin` } as never)
+  await $.prompt.submit({ text: 'and @big.bin' } as never)
   const ui = await $.ui.mount(FILES)
   expect(await ui.find({ type: 'Text', text: '0 FILES' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^Claude is idle$/ })).toBeDefined()

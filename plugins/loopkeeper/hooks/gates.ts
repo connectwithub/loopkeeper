@@ -148,10 +148,10 @@ async function failClosed($: EngineInterface, e: unknown, next: { error?: { kind
   return { decision: 'deny', reason: failClosedReason(next.error?.kind ?? 'throw', String(next.error?.message ?? '')) }
 }
 
-/** The same refusal for an error caught inside a gating hook. */
-function refused(err: unknown): CheckResult {
+/** The same refusal's reason for an error caught inside a gating hook. */
+function refusedReason(err: unknown): string {
   const text = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
-  return { decision: 'deny', reason: failClosedReason('throw', text) }
+  return failClosedReason('throw', text)
 }
 
 /** CLAUDE_MODS_DISABLE names loopkeeper (or all): read once, kept for the module's life and in gateDisabled. */
@@ -369,8 +369,8 @@ async function planSatisfied($: EngineInterface): Promise<boolean> {
   return (await read($, stagePlanDone)) === true
 }
 
-async function decideEdit($: EngineInterface, below: CheckResult, paths: string[], tool: string, agentId?: unknown): Promise<CheckResult> {
-  if (paths.length === 0) return below
+async function decideEdit($: EngineInterface, paths: string[], tool: string, agentId?: unknown): Promise<string | null> {
+  if (paths.length === 0) return null
   await hydrate($)
   const config = await ensureConfig($)
   // against the project root, so a shell `cd` does not change which rules a file meets
@@ -394,13 +394,9 @@ async function decideEdit($: EngineInterface, below: CheckResult, paths: string[
       ? ` and ask the user to approve it: /lk approve opens the pipeline's ${gate.label} gate (from ${approveFrom(gate)}), ` +
         `or ${GATES_CMD} plan ok allows edits for this session without it.`
       : `, then move the pipeline ${planStage ? `past ${planStage.label || planStage.id}` : 'on'} with set_stage, or ask the user for ${GATES_CMD} plan ok.`
-    return {
-      decision: 'deny',
-      reason:
-        `${MOD}: edits are refused until a plan is approved in this session (requirePlan is on). ` +
+    return `${MOD}: edits are refused until a plan is approved in this session (requirePlan is on). ` +
         'Do not try another tool to make this change. Present a short plan (Goal, Steps, Done-when, and the files you will touch)' +
-        how,
-    }
+        how
   }
 
   // 2. Protected paths
@@ -409,10 +405,7 @@ async function decideEdit($: EngineInterface, below: CheckResult, paths: string[
     if (!rule) continue
     if (rule.action === 'deny') {
       await fire($, { rule: 'protected', target: p, outcome: 'denied', detail: `matches ${rule.glob} (deny)` })
-      return {
-        decision: 'deny',
-        reason: `${MOD}: ${p} is a protected path (rule "${rule.glob}": deny). Do not edit it or reach it another way. Ask the user to make this change themselves or to change the rule.`,
-      }
+      return `${MOD}: ${p} is a protected path (rule "${rule.glob}": deny). Do not edit it or reach it another way. Ask the user to make this change themselves or to change the rule.`
     }
     if (mem.grants.has(p)) continue
     const answer = await ask($, `${MOD}: ${p} is protected (rule "${rule.glob}"). Allow this ${tool} edit?`, ASK_PROTECTED)
@@ -429,10 +422,7 @@ async function decideEdit($: EngineInterface, below: CheckResult, paths: string[
     }
     const why = answer === null ? 'nobody could be asked or the question was dismissed' : 'the user chose Deny'
     await fire($, { rule: 'protected', target: p, outcome: 'denied', detail: `${rule.glob}: ${why}` })
-    return {
-      decision: 'deny',
-      reason: `${MOD}: the edit to protected path ${p} (rule "${rule.glob}") was refused: ${why}. Do not work around it; ask the user how to proceed.`,
-    }
+    return `${MOD}: the edit to protected path ${p} (rule "${rule.glob}") was refused: ${why}. Do not work around it; ask the user how to proceed.`
   }
 
   if (planExempt) await record($, { rule: 'plan', target: rel.join(', '), outcome: 'allowed', detail: 'plan material' })
@@ -442,7 +432,7 @@ async function decideEdit($: EngineInterface, below: CheckResult, paths: string[
   if (work.length === 0 || (typeof agentId === 'string' && agentId !== '' && !config.countSubagents)) {
     for (const p of rel) mem.sessionFiles.add(p)
     await update($, gateSessionFiles, () => [...mem.sessionFiles])
-    return below
+    return null
   }
   const lim = await limitNow($, config)
   // Checked and reserved synchronously so parallel calls count against one Set.
@@ -480,20 +470,17 @@ async function decideEdit($: EngineInterface, below: CheckResult, paths: string[
       const why = !interactive ? 'no one to ask (non-interactive session)' : answer === 'Stop' ? 'the user chose Stop' : 'the question was dismissed'
       await fire($, { rule: 'files', target: added.join(', '), outcome: 'denied', detail: `past ${n} files: ${why}` })
       scheduleAbort($)
-      return {
-        decision: 'deny',
-        reason: [
+      return [
           `${MOD} stopped this edit: this turn already touched ${n} files (${before.join(', ')}) and ${added.join(', ')} would exceed the limit of ${lim.limit} files per turn (${why}).`,
           'Stop editing now. Summarise what changed so far, list the files you still intend to touch and why, and ask the user before continuing.',
-        ].join('\n'),
-      }
+        ].join('\n')
     }
   }
   for (const p of added) mem.turnFiles.add(p)
   for (const p of rel) mem.sessionFiles.add(p)
   await persistTurn($)
   await update($, gateSessionFiles, () => [...mem.sessionFiles])
-  return below
+  return null
 }
 
 // ---- Bash: the ship gate ---------------------------------------------------------------------------------------
@@ -507,7 +494,7 @@ async function shipOk($: EngineInterface): Promise<boolean> {
 }
 
 /** ADR 0004: shipping waits for the stage's stageShipOpen or /lk gates ship ok; there is no fallback question. */
-async function shipGate($: EngineInterface, config: LkGateConfig, shell: string): Promise<CheckResult | null> {
+async function shipGate($: EngineInterface, config: LkGateConfig, shell: string): Promise<string | null> {
   if (!config.shipGate) return null
   const hits = shipCommands(shell)
   if (hits.length === 0) return null
@@ -524,15 +511,12 @@ async function shipGate($: EngineInterface, config: LkGateConfig, shell: string)
   const how = gate
     ? `run /lk approve at ${approveFrom(gate)} (it opens the ${gate.label} gate; a waiting file budget comes first), or ${GATES_CMD} ship ok.`
     : `run ${GATES_CMD} ship ok.`
-  return {
-    decision: 'deny',
-    reason: `${MOD}: shipping is gated (${what}). The pipeline is at ${where}. Ask the user to review the work and ${how}`,
-  }
+  return `${MOD}: shipping is gated (${what}). The pipeline is at ${where}. Ask the user to review the work and ${how}`
 }
 
 // ---- Bash: merge gate, amend, add-all --------------------------------------------------------------------------
 
-async function gitGate($: EngineInterface, config: LkGateConfig, actions: GitAction[], shell: string, command: string): Promise<CheckResult | null> {
+async function gitGate($: EngineInterface, config: LkGateConfig, actions: GitAction[], shell: string, command: string): Promise<string | null> {
   if (actions.length === 0) return null
   const dir = await runDir($, command)
   const branches = await gitBranches($, dir)
@@ -542,10 +526,7 @@ async function gitGate($: EngineInterface, config: LkGateConfig, actions: GitAct
       const shared = branches.defaults.includes(branches.current) || (await headIsPushed($, dir))
       if (shared) {
         await fire($, { rule: 'amend', target: branches.current || '(unknown branch)', outcome: 'denied', detail: 'git commit --amend on a shared branch' })
-        return {
-          decision: 'deny',
-          reason: `${MOD}: \`git commit --amend\` is refused on ${branches.current || 'this branch'}: the commit is already shared (default branch, or already pushed). Make a new commit instead.`,
-        }
+        return `${MOD}: \`git commit --amend\` is refused on ${branches.current || 'this branch'}: the commit is already shared (default branch, or already pushed). Make a new commit instead.`
       }
     }
     if (a.kind === 'add-all' && config.blockAddAll) {
@@ -558,10 +539,7 @@ async function gitGate($: EngineInterface, config: LkGateConfig, actions: GitAct
       if (untouched === null || untouched.length > 0) {
         const list = untouched === null ? '(git status could not be read)' : untouched.slice(0, 15).join(', ') + (untouched.length > 15 ? `, and ${untouched.length - 15} more` : '')
         await fire($, { rule: 'add-all', target: a.args.join(' '), outcome: 'denied', detail: `untouched: ${list}` })
-        return {
-          decision: 'deny',
-          reason: `${MOD}: \`git add ${a.args.join(' ')}\` is refused: it would stage files this session did not touch: ${list}. Stage the files you changed by name.`,
-        }
+        return `${MOD}: \`git add ${a.args.join(' ')}\` is refused: it would stage files this session did not touch: ${list}. Stage the files you changed by name.`
       }
     }
   }
@@ -592,10 +570,7 @@ async function gitGate($: EngineInterface, config: LkGateConfig, actions: GitAct
           sum.pending.length > 0 ? `pending: ${sum.pending.join(', ')}` : '',
         ].filter(x => x !== '')
         await fire($, { rule: 'merge', target: `PR #${pr}`, outcome: 'denied', detail: parts.join('; ') })
-        return {
-          decision: 'deny',
-          reason: `${MOD}: held the merge of PR #${pr}: CI is not green (${parts.join('; ')}). Wait for the checks or fix them, then ask the user before merging.`,
-        }
+        return `${MOD}: held the merge of PR #${pr}: CI is not green (${parts.join('; ')}). Wait for the checks or fix them, then ask the user before merging.`
       }
     }
   }
@@ -609,10 +584,7 @@ async function gitGate($: EngineInterface, config: LkGateConfig, actions: GitAct
   }
   const why = answer === null ? 'nobody could be asked or the question was dismissed' : 'the user chose Cancel'
   await fire($, { rule: 'merge', target: what, outcome: 'denied', detail: why })
-  return {
-    decision: 'deny',
-    reason: `${MOD}: the ${what} was held: ${why}. Do not retry it another way; ask the user when to merge.`,
-  }
+  return `${MOD}: the ${what} was held: ${why}. Do not retry it another way; ask the user when to merge.`
 }
 
 async function gitBranches($: EngineInterface, dir: string): Promise<{ current: string; defaults: string[] }> {
@@ -891,14 +863,14 @@ function gatesPane(kit: Kit, ui: Elements, nav: unknown, v: GatesView, buttons: 
     ])
   }
   const none = (s: string) => kit.text(s, { color: quiet, wrap: 'wrap' })
-  const on = v.state === 'on'
+  const enforced = v.state === 'on'
 
   const hero = kit.card({
     children: [
       box({ flexDirection: 'row', columnGap: 1 }, [
-        keep(kit.icon('shield', on ? 'ok' : 'danger')),
+        keep(kit.icon('shield', enforced ? 'ok' : 'danger')),
         box({ flexDirection: 'column', flexShrink: 1 }, [
-          kit.text('GATES', { bold: true, color: on ? TONES.ok.fg : TONES.danger.fg, wrap: 'truncate' }),
+          kit.text('GATES', { bold: true, color: enforced ? TONES.ok.fg : TONES.danger.fg, wrap: 'truncate' }),
           kit.text(v.title, { bold: true, wrap: 'wrap' }),
           kit.text(v.sub, { color: quiet, wrap: 'wrap' }),
         ]),
@@ -977,10 +949,10 @@ function gatesPane(kit: Kit, ui: Elements, nav: unknown, v: GatesView, buttons: 
 
 // ---- /lk gates …, and the shared /lk words ---------------------------------------------------------------------
 
-async function setBand($: EngineInterface, on: boolean): Promise<boolean> {
-  await update($, gateBand, () => on)
+async function setBand($: EngineInterface, shown: boolean): Promise<boolean> {
+  await update($, gateBand, () => shown)
   try {
-    await $.store.set(BAND_KEY, on)
+    await $.store.set(BAND_KEY, shown)
     return true
   } catch {
     return false
@@ -1093,10 +1065,10 @@ async function reloadShared($: EngineInterface): Promise<string> {
 }
 
 /** GSD mode's part in the gates: plan required on while GSD mode and its loop are on, off when either goes. */
-async function gsdPlan($: EngineInterface, on: boolean): Promise<string> {
-  await setOverride($, { requirePlan: on })
+async function gsdPlan($: EngineInterface, active: boolean): Promise<string> {
+  await setOverride($, { requirePlan: active })
   await loadConfig($)
-  return `gates: plan required ${on ? 'on' : 'off'} (GSD loop)`
+  return `gates: plan required ${active ? 'on' : 'off'} (GSD loop)`
 }
 
 /** At session start: a session that starts with GSD mode and its loop on requires a plan, as /lk on would have set. */
@@ -1310,36 +1282,46 @@ export function wireGates(on: On): void {
   }).catch(($, e, next) => next(e))
 
   on('tool.check', { tool: EDIT_TOOLS }, async ($, e, next) => {
-    if (e.tool_use_id === undefined || (await isKilled($))) return next(e)
-    const below = await next(e)
-    if (below.decision === 'deny' || !(await read($, gateEnabled))) return below
+    if (e.tool_use_id === undefined || (await isKilled($)) || !(await read($, gateEnabled))) return next(e)
     const path = editPath(e.input)
-    if (path === undefined) return below
+    if (path === undefined) return next(e)
+    // The rules beneath answer first: a call they deny is neither asked about nor counted.
+    const below = await $.tool.check({ tool: e.tool, input: e.input })
+    if (below.decision === 'deny') return next(e)
     // Failing closed inside the hook too: the stage's guard above reads a plain deny, not a failed frame.
+    let why: string | null = null
     try {
-      return await decideEdit($, below, [path], e.tool, (e as any).agentId)
+      why = await decideEdit($, [path], e.tool, e.agentId)
     } catch (err) {
-      return refused(err)
+      return { decision: 'deny', reason: refusedReason(err) }
     }
+    if (why !== null) return { decision: 'deny', reason: why }
+    return next(e)
   }).catch(failClosed)
 
   on('tool.check', { tool: 'Bash' }, async ($, e, next) => {
     const command = (typeof e.input === 'object' && e.input !== null ? (e.input as Record<string, unknown>) : {}).command
-    if (e.tool_use_id === undefined || typeof command !== 'string' || (await isKilled($))) return next(e)
-    const below = await next(e)
-    if (below.decision === 'deny' || !(await read($, gateEnabled))) return below
-    const config = await ensureConfig($)
-    const shell = bare(command)
-    const shipped = await shipGate($, config, shell)
-    if (shipped !== null) return shipped
-    const held = await gitGate($, config, gitActions(shell), shell, command)
-    if (held !== null) return held
-    // absolute against where the command runs; decideEdit then places them against the project root
-    const dir = await runDir($, command)
-    const targets = bashTargets(command, dir).map(t => absoluteIn(t, dir))
-    const verdict = await decideEdit($, below, targets, 'Bash', (e as any).agentId)
-    if (verdict.decision !== 'deny' && targets.length > 0) await recordBashWrites($, targets, dir)
-    return verdict
+    if (e.tool_use_id === undefined || typeof command !== 'string' || (await isKilled($)) || !(await read($, gateEnabled))) return next(e)
+    const below = await $.tool.check({ tool: e.tool, input: e.input })
+    if (below.decision === 'deny') return next(e)
+    let why: string | null = null
+    try {
+      const config = await ensureConfig($)
+      const shell = bare(command)
+      why = await shipGate($, config, shell)
+      if (why === null) why = await gitGate($, config, gitActions(shell), shell, command)
+      if (why === null) {
+        // absolute against where the command runs; decideEdit then places them against the project root
+        const dir = await runDir($, command)
+        const targets = bashTargets(command, dir).map(t => absoluteIn(t, dir))
+        why = await decideEdit($, targets, 'Bash', e.agentId)
+        if (why === null && targets.length > 0) await recordBashWrites($, targets, dir)
+      }
+    } catch (err) {
+      return { decision: 'deny', reason: refusedReason(err) }
+    }
+    if (why !== null) return { decision: 'deny', reason: why }
+    return next(e)
   }).catch(failClosed)
 
   // The rules block: what the gates enforce this session, with the limit in force.

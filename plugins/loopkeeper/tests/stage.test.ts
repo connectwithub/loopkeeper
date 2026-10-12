@@ -629,12 +629,15 @@ test('the growth guard denies a small task its 4th file, moves back to Plan and 
 })
 
 test('/lk small-max and size large lift the limit; the guard leaves a refusal from below alone', async ($, on) => {
-  stageWorld(on, null, GSD)
+  stageWorld(on, null, GSD, {}, { tool: e => (e.file_path === 'locked.ts' ? { deny: 'locked' } : undefined) })
   await start($)
   expect(await cmd($, 'small-max 1')).toBe('A small task may now touch at most 1 file (this session).')
   expect(await cmd($, 'small-max 50')).toContain('from 1 to 20')
   expect(await cmd($, 'size small')).toContain('at most 1 file;')
-  expect(((await $.tool.check(editOf('locked.ts') as never)) as { reason?: string }).reason).toBe('locked')
+  // the check refuses locked.ts beneath the guard, then the refused call settles: its reservation is released
+  const locked = editOf('locked.ts')
+  expect(((await $.tool.check(locked as never)) as { reason?: string }).reason).toBe('locked')
+  expect(((await $.tool.call({ tool: 'Edit', file_path: 'locked.ts', old_string: 'a', new_string: 'b', tool_use_id: locked.tool_use_id } as never)) as { deny?: string }).deny).toBe('locked')
   expect((await $.tool.check(editOf('a.ts') as never)).decision).toBe('allow')
   expect((await $.tool.check(editOf('b.ts') as never)).decision).toBe('deny')
   expect(await cmd($, 'size large')).toContain('Sized large')

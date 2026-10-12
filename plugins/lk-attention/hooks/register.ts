@@ -626,18 +626,22 @@ export function register(on: On) {
   })
 
   on('tool.check', async ($, e, next) => {
-    const verdict = await next(e)
     try {
       const id = typeof e.tool_use_id === 'string' ? e.tool_use_id : ''
       const tool = typeof e.tool === 'string' ? e.tool : ''
       // A query (no tool_use_id) shows no dialog; AskUserQuestion raises its own question event.
-      if (id && verdict && verdict.decision === 'ask' && tool !== 'AskUserQuestion') {
-        if ((await read($, configAtom)).enabled) await holdAsk($, tool, id, e.input, calls.get(id)?.agentId)
+      // Only grace mode needs the verdict, so the pre-query runs only then.
+      if (id && tool !== 'AskUserQuestion') {
+        const cfg = await read($, configAtom)
+        if (cfg.enabled && cfg.permissionSignal === 'grace') {
+          const q = await $.tool.check({ tool: e.tool, input: e.input })
+          if (q && q.decision === 'ask') await holdAsk($, tool, id, e.input, calls.get(id)?.agentId)
+        }
       }
     } catch {
       // Observing only.
     }
-    return verdict
+    return next(e)
   })
 
   // Fires only when a permission dialog is really shown (not for asks auto mode decides).

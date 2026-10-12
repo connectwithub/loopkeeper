@@ -140,3 +140,15 @@ From `claude plugin validate --strict .` and the code:
 - **Stored data**: one key, `band` (the `/secret-guard band on|off` choice), in the plugin's store. The log and counts stay in session state, masked.
 - **Environment**: reads `HOME`.
 - **Other**: a question (`Allow once` / `Block`) on a warn, toasts, the pane.
+
+## Notes for directory reviewers
+
+The directory's validator listed these items for this plugin. Each bullet says what the code does and where.
+
+- **"Uses a credential from the user's machine"** (policy hold `MCP_FORWARDS_CREDENTIAL_ENV`). No credential is read or sent; the two lines the check paired are text. In `hooks/patterns.ts` (line 52), `process.env` is an entry in `PLACEHOLDER_MARKERS`, so a value written as `process.env.SOME_KEY` counts as a reference rather than a literal secret; the plugin never reads the environment object. In `hooks/kit.ts`, `http://www.w3.org/2000/svg` is the SVG namespace inside the markup the UI kit draws, not a request. The plugin starts no programs and makes no network calls. It reads `HOME` (to find `~/.claude/secret-guard.json`) and its two config files, and nothing else on the machine.
+- **Fields in `plugin.json`** (warnings `UNKNOWN_KEY`). `documentationUrl` and `supportUrl` are listing fields the directory reads. `types` points at `types/index.d.ts`, the `$.state` contract that `claude plugin validate` checks. Claude Code ignores all three at load time.
+- **Icon** (warning `ICON_MISSING`). Added at `.claude-plugin/icon.png` (512 × 512); its source is `docs/assets/icons/lk-secret-guard.svg` in the repo.
+- **A call named in text** (note `MOD_CALL_NAMED_IN_TEXT`). `tool.call` is named in the header comment of `hooks/register.ts` (line 4), which describes the guard's `tool.call` hook (line 86). That hook scans the new text of `Write`, `Edit`, `MultiEdit`, `NotebookEdit` and `Bash` calls: it returns `next(e)` unchanged when nothing matches, refuses the call (`{ deny: … }`) on a block finding, and asks the user `Allow once` / `Block` on a warn finding.
+- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/secret-guard`, at session start (line 63). It registers no tools or agents.
+- **Classic hook** (note `MOD_HOOKS_POLICY_EVENT`). `classic.SessionStart` with source `clear`, `resume` or `fork` (line 76) reloads the config files and the band setting, because those resets clear `$.state`. It returns `next(e)` unchanged and alters nothing that passes through it.
+- **The `command.run` hook** (note `MOD_HOOKS_OPERATION`). The hook at line 137 has the matcher `{ command: 'secret-guard' }`, so it runs only for `/secret-guard`: it opens the pane, turns the guard off or on for the session, reloads the config, saves the band setting, or runs the matcher on test text. It does not see or change any other command.

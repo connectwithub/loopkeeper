@@ -193,6 +193,8 @@ const KEYS_TEXT =
 let lastHeld = ''
 // Growth-guard checks run one at a time, so parallel edits count against one list
 let guardChain: Promise<unknown> = Promise.resolve()
+// The path the growth guard reserved for a call, by tool_use_id, until the call's tool.call hook settles it.
+const reservedFor = new Map<string, string>()
 // The 30 s tick of the band's elapsed counter; a new session start replaces it
 let ticker: { cancel: () => void } | null = null
 
@@ -1135,8 +1137,8 @@ async function openMod($: EngineInterface, mod: (typeof HUB_MODS)[number], surfa
 
 // The hub's o: the /lk words that switch GSD mode go in an empty prompt box, as the routing pane's Toggle mode does;
 // a draft is kept and the toast says what to type
-async function offerGsd($: EngineInterface, on: boolean): Promise<void> {
-  const text = '/lk ' + (on ? 'on' : 'off')
+async function offerGsd($: EngineInterface, active: boolean): Promise<void> {
+  const text = '/lk ' + (active ? 'on' : 'off')
   let draft = ''
   try {
     draft = String((await $.prompt.read()).text ?? '')
@@ -1144,7 +1146,7 @@ async function offerGsd($: EngineInterface, on: boolean): Promise<void> {
     draft = ''
   }
   if (draft.trim() !== '') {
-    toast($, 'Type ' + text + ' to turn GSD mode ' + (on ? 'on' : 'off'))
+    toast($, 'Type ' + text + ' to turn GSD mode ' + (active ? 'on' : 'off'))
     return
   }
   let filled = false
@@ -1189,8 +1191,8 @@ async function autoMove($: EngineInterface, call: Record<string, unknown>): Prom
 
 // ADR 0004: the stage's part of GSD mode. /lk on switches to the gsd preset and /lk off back to default, each only
 // while the GSD loop is on; /lk loop on|off does the same while GSD mode is on. Exactly what gsd-orchestrator sent.
-async function gsdPreset($: EngineInterface, on: boolean): Promise<string> {
-  const want = on ? 'gsd' : 'default'
+async function gsdPreset($: EngineInterface, active: boolean): Promise<string> {
+  const want = active ? 'gsd' : 'default'
   if ((await read($, stagePreset)) === want) return 'stage ● preset ' + want + ' (already in use)'
   return (await choosePreset($, want)).text
 }
@@ -1587,7 +1589,7 @@ export function wireStage(on: On): void {
   // The growth guard: a small task may touch only so many files, in the main loop and subagents alike.
   // CLAUDE_MODS_DISABLE=loopkeeper turns it off (ADR 0009); the band says so.
   // It judges before the hooks beneath, so the gates never count (or ask about) a file it refuses; a path it reserved
-  // is released when a hook or rule beneath refuses the edit, so a refused file is not one the task touched.
+  // is released when the call is refused (the tool.call hook below), so a refused file is not one the task touched.
   on('tool.check', { tool: GUARDED_TOOLS }, async ($, e, next) => {
     if (e.tool_use_id === undefined || (await read($, stageDisabled))) return next(e)
     const run = guardChain.then(() => guardEdit($, e.input))
@@ -1598,20 +1600,26 @@ export function wireStage(on: On): void {
     } catch {
       // the guard never gets in the way of an edit it could not judge
     }
-    if (judged.held) return judged.held
-    const below = await next(e)
-    const path = judged.reserved
-    if (path !== undefined && (below as { decision?: unknown })?.decision === 'deny') {
+    if (judged.held) return { decision: 'deny', reason: judged.held.reason }
+    if (judged.reserved !== undefined) reservedFor.set(e.tool_use_id, judged.reserved)
+    return next(e)
+  }).catch(($, e, next) => (next.called ? { decision: 'ask' } : next(e)))
+
+  on('tool.call', { tool: GUARDED_TOOLS }, async ($, e, next) => {
+    const r = await next(e)
+    const path = e.tool_use_id === undefined ? undefined : reservedFor.get(e.tool_use_id)
+    if (e.tool_use_id !== undefined) reservedFor.delete(e.tool_use_id)
+    if (path !== undefined && (r as { deny?: unknown } | null)?.deny !== undefined) {
       const undo = guardChain.then(() => releaseEdit($, path))
       guardChain = undo.catch(() => undefined)
       try {
         await undo
       } catch {
-        // the refusal beneath stands either way
+        // the refusal stands either way
       }
     }
-    return below
-  }).catch(($, e, next) => (next.called ? { decision: 'ask' as const } : next(e)))
+    return r
+  }).catch(($, e, next) => next(e))
 
   on('command.run', { command: 'lk' }, async ($, e, next) => lk($, e as { args?: unknown; origin?: unknown }, next as LkNext)).catch(async ($, e, next) => {
     const r = next.called ? ((await next(e)) as { text?: string } | undefined) : undefined
@@ -1727,8 +1735,8 @@ export function wireStage(on: On): void {
       children: list.flatMap((s, i) => {
         const text = (i < ci ? '✓ ' : i === ci ? '● ' : '○ ') + s.label + (s.gate === true ? ' ⚑' : '') + (s.requiresAgent ? ' ⇄' : '')
         const tone: Tone = i === ci ? (waiting(s) ? 'warn' : 'info') : i < ci ? 'ok' : 'muted'
-        const step = k.text(text, { color: TONES[tone].fg, bold: i === ci ? true : undefined })
-        return i === 0 ? [step] : [' ─ ', step]
+        const chip = k.text(text, { color: TONES[tone].fg, bold: i === ci ? true : undefined })
+        return i === 0 ? [chip] : [' ─ ', chip]
       }),
     })
     const stepper = k.row({ key: 'stepper', left: [steps] })

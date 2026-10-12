@@ -654,11 +654,11 @@ async function onCommand($: EngineInterface, args: unknown): Promise<{ text?: st
       return { text: (isTarget ? `Target for ${s.name} is now ${fmt(value)}.` : `Max cycles for ${s.name} is now ${value}.`) + '\n\n' + subjectText(changed) }
     }
     const d = await read($, reviewDefaults)
-    const next: Defaults = isTarget ? { ...d, target: value } : { ...d, maxCycles: value }
-    await update($, reviewDefaults, () => next)
+    const saved: Defaults = isTarget ? { ...d, target: value } : { ...d, maxCycles: value }
+    await update($, reviewDefaults, () => saved)
     $.ui.invalidate('prompt.context')
     try {
-      await $.store.set(DEFAULTS_KEY, next)
+      await $.store.set(DEFAULTS_KEY, saved)
     } catch (err) {
       return { text: `Default ${verb} ${isTarget ? fmt(value) : value} for this session; not saved: ${messageOf(err)}` }
     }

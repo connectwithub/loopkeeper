@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>lk-where-am-i: a pin on a branch</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26386a"/>
+      <stop offset="1" stop-color="#121a33"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#tile)"/>
+  <rect x="5" y="5" width="502" height="502" rx="107" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="10"/>
+  <path d="M338.6,100.6 A176 176 0 1 1 173.4,100.6" fill="none" stroke="#ffb35c" stroke-width="32" stroke-linecap="round"/>
+  <polygon points="224.6,73.4 185.9,137.0 150.2,69.9" fill="#ffb35c" stroke="#ffb35c" stroke-width="8" stroke-linejoin="round"/>
+  <g transform="translate(256 256) scale(1.08) translate(-256 -256)" fill="#f5f7fc" stroke="#f5f7fc" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="196" y1="196" x2="196" y2="336" stroke-width="22" fill="none"/>
+    <circle cx="196" cy="186" r="24" stroke="none"/>
+    <circle cx="196" cy="342" r="24" stroke="none"/>
+    <path d="M196 312 C196 276 300 300 300 270" fill="none" stroke-width="22"/>
+    <path d="M300 266 C286 240 254 222 254 190 A46 46 0 0 1 346 190 C346 222 314 240 300 266 Z" stroke-width="10"/>
+    <circle cx="300" cy="190" r="17" fill="#16203d" stroke="none"/>
+  </g>
+</svg>

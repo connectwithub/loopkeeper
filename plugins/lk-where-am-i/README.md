@@ -86,6 +86,19 @@ Git is read on session start, after `/clear` / `/resume` / `/branch`, when the s
 - **Model calls and network**: none.
 - **Timers**: one 60-second `$.clock.every` tick.
 
+## Notes for directory reviewers
+
+The directory's validator listed these items for this plugin. Each bullet says what the code does and where.
+
+- **Programs it runs** (policy holds `MOD_RUNS_PROCESS`, `MOD_PROCESS_COMMAND_COMPUTED`). Only `git`, from one helper, `git()` in `hooks/register.ts` (line 102): `$.process.run(['git', ...args], { cwd, timeoutMs: 2000 })`. The program is always `git` and the arguments are the fixed lists in `readLocation()` (lines 112–124): `rev-parse --absolute-git-dir --git-common-dir --show-toplevel`, `symbolic-ref --short -q HEAD`, `rev-parse --short HEAD`, `--no-optional-locks status --porcelain`, `rev-parse --abbrev-ref --symbolic-full-name @{upstream}`, `rev-list --count @{upstream}..HEAD`, `log -1 --format=%ct%x00%s`, `symbolic-ref --short refs/remotes/origin/HEAD` and `worktree list --porcelain`. Only `cwd` varies: it is the session's directory. Every call is local and read-only; none writes to the repository or contacts a remote. It is there to show the repo, branch, worktree and dirtiness in the band.
+- **Local data and the conversation** (policy holds `MOD_LOCAL_DATA_LEAVES`, `MOD_SESSION_DATA_LEAVES`). Nothing is sent anywhere. Git's output is parsed into the band and the pane and kept in `$.state`. The only file it reads is its own config, `~/.claude/where-am-i.json` (or the one under `CLAUDE_CONFIG_DIR`), and nothing from it reaches a git argument. The `turn.step` hook (line 381) reads no message text: after the step it records the time, for the prompt-cache clock, and returns the step's result unchanged. The `session.measure` hook (line 408) reads only `rateLimits` and `cost`.
+- **Fields in `plugin.json`** (warnings `UNKNOWN_KEY`). `documentationUrl` and `supportUrl` are listing fields the directory reads. `types` points at `types/index.d.ts`, the `$.state` contract that `claude plugin validate` checks. Claude Code ignores all three at load time.
+- **Icon** (warning `ICON_MISSING`). Added at `.claude-plugin/icon.png` (512 × 512); its source is `docs/assets/icons/lk-where-am-i.svg` in the repo.
+- **A call named in text** (note `MOD_CALL_NAMED_IN_TEXT`). `command.run` is named in the header comment of `hooks/register.ts` (line 11), which lists the hooks.
+- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/where`, at session start (line 342). It registers no tools or agents.
+- **Classic hooks** (note `MOD_HOOKS_POLICY_EVENT`). `classic.SessionStart` with source `clear`, `resume` or `fork` (line 355) loads the settings and refreshes git again, because those resets clear `$.state`. `classic.CwdChanged` (line 365) stores the new directory and refreshes git. Both return `next(e)` unchanged; neither alters settings, instructions or other hooks.
+- **The `command.run` hook** (note `MOD_HOOKS_OPERATION`). The hook at line 430 has the matcher `{ command: 'where' }`, so it runs only for `/where`: it opens the pane, prints a text summary, refreshes git, shows or hides the band, or sets the cache TTL. It does not see or change any other command.
+
 ## Limitations
 
 - Git is read through `$.process.run` (CLI only); on a surface without it the band shows only the usage and cache parts.

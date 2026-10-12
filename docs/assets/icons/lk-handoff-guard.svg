@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>lk-handoff-guard: a note handed over</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26386a"/>
+      <stop offset="1" stop-color="#121a33"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#tile)"/>
+  <rect x="5" y="5" width="502" height="502" rx="107" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="10"/>
+  <path d="M338.6,100.6 A176 176 0 1 1 173.4,100.6" fill="none" stroke="#ffb35c" stroke-width="32" stroke-linecap="round"/>
+  <polygon points="224.6,73.4 185.9,137.0 150.2,69.9" fill="#ffb35c" stroke="#ffb35c" stroke-width="8" stroke-linejoin="round"/>
+  <g transform="translate(256 256) scale(1.08) translate(-256 -256)" fill="#f5f7fc" stroke="#f5f7fc" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M172 170 H246 L280 204 V340 H172 Z" fill="none" stroke-width="22"/>
+    <path d="M246 170 V204 H280" fill="none" stroke-width="14"/>
+    <line x1="198" y1="242" x2="236" y2="242" stroke-width="16" fill="none"/>
+    <line x1="224" y1="300" x2="292" y2="300" stroke="#1a2649" stroke-width="58" fill="none" stroke-linecap="butt"/>
+    <line x1="226" y1="300" x2="306" y2="300" stroke-width="26" fill="none"/>
+    <polygon points="352,300 306,268 306,332" stroke-width="12"/>
+  </g>
+</svg>

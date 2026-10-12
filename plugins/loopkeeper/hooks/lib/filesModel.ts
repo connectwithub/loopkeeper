@@ -3,7 +3,7 @@
 //
 // What is tracked:
 //   - reads: Read and NotebookRead (a file), Glob and Grep (a search: pattern + folder), and a file
-//     a prompt @-mentions (prompt.mention);
+//     a prompt @-mentions (prompt.submit);
 //   - edits: Edit, Write, MultiEdit, NotebookEdit once the call ran without a deny or an error,
 //     and Bash writes (sed -i, >, tee, cp, mv, touch, rm) the gates let through (gates.ts records those);
 //   - the call in flight ("Claude is reading X"), set before `await next(e)` and cleared after it; a Write of a

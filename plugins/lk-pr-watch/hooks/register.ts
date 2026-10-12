@@ -357,9 +357,9 @@ function stateOf(s: Snapshot): PrState {
 }
 
 /** 'polled just now', 'polled 40s ago', 'polled 5m ago', 'polled 2h ago', 'not polled yet' (clock times). */
-function ageText(polledAt: number, now: number): string {
+function ageText(polledAt: number, at: number): string {
   if (!polledAt) return 'not polled yet'
-  const s = Math.max(0, Math.round((now - polledAt) / 1000))
+  const s = Math.max(0, Math.round((at - polledAt) / 1000))
   if (s < 10) return 'polled just now'
   if (s < 60) return `polled ${s}s ago`
   if (s < 3600) return `polled ${Math.floor(s / 60)}m ago`
