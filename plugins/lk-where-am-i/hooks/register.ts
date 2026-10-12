@@ -326,7 +326,8 @@ async function runCommand($: Api, args: string): Promise<{ text?: string }> {
     const t = sanitizeTtl(words[1] ?? '')
     if (t === null) return { text: 'Give the cache TTL in minutes, such as /where cache 60 or /where cache 5.' }
     await saveSetting($, { cacheTtlMin: t })
-    return { text: `Prompt-cache TTL set to ${await read($, ttlAtom)} minutes.` }
+    const ttlNow = await read($, ttlAtom)
+    return { text: `Prompt-cache TTL set to ${ttlNow} minutes.` }
   }
   return { text: HELP }
 }

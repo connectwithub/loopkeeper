@@ -483,6 +483,7 @@ async function runCommand($: Api, args: string): Promise<{ text?: string }> {
     return {}
   }
   if (sub === 'text') {
+    const autoNow = await autoStatus($)
     return {
       text: summaryText(
         await read($, tallyAtom),
@@ -490,7 +491,7 @@ async function runCommand($: Api, args: string): Promise<{ text?: string }> {
         await read($, ctxAtom),
         await read($, lifetimeAtom),
         (await cacheText($)).text,
-      ) + `\nAuto keep-warm: ${await autoStatus($)}`,
+      ) + `\nAuto keep-warm: ${autoNow}`,
     }
   }
   if (sub === 'keepwarm') {
@@ -498,7 +499,10 @@ async function runCommand($: Api, args: string): Promise<{ text?: string }> {
   }
   if (sub === 'autowarm') {
     const v = arg.toLowerCase()
-    if (v === '') return { text: `Auto keep-warm: ${await autoStatus($)}` }
+    if (v === '') {
+      const autoNow = await autoStatus($)
+      return { text: `Auto keep-warm: ${autoNow}` }
+    }
     if (v !== 'on' && v !== 'off') return { text: 'Use /budget autowarm on or /budget autowarm off.' }
     const cfg = await saveSetting($, { autoKeepWarm: v === 'on' })
     if (v === 'off') return { text: 'Auto keep-warm off: the cache is refreshed only when you press Keep warm or run /budget keepwarm.' }

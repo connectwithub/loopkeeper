@@ -1279,34 +1279,52 @@ type LkNext = (e: any) => Promise<{ text?: string } | undefined>
 
 // Shared words (status, text, reload, band, on, off, loop) let the concerns after this one answer, then put the stage's
 // line first; a stage word is answered here; anything else goes on down the chain.
+// The stage's line for a /lk word other concerns also answer (status, text, reload, band, on, off, loop)
+async function sharedLine($: EngineInterface, sub: string, rest: string[], was: unknown): Promise<string> {
+  if (sub === 'status' || sub === 'text') {
+    const status = await statusText($)
+    return status
+  }
+  if (sub === 'reload') {
+    const reloaded = await reloadConfig($)
+    return reloaded.text
+  }
+  if (sub === 'band') {
+    const band = await bandWord($, rest)
+    return band
+  }
+  if (sub === 'on' || sub === 'off') {
+    const loopOn = await read($, routeLoop)
+    if (was === (sub === 'on') || !loopOn) return ''
+    const preset = await gsdPreset($, sub === 'on')
+    return preset
+  }
+  const word = (rest[0] ?? '').toLowerCase()
+  if (word !== 'on' && word !== 'off') return ''
+  const modeOn = await read($, routeMode)
+  if (!modeOn) return ''
+  const preset = await gsdPreset($, word === 'on')
+  return preset
+}
+
 async function lk($: EngineInterface, e: { args?: unknown; origin?: unknown }, next: LkNext): Promise<{ text?: string } | undefined> {
   const args = typeof e?.args === 'string' ? e.args : ''
   const origin = e?.origin as { kind?: unknown } | undefined
   const fromPerson = !origin || origin.kind === 'composer' || origin.kind === 'bridge' || origin.kind === 'sdk'
   const { sub, rest } = subOf(args)
-  const shared = async (mine: () => Promise<string>) => {
+  // Words other concerns also answer: the stage adds its line to theirs. /lk text: routing owns the word and answers
+  // last; the stage's part goes first. The mode is read before the chain runs, as gsd-orchestrator did: only a change
+  // of the mode switches the preset, and only while the loop is on.
+  if (sub === 'status' || sub === 'text' || sub === 'reload' || sub === 'band' || sub === 'on' || sub === 'off' || sub === 'loop') {
+    const was = await read($, routeMode)
     const r = await next(e)
     let line = ''
     try {
-      line = await mine()
+      line = await sharedLine($, sub, rest, was)
     } catch {
       line = PLUGIN + ': the stage could not answer "' + sub + '".'
     }
     return { ...(r ?? {}), text: joinText(line, r?.text) }
-  }
-  if (sub === 'status') return shared(() => statusText($))
-  // /lk text: routing owns the word and answers last; the stage's part goes first
-  if (sub === 'text') return shared(() => statusText($))
-  if (sub === 'reload') return shared(async () => (await reloadConfig($)).text)
-  if (sub === 'band') return shared(() => bandWord($, rest))
-  if (sub === 'on' || sub === 'off') {
-    // as gsd-orchestrator did: only a change of the mode switches the preset, and only while the loop is on
-    const was = await read($, routeMode)
-    return shared(async () => (was !== (sub === 'on') && (await read($, routeLoop)) ? gsdPreset($, sub === 'on') : ''))
-  }
-  if (sub === 'loop') {
-    const word = (rest[0] ?? '').toLowerCase()
-    return shared(async () => ((word === 'on' || word === 'off') && (await read($, routeMode)) ? gsdPreset($, word === 'on') : ''))
   }
   let own: { text?: string } | undefined
   try {

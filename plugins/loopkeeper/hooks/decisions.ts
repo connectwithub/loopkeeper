@@ -642,7 +642,10 @@ async function watchCommand($: EngineInterface, args: unknown, now: number): Pro
   const model = /^watch model(?: (\S+))?$/i.exec(text)
   if (model) {
     const id = model[1] ?? ''
-    if (!isModelId(id)) return { text: `Watch model is ${(await loadWatchConfig($)).watchModel}. ${WATCH_USAGE}` }
+    if (!isModelId(id)) {
+      const watchConfig = await loadWatchConfig($)
+      return { text: `Watch model is ${watchConfig.watchModel}. ${WATCH_USAGE}` }
+    }
     const saved = await storeSet($, KEY_MODEL, id)
     await update($, decisionWatch, c => ({ ...c, watchModel: id }))
     return { text: saved ? `Watch model: ${id}.` : `Watch model: ${id} for this session; not saved.` }
@@ -663,7 +666,9 @@ async function setBand($: EngineInterface, isOn: boolean): Promise<boolean> {
 async function statusLine($: EngineInterface): Promise<string> {
   const waiting = (await read($, decisionPending)).length
   const pending = waiting > 0 ? ` · ${waiting} major pending` : ''
-  return `decisions ● ${await read($, decisionCount)} this session · watch ${(await read($, decisionWatch)).watch ? 'on' : 'off'}${pending}`
+  const count = await read($, decisionCount)
+  const watching = (await read($, decisionWatch)).watch
+  return `decisions ● ${count} this session · watch ${watching ? 'on' : 'off'}${pending}`
 }
 
 // The end of the /lk chain. status adds this concern's line; reload, band and on/off are shared words
@@ -675,7 +680,8 @@ async function lk($: EngineInterface, e: { args: string }): Promise<{ text: stri
     await loadBand($)
     const found = await detect($)
     await loadWatch($)
-    return { text: `decisions ● reloaded: ${found.file} (${found.format}) · ${await statusLine($)}` }
+    const status = await statusLine($)
+    return { text: `decisions ● reloaded: ${found.file} (${found.format}) · ${status}` }
   }
   if (sub === 'band') {
     const words = rest.map(w => w.toLowerCase())
@@ -683,7 +689,10 @@ async function lk($: EngineInterface, e: { args: string }): Promise<{ text: stri
     // Another concern was named: nothing for this one to do
     if (named.length > 0 && !named.includes('decisions')) return { text: '' }
     const word = words.find(w => w === 'on' || w === 'off')
-    if (!word) return { text: `decisions ● band ${(await read($, decisionBand)) ? 'on' : 'off'}` }
+    if (!word) {
+      const shown = await read($, decisionBand)
+      return { text: `decisions ● band ${shown ? 'on' : 'off'}` }
+    }
     const saved = await setBand($, word === 'on')
     return { text: `decisions ● band ${word}${saved ? '' : ' (this session only)'}` }
   }

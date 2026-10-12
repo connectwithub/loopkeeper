@@ -120,7 +120,10 @@ async function bandShared($: EngineInterface, rest: string[]): Promise<string> {
   const named = words.filter(w => CONCERN_WORDS.includes(w))
   if (named.length > 0 && !named.includes('review')) return ''
   const word = words.find(w => w === 'on' || w === 'off')
-  if (!word) return `The review band is ${(await read($, reviewBand)) ? 'on' : 'off'}. Usage: /lk band [review] on|off`
+  if (!word) {
+    const shown = await read($, reviewBand)
+    return `The review band is ${shown ? 'on' : 'off'}. Usage: /lk band [review] on|off`
+  }
   await update($, reviewBand, () => word === 'on')
   try {
     await $.store.set(BAND_KEY, word === 'on')

@@ -692,6 +692,7 @@ async function statusLines($: EngineInterface): Promise<string[]> {
   const enabled = await read($, gateEnabled)
   const lim = await limitNow($, config)
   const limit = unlimited ? '∞' : String(lim.limit + extra)
+  const planFilesNow = await read($, stagePlanFiles)
   return [
     (await isKilled($))
       ? `Status: OFF (CLAUDE_MODS_DISABLE names ${MOD}, so no rule is enforced; unset it and start a new session to turn the gates on)`
@@ -702,7 +703,7 @@ async function statusLines($: EngineInterface): Promise<string[]> {
     ...errors.map(x => `Ignored: ${x}`),
     'Active rules [source]:',
     ...describeRules(config, sources).map(r => `  ${r}`),
-    `Files per turn: ${lim.limit} (${limitWhy(lim, await read($, stagePlanFiles))})`,
+    `Files per turn: ${lim.limit} (${limitWhy(lim, planFilesNow)})`,
     `Plan: ${planOk ? `approved (${planBy || 'yes'})` : planDone ? 'approved in the pipeline' : config.requirePlan ? 'not yet approved' : 'not required'}`,
     `Ship: ${
       !config.shipGate
@@ -1045,7 +1046,10 @@ async function bandShared($: EngineInterface, rest: string[]): Promise<string> {
   const named = words.filter(w => CONCERN_WORDS.includes(w))
   if (named.length > 0 && !named.includes('gates')) return ''
   const word = words.find(w => w === 'on' || w === 'off')
-  if (!word) return `The gates band is ${(await read($, gateBand)) ? 'on' : 'off'}. Usage: /lk band [gates] on|off`
+  if (!word) {
+    const shown = await read($, gateBand)
+    return `The gates band is ${shown ? 'on' : 'off'}. Usage: /lk band [gates] on|off`
+  }
   const saved = await setBand($, word === 'on')
   return `The gates band is ${word}.${saved ? '' : ' (this session only)'}`
 }
@@ -1074,32 +1078,55 @@ async function matchGsd($: EngineInterface): Promise<void> {
   await gsdPlan($, true)
 }
 
+// The gates' line for a /lk word other concerns also answer (status, text, reload, band, on, off, loop)
+async function sharedLine($: EngineInterface, sub: string, rest: string[], was: unknown): Promise<string> {
+  if (sub === 'status') {
+    const status = await statusLine($)
+    return status
+  }
+  if (sub === 'text') {
+    const status = await statusLine($)
+    const lines = await statusLines($)
+    return joinText(status, ...lines.slice(1))
+  }
+  if (sub === 'reload') {
+    const reloaded = await reloadShared($)
+    return reloaded
+  }
+  if (sub === 'band') {
+    const band = await bandShared($, rest)
+    return band
+  }
+  if (sub === 'on' || sub === 'off') {
+    const loopOn = await read($, routeLoop)
+    if (was === (sub === 'on') || !loopOn) return ''
+    const plan = await gsdPlan($, sub === 'on')
+    return plan
+  }
+  const word = (rest[0] ?? '').toLowerCase()
+  if (word !== 'on' && word !== 'off') return ''
+  const modeOn = await read($, routeMode)
+  if (!modeOn) return ''
+  const plan = await gsdPlan($, word === 'on')
+  return plan
+}
+
 async function lk($: EngineInterface, e: { args?: unknown }, next: LkNext): Promise<{ text?: string } | undefined> {
   const args = typeof e?.args === 'string' ? e.args : ''
   const { sub, rest } = subOf(args)
-  const shared = async (mine: () => Promise<string>) => {
+  // Words other concerns also answer: the gates add their line to theirs. /lk text: routing owns the word and answers
+  // last; the gates' one-liner and their details go after the stage's. The mode is read before the chain runs, as
+  // gsd-orchestrator did: only a change of the mode sets plan required, and only while the loop is on.
+  if (sub === 'status' || sub === 'text' || sub === 'reload' || sub === 'band' || sub === 'on' || sub === 'off' || sub === 'loop') {
+    const was = await read($, routeMode)
     const r = await next(e)
     let line = ''
     try {
-      line = await mine()
+      line = await sharedLine($, sub, rest, was)
     } catch {
       line = `${MOD}: the gates could not answer "${sub}".`
     }
     return { ...(r ?? {}), text: joinText(line, r?.text) }
-  }
-  if (sub === 'status') return shared(() => statusLine($))
-  // /lk text: routing owns the word and answers last; the gates' one-liner and their details go after the stage's
-  if (sub === 'text') return shared(async () => joinText(await statusLine($), ...(await statusLines($)).slice(1)))
-  if (sub === 'reload') return shared(() => reloadShared($))
-  if (sub === 'band') return shared(() => bandShared($, rest))
-  if (sub === 'on' || sub === 'off') {
-    // as gsd-orchestrator did: only a change of the mode sets plan required, and only while the loop is on
-    const was = await read($, routeMode)
-    return shared(async () => (was !== (sub === 'on') && (await read($, routeLoop)) ? gsdPlan($, sub === 'on') : ''))
-  }
-  if (sub === 'loop') {
-    const word = (rest[0] ?? '').toLowerCase()
-    return shared(async () => ((word === 'on' || word === 'off') && (await read($, routeMode)) ? gsdPlan($, word === 'on') : ''))
   }
   if (sub === 'gates') {
     const own = await gatesCommand($, rest)

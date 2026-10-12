@@ -202,7 +202,10 @@ async function bandWord($: EngineInterface, rest: string[]): Promise<string> {
   const named = words.filter(w => CONCERN_WORDS.includes(w))
   if (named.length > 0 && !named.includes('routing')) return ''
   const word = words.find(w => w === 'on' || w === 'off')
-  if (!word) return `The routing band is ${(await read($, routeBand)) !== false ? 'on' : 'off'}. Usage: /lk band [routing] on|off`
+  if (!word) {
+    const shown = (await read($, routeBand)) !== false
+    return `The routing band is ${shown ? 'on' : 'off'}. Usage: /lk band [routing] on|off`
+  }
   const saved = await setBand($, word === 'on')
   return `The routing band is ${word}.${saved ? '' : ' (this session only)'}`
 }
@@ -259,7 +262,10 @@ async function sharedLine($: EngineInterface, sub: string, rest: string[]): Prom
     await loadKill($)
     return 'Routing config re-read. Routing table:\n' + tableRows(await loadAll($))
   }
-  if (sub === 'band') return bandWord($, rest)
+  if (sub === 'band') {
+    const band = await bandWord($, rest)
+    return band
+  }
   await setMode($, sub === 'on')
   return modeText($, sub === 'on')
 }
@@ -368,7 +374,9 @@ function navItems($: EngineInterface, fromId: string) {
 
 /** The hub row's words: `GSD on · routed 3`, then the kill switch's note and `band off` when they apply. */
 async function hubWords($: EngineInterface): Promise<string> {
-  const words = [`GSD ${(await read($, routeMode)) === true ? 'on' : 'off'}`, `routed ${(await read($, routeRouted)) ?? 0}`]
+  const modeOn = (await read($, routeMode)) === true
+  const routed = (await read($, routeRouted)) ?? 0
+  const words = [`GSD ${modeOn ? 'on' : 'off'}`, `routed ${routed}`]
   if ((await read($, routeDisabled)) === true) words.push(DISABLED_NOTE)
   if ((await read($, routeBand)) === false) words.push('band off')
   return words.join(' · ')
