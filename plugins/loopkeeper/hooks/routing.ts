@@ -72,7 +72,7 @@ async function textOf($: EngineInterface, path: string): Promise<string | null> 
   }
 }
 
-async function storeGet($: EngineInterface, key: string): Promise<unknown> {
+async function routingStoreGet($: EngineInterface, key: string): Promise<unknown> {
   try {
     return await $.store.get(key)
   } catch {
@@ -80,7 +80,7 @@ async function storeGet($: EngineInterface, key: string): Promise<unknown> {
   }
 }
 
-async function storeSet($: EngineInterface, key: string, value: unknown): Promise<boolean> {
+async function routingStoreSet($: EngineInterface, key: string, value: unknown): Promise<boolean> {
   try {
     await $.store.set(key, value)
     return true
@@ -97,10 +97,10 @@ async function loadAll($: EngineInterface): Promise<LkRoutingConfig> {
   const projectPath = cwd ? projectConfigPath(cwd) : ''
   const userLayer = userPath ? routingLayer(await textOf($, userPath)) : undefined
   const projectLayer = projectPath && projectPath !== userPath ? routingLayer(await textOf($, projectPath)) : undefined
-  const config = buildConfig(userLayer, projectLayer, await storeGet($, OVERRIDES_KEY))
-  const savedMode = await storeGet($, MODE_KEY)
-  const savedBand = await storeGet($, BAND_KEY)
-  const savedLoop = await storeGet($, LOOP_KEY)
+  const config = buildConfig(userLayer, projectLayer, await routingStoreGet($, OVERRIDES_KEY))
+  const savedMode = await routingStoreGet($, MODE_KEY)
+  const savedBand = await routingStoreGet($, BAND_KEY)
+  const savedLoop = await routingStoreGet($, LOOP_KEY)
   await update($, routeConfig, () => config)
   // an explicit /lk on|off wins over the files' `enabled`
   await update($, routeMode, () => (typeof savedMode === 'boolean' ? savedMode : config.enabled === true))
@@ -127,20 +127,20 @@ function rerender($: EngineInterface): void {
 /** Turn GSD mode on or off, save it, and have the engine re-render the context. */
 async function setMode($: EngineInterface, isOn: boolean): Promise<void> {
   await update($, routeMode, () => isOn)
-  await storeSet($, MODE_KEY, isOn)
+  await routingStoreSet($, MODE_KEY, isOn)
   rerender($)
 }
 
 /** Turn the loop on or off and save it; the rules change only while the mode is on. */
 async function setLoop($: EngineInterface, isLoop: boolean): Promise<void> {
   await update($, routeLoop, () => isLoop)
-  await storeSet($, LOOP_KEY, isLoop)
+  await routingStoreSet($, LOOP_KEY, isLoop)
   if ((await read($, routeMode)) === true) rerender($)
 }
 
-async function setBand($: EngineInterface, isBand: boolean): Promise<boolean> {
+async function setRoutingBand($: EngineInterface, isBand: boolean): Promise<boolean> {
   await update($, routeBand, () => isBand)
-  return storeSet($, BAND_KEY, isBand)
+  return routingStoreSet($, BAND_KEY, isBand)
 }
 
 async function nowOf($: EngineInterface): Promise<number> {
@@ -197,7 +197,7 @@ async function textAnswer($: EngineInterface): Promise<string> {
 type LkNext = (e: any) => Promise<{ text?: string } | undefined>
 
 /** /lk band [concerns] on|off: the routing line, or '' when the words name other concerns only. */
-async function bandWord($: EngineInterface, rest: string[]): Promise<string> {
+async function routingBandLine($: EngineInterface, rest: string[]): Promise<string> {
   const words = rest.map(w => w.toLowerCase())
   const named = words.filter(w => CONCERN_WORDS.includes(w))
   if (named.length > 0 && !named.includes('routing')) return ''
@@ -206,7 +206,7 @@ async function bandWord($: EngineInterface, rest: string[]): Promise<string> {
     const shown = (await read($, routeBand)) !== false
     return `The routing band is ${shown ? 'on' : 'off'}. Usage: /lk band [routing] on|off`
   }
-  const saved = await setBand($, word === 'on')
+  const saved = await setRoutingBand($, word === 'on')
   return `The routing band is ${word}.${saved ? '' : ' (this session only)'}`
 }
 
@@ -231,7 +231,7 @@ async function ownWord($: EngineInterface, sub: string, rest: string[], text: st
     }
     const model = rest[1] ?? ''
     if (!isRole(role) || !isModelName(model)) return { text: USAGE.route }
-    const saved = await storeGet($, OVERRIDES_KEY)
+    const saved = await routingStoreGet($, OVERRIDES_KEY)
     await $.store.set(OVERRIDES_KEY, { ...(isObj(saved) ? saved : {}), [role]: model })
     const config = await loadAll($)
     return { text: 'Route set for this and later sessions until /lk route reset:\n  ' + tableRow(config, role) }
@@ -248,7 +248,7 @@ async function ownWord($: EngineInterface, sub: string, rest: string[], text: st
 }
 
 // The routing line for a /lk word other concerns also answer (status, reload, band, on, off)
-async function sharedLine($: EngineInterface, sub: string, rest: string[]): Promise<string> {
+async function routingSharedLine($: EngineInterface, sub: string, rest: string[]): Promise<string> {
   if (sub === 'status') {
     return statusLine(
       (await read($, routeMode)) === true,
@@ -263,7 +263,7 @@ async function sharedLine($: EngineInterface, sub: string, rest: string[]): Prom
     return 'Routing config re-read. Routing table:\n' + tableRows(await loadAll($))
   }
   if (sub === 'band') {
-    const band = await bandWord($, rest)
+    const band = await routingBandLine($, rest)
     return band
   }
   await setMode($, sub === 'on')
@@ -276,7 +276,7 @@ async function lk($: EngineInterface, e: { args?: unknown }, next: LkNext): Prom
     const r = await next(e)
     let line = ''
     try {
-      line = await sharedLine($, sub, rest)
+      line = await routingSharedLine($, sub, rest)
     } catch {
       line = `${PLUGIN}: routing could not answer "${sub}".`
     }

@@ -329,7 +329,7 @@ async function applyStages($: EngineInterface, list: Stage[], name: string, note
   await derive($)
 }
 
-async function storeGet($: EngineInterface, key: string): Promise<unknown> {
+async function stageStoreGet($: EngineInterface, key: string): Promise<unknown> {
   try {
     return await $.store.get(key)
   } catch {
@@ -337,7 +337,7 @@ async function storeGet($: EngineInterface, key: string): Promise<unknown> {
   }
 }
 
-async function storeSet($: EngineInterface, key: string, value: unknown): Promise<boolean> {
+async function stageStoreSet($: EngineInterface, key: string, value: unknown): Promise<boolean> {
   try {
     await $.store.set(key, value)
     return true
@@ -356,9 +356,9 @@ async function applyConfig($: EngineInterface, config: Config, cc: unknown): Pro
   await update($, stageNextHint, () => config.nextHint !== false)
   await update($, stagePlanPaths, () => [...(planPathsOf(section.planPaths) ?? DEFAULT_PLAN_PATHS)])
   await update($, stageLimits, () => limitsOf(section))
-  const mode = approvalOf(await storeGet($, approvalKey(dir)), config)
+  const mode = approvalOf(await stageStoreGet($, approvalKey(dir)), config)
   await update($, stageApproval, () => mode)
-  const chosen = chooseStages(config, await storeGet($, presetKey(dir)))
+  const chosen = chooseStages(config, await stageStoreGet($, presetKey(dir)))
   await applyStages($, chosen.stages, chosen.preset)
 }
 
@@ -408,7 +408,7 @@ async function init($: EngineInterface): Promise<void> {
   await applyConfig($, config, cc)
   const at = await safeNow($)
   await update($, stageNow, () => at)
-  const shown = await storeGet($, BAND_KEY)
+  const shown = await stageStoreGet($, BAND_KEY)
   await update($, stageBand, () => shown !== false)
   // ADR 0007: an old Claude Code is named on the band; an unknown or dev build is not
   let note = ''
@@ -425,7 +425,7 @@ async function init($: EngineInterface): Promise<void> {
     await derive($)
     return
   }
-  const saved = savedOf(await storeGet($, projectKey(dir)))
+  const saved = savedOf(await stageStoreGet($, projectKey(dir)))
   const list = await read($, stageStages)
   if (saved && indexOf(list, saved.stage) >= 0) {
     const gates = list.filter(s => s.gate === true).map(s => s.id)
@@ -844,7 +844,7 @@ async function choosePreset($: EngineInterface, name: string): Promise<MoveOutco
   }
   if (!list) return { ok: false, text: 'Unknown preset "' + name + '". Presets: ' + known.join(', ') + '.' }
   await applyStages($, list, name, 'preset ' + name)
-  await storeSet($, presetKey(dir), saved)
+  await stageStoreSet($, presetKey(dir), saved)
   await persist($)
   return { ok: true, text: 'Pipeline preset ' + name + ': ' + list.map(s => s.label).join(' → ') + '. Saved for this project.' }
 }
@@ -1245,7 +1245,7 @@ async function ownCommand($: EngineInterface, args: string, fromPerson: boolean)
     if (arg !== 'auto' && arg !== 'ask') return { text: 'Usage: /lk approval auto|ask' }
     await update($, stageApproval, () => arg)
     // ADR 0005: one approval mode for all of loopkeeper, kept per project
-    await storeSet($, approvalKey(await read($, stageCwd)), arg)
+    await stageStoreSet($, approvalKey(await read($, stageCwd)), arg)
     return {
       text:
         arg === 'auto'
@@ -1264,14 +1264,14 @@ async function ownCommand($: EngineInterface, args: string, fromPerson: boolean)
 }
 
 // /lk band [stage|gates|…] on|off: no concern named means every band, so the stage acts too
-async function bandWord($: EngineInterface, rest: string[]): Promise<string> {
+async function stageBandLine($: EngineInterface, rest: string[]): Promise<string> {
   const words = rest.map(w => w.toLowerCase())
   const named = words.filter(w => CONCERN_WORDS.includes(w))
   if (named.length > 0 && !named.includes('stage')) return ''
   const word = words.find(w => w === 'on' || w === 'off')
   if (!word) return 'The stage band is ' + ((await read($, stageBand)) ? 'on' : 'off') + '. Usage: /lk band [stage] on|off'
   await update($, stageBand, () => word === 'on')
-  const saved = await storeSet($, BAND_KEY, word === 'on')
+  const saved = await stageStoreSet($, BAND_KEY, word === 'on')
   return 'The stage band is ' + word + '.' + (saved ? '' : ' (this session only)')
 }
 
@@ -1280,7 +1280,7 @@ type LkNext = (e: any) => Promise<{ text?: string } | undefined>
 // Shared words (status, text, reload, band, on, off, loop) let the concerns after this one answer, then put the stage's
 // line first; a stage word is answered here; anything else goes on down the chain.
 // The stage's line for a /lk word other concerns also answer (status, text, reload, band, on, off, loop)
-async function sharedLine($: EngineInterface, sub: string, rest: string[], was: unknown): Promise<string> {
+async function stageSharedLine($: EngineInterface, sub: string, rest: string[], was: unknown): Promise<string> {
   if (sub === 'status' || sub === 'text') {
     const status = await statusText($)
     return status
@@ -1290,7 +1290,7 @@ async function sharedLine($: EngineInterface, sub: string, rest: string[], was: 
     return reloaded.text
   }
   if (sub === 'band') {
-    const band = await bandWord($, rest)
+    const band = await stageBandLine($, rest)
     return band
   }
   if (sub === 'on' || sub === 'off') {
@@ -1320,7 +1320,7 @@ async function lk($: EngineInterface, e: { args?: unknown; origin?: unknown }, n
     const r = await next(e)
     let line = ''
     try {
-      line = await sharedLine($, sub, rest, was)
+      line = await stageSharedLine($, sub, rest, was)
     } catch {
       line = PLUGIN + ': the stage could not answer "' + sub + '".'
     }

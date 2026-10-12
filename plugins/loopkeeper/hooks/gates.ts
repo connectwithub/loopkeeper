@@ -946,7 +946,7 @@ function gatesPane(kit: Kit, ui: Elements, nav: unknown, v: GatesView, buttons: 
 
 // ---- /lk gates …, and the shared /lk words ---------------------------------------------------------------------
 
-async function setBand($: EngineInterface, shown: boolean): Promise<boolean> {
+async function setGatesBand($: EngineInterface, shown: boolean): Promise<boolean> {
   await update($, gateBand, () => shown)
   try {
     await $.store.set(BAND_KEY, shown)
@@ -1034,14 +1034,14 @@ async function gatesCommand($: EngineInterface, rest: string[]): Promise<{ text?
   }
   if (verb === 'band') {
     if (value !== 'on' && value !== 'off') return { text: `usage: ${GATES_CMD} band on|off` }
-    const saved = await setBand($, value === 'on')
+    const saved = await setGatesBand($, value === 'on')
     return { text: `gates band ${value}${saved ? ' (saved for future sessions)' : ' (this session only)'}.` }
   }
   return { text: USAGE }
 }
 
 /** `/lk band [concerns] on|off`: the gates line, or '' when the words name other concerns only. */
-async function bandShared($: EngineInterface, rest: string[]): Promise<string> {
+async function gatesBandLine($: EngineInterface, rest: string[]): Promise<string> {
   const words = rest.map(w => w.toLowerCase())
   const named = words.filter(w => CONCERN_WORDS.includes(w))
   if (named.length > 0 && !named.includes('gates')) return ''
@@ -1050,7 +1050,7 @@ async function bandShared($: EngineInterface, rest: string[]): Promise<string> {
     const shown = await read($, gateBand)
     return `The gates band is ${shown ? 'on' : 'off'}. Usage: /lk band [gates] on|off`
   }
-  const saved = await setBand($, word === 'on')
+  const saved = await setGatesBand($, word === 'on')
   return `The gates band is ${word}.${saved ? '' : ' (this session only)'}`
 }
 
@@ -1079,7 +1079,7 @@ async function matchGsd($: EngineInterface): Promise<void> {
 }
 
 // The gates' line for a /lk word other concerns also answer (status, text, reload, band, on, off, loop)
-async function sharedLine($: EngineInterface, sub: string, rest: string[], was: unknown): Promise<string> {
+async function gatesSharedLine($: EngineInterface, sub: string, rest: string[], was: unknown): Promise<string> {
   if (sub === 'status') {
     const status = await statusLine($)
     return status
@@ -1094,7 +1094,7 @@ async function sharedLine($: EngineInterface, sub: string, rest: string[], was: 
     return reloaded
   }
   if (sub === 'band') {
-    const band = await bandShared($, rest)
+    const band = await gatesBandLine($, rest)
     return band
   }
   if (sub === 'on' || sub === 'off') {
@@ -1122,7 +1122,7 @@ async function lk($: EngineInterface, e: { args?: unknown }, next: LkNext): Prom
     const r = await next(e)
     let line = ''
     try {
-      line = await sharedLine($, sub, rest, was)
+      line = await gatesSharedLine($, sub, rest, was)
     } catch {
       line = `${MOD}: the gates could not answer "${sub}".`
     }
