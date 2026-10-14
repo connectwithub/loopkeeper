@@ -494,7 +494,9 @@ export function contextText(c: LkGateConfig, limit: number = c.maxFilesPerTurn):
   )
   if (c.protected.length > 0) {
     const list = c.protected.map(r => `${r.glob} (${r.action})`).join(', ')
-    lines.push(`- Protected paths: ${list}. "deny" means ask the user to make the change; "ask" means the user is asked first.`)
+    lines.push(
+      `- Protected paths: ${list}. "deny" means ask the user to make the change; "ask" needs the user's yes first (the terminal asks; elsewhere the user runs ${GATES_CMD} allow <path>).`,
+    )
   }
   if (c.requirePlan) {
     lines.push('- No edits until a plan is approved: present the plan and get the user to approve it first.')
@@ -504,7 +506,7 @@ export function contextText(c: LkGateConfig, limit: number = c.maxFilesPerTurn):
   }
   if (c.mergeGate) {
     lines.push(
-      `- Merges and pushes to the default branch are held${c.requireGreenCi ? ' until CI is green' : ''} and need the user's confirmation.`,
+      `- Merges and pushes to the default branch are held${c.requireGreenCi ? ' until CI is green' : ''} and need the user's yes: the user's Ship approval (/lk approve) or ${GATES_CMD} merge ok covers the next one; otherwise the terminal asks.`,
     )
   }
   if (c.shipGate) {
@@ -538,7 +540,7 @@ export function failClosedReason(kind: string, message: string): string {
   return `${MOD}: the gates failed (${kind}${msg ? `: ${msg}` : ''}) and refused this call rather than let it through unchecked. Tell the user; they can run ${GATES_CMD} off, or set CLAUDE_MODS_DISABLE=${MOD}.`
 }
 
-export const USAGE = `usage: ${GATES_CMD} (pane) · text · files · max <n> · plan ok · plan required on|off · plan paths · ship ok · ship gate on|off · on · off · reload · band on|off`
+export const USAGE = `usage: ${GATES_CMD} (pane) · text · files · max <n> · plan ok · plan required on|off · plan paths · ship ok · ship gate on|off · merge ok · allow <path> · on · off · reload · band on|off`
 
 // ---- The Files pane seam ------------------------------------------------------------------
 // The gates see Bash writes (bashTargets) that no tool.call reports; they record them into the Files pane's

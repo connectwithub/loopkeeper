@@ -43,7 +43,7 @@ The plan gate opens in one of two ways, set by `/lk approval`:
 
 A prompt the person sends holds the gate when it asks to wait or to approve the plan themselves: phrases such as "wait for approval", "ask me first", "check with me", "plan only", "just the plan", "don't start until ...", "let me approve the plan", "I want to review the plan" or "review the plan first". A prompt that only mentions approving, such as "once I approve the plan", does not hold. Neither does a message from a plugin, a peer, a task or a channel: only a prompt typed in the composer, sent through the bridge or by the SDK host counts. `/lk approve` clears the hold.
 
-The ship gate and the merge gate are approved separately. `/lk approve` at Ship opens shipping; at the stage before Ship (QA) it opens the Ship gate and moves there. A merge is asked about each time, and shows `Merge` and `Cancel`.
+`/lk approve` at Ship (or the Stage pane's `Approve gate`, or the hub's `a`) opens shipping; at the stage before Ship (QA) it opens the Ship gate and moves there. The same approval is the user's yes for the next push or merge to the default branch, once: the merge gate lets that one through without a question. At Ship with no gate (the default preset), or with its gate already approved, `/lk approve` gives that yes alone (`Ship has no gate to approve; the next push or merge to the default branch is allowed.`) and sends no continue prompt. `/lk gates ship ok` gives it too, and `/lk gates merge ok` gives only it. A move to any stage other than Ship (this includes a `/lk gates merge ok` given at another stage), `/lk reset`, or a preset that drops the current stage takes back an unused one. Without it the terminal asks about each merge with `Merge` and `Cancel`; the desktop app, mobile and VS Code cannot answer a question from a permission check, so there the merge is refused with `/lk approve` and `/lk gates merge ok` named.
 
 ## Continue after approval
 
@@ -92,10 +92,10 @@ A validator that finished during Plan is kept (the stage calls it a carry), so a
 | Gate | Stops |
 | --- | --- |
 | Plan gate | Edits to work files before the plan is approved (when `requirePlan` is on; the GSD loop turns it on). |
-| Files per turn | The edit that would pass the turn's file limit. The user is asked. |
-| Protected paths | Edits to matching globs. The default rules ask for `docs/decisions/**` and `**/migrations/**` and deny `.env*`. |
+| Files per turn | The edit that would pass the turn's file limit. In the terminal the user is asked; elsewhere the edit is refused and the refusal names `/lk gates max <n>`. |
+| Protected paths | Edits to matching globs. The default rules ask for `docs/decisions/**` and `**/migrations/**` and deny `.env*`. An ask rule asks in the terminal; elsewhere the edit is refused until the user runs `/lk gates allow <path>`, which allows that path for the session. |
 | Ship gate | Shipping commands (commit, push, PR create or merge, release, publish, upload) until the stage opens shipping. |
-| Merge gate | Merges into the default branch. A PR merge is held while its checks are not green. |
+| Merge gate | Merges into the default branch. A PR merge is held while its checks are not green. Then the user's Ship approval or `/lk gates merge ok` lets the next one through; without it the terminal asks, and elsewhere the merge is refused. |
 | Amend and add-all | `git commit --amend` on a shared commit; `git add -A` that would stage untouched files (when `blockAddAll` is on). |
 | Growth guard | A small task's file past its limit. |
 
@@ -218,7 +218,7 @@ The user reviews the work and runs:
 /lk approve
 ```
 
-From QA it opens the Ship gate and moves the pipeline to Ship. Shipping opens, and loopkeeper's prompt (`The user ran /lk approve. Approved the Ship gate and moved to Ship: Claude may commit, push or open a PR. Carry on with the task from where you stopped.`) has Claude run the commit. At Ship itself the reply reads `Approved the Ship gate; the pipeline may now move past it.` A `git push origin main` afterwards asks once, through the merge gate, with `Merge` and `Cancel`. The user chooses. The stage pane's history lists each move with its cause (`tool`, `command` or `auto`). From here every answer ends with:
+From QA it opens the Ship gate and moves the pipeline to Ship. Shipping opens, and loopkeeper's prompt (`The user ran /lk approve. Approved the Ship gate and moved to Ship: Claude may commit, push or open a PR. Carry on with the task from where you stopped.`) has Claude run the commit. At Ship itself the reply reads `Approved the Ship gate; the pipeline may now move past it.` The approval also covers the next `git push origin main`, so it runs without a question; one after that asks once, through the merge gate, with `Merge` and `Cancel`, in the terminal (elsewhere it is refused until `/lk approve` at Ship or `/lk gates merge ok`). The stage pane's history lists each move with its cause (`tool`, `command` or `auto`). From here every answer ends with:
 
 ```
 loopkeeper · Ship (6 of 6) · Last stage: ask Claude to commit, push or open a PR; /lk reset starts the next task.

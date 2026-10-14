@@ -155,6 +155,9 @@ const routeLoop = atom({ plugin: 'loopkeeper', key: 'routeLoop' } as const, true
 // the gates' /lk gates ship ok for this session and their merged config (shipGate), read by the next-step sentence
 const gateShipOk = atom({ plugin: 'loopkeeper', key: 'gateShipOk' } as const, false)
 const gateConfig = atom({ plugin: 'loopkeeper', key: 'gateConfig' } as const, null as LkGateConfig | null)
+// Written here, spent by the gates: the user's approval at or into the ship stage covers the next push or merge to
+// the default branch; leaving the ship stage (or a reset) takes back one not used
+const gateMergeCredit = atom({ plugin: 'loopkeeper', key: 'gateMergeCredit' } as const, false)
 
 const PANE_ID = 'loopkeeper-stage'
 const TICK_MS = 30_000
@@ -221,8 +224,9 @@ const USAGE =
   'opens the loopkeeper hub; /lk stage opens the Stage pane and /lk help lists the keys (a custom stage named stage ' +
   'or help is reached with next, back or set_stage).'
 
-// changed: the approval approved something new (a gate or a waiting budget); budgetOnly: only a budget was approved
-type MoveOutcome = { ok: boolean; text: string; reason?: string; changed?: boolean; budgetOnly?: true }
+// changed: the approval approved something new (a gate or a waiting budget); budgetOnly: only a budget was approved;
+// credit: the approval only gave the merge credit (at a Ship stage with no gate, or with its gate already approved)
+type MoveOutcome = { ok: boolean; text: string; reason?: string; changed?: boolean; budgetOnly?: true; credit?: true }
 
 // ---- Small helpers that take $ -----------------------------------------------------------------------------------
 
@@ -321,6 +325,8 @@ async function applyStages($: EngineInterface, list: Stage[], name: string, note
   const first = list[0]?.id ?? 'plan'
   if (!ids.includes(await read($, stageCurrent))) {
     await update($, stageCurrent, () => first)
+    // a fallback past moveTo: an unused merge credit goes with the stage it was given at
+    await update($, gateMergeCredit, () => false)
     if (note) {
       const at = await safeNow($)
       await update($, stageHistory, h => capHistory([...h, { stage: first, at, by: 'command' as By, note }]))
@@ -474,6 +480,8 @@ async function moveTo($: EngineInterface, target: string, by: By, note?: string)
   const carried = await read($, stageCarry)
   const carriedBy = await read($, stageCarryBy)
   await update($, stageCurrent, () => id)
+  // the merge credit is the ship stage's: leaving it takes back one not used
+  if (roleOf(check.stage) !== 'ship') await update($, gateMergeCredit, () => false)
   // a verifier counts per visit: entering a stage again needs a fresh one, except a small task's waiver the first time
   if ((await read($, stageWaived)).includes(id)) await update($, stageWaived, w => w.filter(x => x !== id))
   else await update($, stageVerified, v => v.filter(x => x !== id))
@@ -718,6 +726,17 @@ async function releaseEdit($: EngineInterface, path: string): Promise<void> {
   await persist($)
 }
 
+// Release a reserved path, in turn with the guard's checks, for an edit that did not happen (refused, or its call threw)
+async function releaseReserved($: EngineInterface, path: string): Promise<void> {
+  const undo = guardChain.then(() => releaseEdit($, path))
+  guardChain = undo.catch(() => undefined)
+  try {
+    await undo
+  } catch {
+    // the call's own answer stands either way
+  }
+}
+
 async function step($: EngineInterface, dir: 1 | -1): Promise<MoveOutcome> {
   const target = neighbour(await read($, stageStages), await read($, stageCurrent), dir)
   if (!target) return { ok: false, text: dir === 1 ? 'Already at the last stage.' : 'Already at the first stage.' }
@@ -727,12 +746,14 @@ async function step($: EngineInterface, dir: 1 | -1): Promise<MoveOutcome> {
 // /lk approve: the current stage's gate. Approving the plan gate approves the planned file budget with it (any count:
 // the user approves it). With the gate already open, or at another stage's gate, a large budget still waiting is
 // approved first. From the stage before a gate (no gate of its own waiting), it opens the next stage's gate and moves
-// into it (openGateAhead); never a gate two stages ahead.
+// into it (openGateAhead); never a gate two stages ahead. At the ship stage the user's approval also covers the next
+// push or merge to the default branch (the merge credit), whether it approves the gate, finds it approved or finds none.
 async function approveGate($: EngineInterface): Promise<MoveOutcome> {
   const list = await read($, stageStages)
   const stage = list[indexOf(list, await read($, stageCurrent))]
   if (!stage) return { ok: false, text: 'No current stage.' }
   const isPlanGate = roleOf(stage) === 'validate-plan'
+  const isShip = roleOf(stage) === 'ship'
   if (isPlanGate && stage.gate === true) {
     await update($, stageHoldPlan, () => false)
     await update($, stageHoldBound, () => false)
@@ -741,6 +762,12 @@ async function approveGate($: EngineInterface): Promise<MoveOutcome> {
     if (budgetWaits(await budgetState($))) return approveWaitingBudget($)
     const ahead = gateAhead(list, stage.id, await read($, stageApproved))
     if (ahead) return openGateAhead($, stage, ahead)
+    // nothing new is approved, so no continue prompt goes (no `changed`); the answer says what the approval covers
+    if (isShip) {
+      await update($, gateMergeCredit, () => true)
+      const head = stage.gate !== true ? stage.label + ' has no gate to approve' : 'The ' + stage.label + ' gate is already approved'
+      return { ok: true, text: head + '; the next push or merge to the default branch is allowed.', credit: true }
+    }
     if (stage.gate !== true) return { ok: false, text: stage.label + ' has no gate to approve.' }
     return { ok: true, text: 'The ' + stage.label + ' gate is already approved.' }
   }
@@ -748,6 +775,7 @@ async function approveGate($: EngineInterface): Promise<MoveOutcome> {
   // next one the gate's
   if (!isPlanGate && budgetWaits(await budgetState($))) return approveWaitingBudget($)
   await update($, stageApproved, a => [...a, stage.id])
+  if (isShip) await update($, gateMergeCredit, () => true)
   // the user's approval vouches for the stage's verifier too
   if (stage.requiresAgent && !(await read($, stageVerified)).includes(stage.id)) {
     await update($, stageVerified, v => [...v, stage.id])
@@ -761,7 +789,8 @@ async function approveGate($: EngineInterface): Promise<MoveOutcome> {
 // /lk approve from the stage before a gate. The user's approval vouches for the current stage's verifier, so the move
 // passes; entering a stage clears its verifier mark, so the next stage's gate and verifier marks go on after the move.
 // A gate already approved (after /lk back) is moved into without approving it again. The plan gate clears the hold
-// and approves the planned file budget, as /lk approve at Validate plan does.
+// and approves the planned file budget, as /lk approve at Validate plan does. Into the ship stage, the approval also
+// covers the next push or merge to the default branch (the merge credit).
 async function openGateAhead($: EngineInterface, stage: Stage, next: Stage): Promise<MoveOutcome> {
   const list = await read($, stageStages)
   const already = (await read($, stageApproved)).includes(next.id)
@@ -772,6 +801,7 @@ async function openGateAhead($: EngineInterface, stage: Stage, next: Stage): Pro
     if (vouch) await update($, stageVerified, v => v.filter(id => id !== stage.id))
     return moved
   }
+  if (roleOf(next) === 'ship') await update($, gateMergeCredit, () => true)
   if (!already) await update($, stageApproved, a => (a.includes(next.id) ? a : [...a, next.id]))
   if (next.requiresAgent) await update($, stageVerified, v => (v.includes(next.id) ? v : [...v, next.id]))
   const isPlanGate = roleOf(next) === 'validate-plan'
@@ -796,6 +826,7 @@ async function resetPipeline($: EngineInterface): Promise<MoveOutcome> {
   const first = list[0]?.id ?? 'plan'
   const at = await safeNow($)
   await update($, stageCurrent, () => first)
+  await update($, gateMergeCredit, () => false)
   await update($, stageApproved, () => [])
   await update($, stageVerified, () => [])
   await clearTask($)
@@ -914,9 +945,9 @@ async function noteAgent($: EngineInterface, call: Record<string, unknown>): Pro
   await persist($)
 }
 
-// A press that did nothing says why in a toast
+// A press that did nothing says why in a toast, and so does one that only gave the merge credit (the pane shows none)
 function tell($: EngineInterface, outcome: MoveOutcome): void {
-  if (!outcome.ok) toast($, outcome.text)
+  if (!outcome.ok || outcome.credit) toast($, outcome.text)
 }
 
 // ---- ADR 0012: continue after approval ----------------------------------------------------------------------------
@@ -1619,20 +1650,21 @@ export function wireStage(on: On): void {
     return next(e)
   })
 
+  // The map entry goes however the call ends; a call that throws did not edit, so its path is released too and the
+  // rejection goes on to the .catch handler, which replays it through next(e).
   on('tool.call', { tool: GUARDED_TOOLS }, async ($, e, next) => {
-    const r = await next(e)
-    const path = e.tool_use_id === undefined ? undefined : reservedFor.get(e.tool_use_id)
-    if (e.tool_use_id !== undefined) reservedFor.delete(e.tool_use_id)
-    if (path !== undefined && (r as { deny?: unknown } | null)?.deny !== undefined) {
-      const undo = guardChain.then(() => releaseEdit($, path))
-      guardChain = undo.catch(() => undefined)
-      try {
-        await undo
-      } catch {
-        // the refusal stands either way
-      }
+    const id = e.tool_use_id
+    const path = id === undefined ? undefined : reservedFor.get(id)
+    try {
+      const r = await next(e)
+      if (path !== undefined && (r as { deny?: unknown } | null)?.deny !== undefined) await releaseReserved($, path)
+      return r
+    } catch (err) {
+      if (path !== undefined) await releaseReserved($, path)
+      throw err
+    } finally {
+      if (id !== undefined) reservedFor.delete(id)
     }
-    return r
   }).catch(($, e, next) => next(e))
 
   on('command.run', { command: 'lk' }, async ($, e, next) => lk($, e, next)).catch(async ($, e, next) => {

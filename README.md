@@ -230,7 +230,9 @@ Claude Code 2.1.294 lets a plugin bind keys only inside its own panes and band, 
 | `/lk gates plan ok` | Allows edits before a plan, for this session. |
 | `/lk gates plan required on\|off` | Turns the plan requirement on or off. |
 | `/lk gates plan paths` | Lists the plan-material paths (plans and notes that never count against the gates) and where the list came from. |
-| `/lk gates ship ok` | Opens shipping for this session. |
+| `/lk gates ship ok` | Opens shipping for this session. It also covers the next push or merge to the default branch, once. |
+| `/lk gates merge ok` | Allows the next push or merge to the default branch, once. |
+| `/lk gates allow <path>` | Allows a protected `ask` path for this session. |
 | `/lk gates ship gate on\|off` | Turns the ship gate on or off. |
 | `/lk gates on\|off` | Every gate at once, for this session. |
 | `/lk gates reload`, `/lk gates band on\|off` | Re-reads the config; shows or hides the gates band. |
@@ -396,7 +398,7 @@ A spawn past a cap is refused with a message that tells Claude to wait or batch 
 
 **Keep a large change on plan.** Turn on GSD mode and the loop with `/lk on` and `/lk loop on`. Claude sizes the task and writes the plan with its file count; a validator subagent checks the plan before any work file can be edited; the turn's file limit becomes the planned count plus 10; commits, pushes and PRs wait at Ship until you run `/lk approve`. Want to read every plan yourself? `/lk approval ask`. Uses: loopkeeper.
 
-**Protect folders that need a human.** By default an edit under `docs/decisions/**` or `**/migrations/**` asks you first and a write to `.env*` is refused. Add your own globs to `changeControl.protected` in `loopkeeper.json`. The merge gate holds `gh pr merge` while checks fail, and `git commit --amend` on a pushed branch is refused. Uses: loopkeeper (`/lk gates`).
+**Protect folders that need a human.** By default an edit under `docs/decisions/**` or `**/migrations/**` needs your yes first (the terminal asks; in the desktop app you run `/lk gates allow <path>`) and a write to `.env*` is refused. Add your own globs to `changeControl.protected` in `loopkeeper.json`. The merge gate holds `gh pr merge` while checks fail, and a push or merge to the default branch until you say yes: approving Ship (`/lk approve`) or `/lk gates merge ok` covers the next one, and otherwise the terminal asks. `git commit --amend` on a pushed branch is refused. Uses: loopkeeper (`/lk gates`).
 
 **Fan work out to many subagents.** The loop's Execute stage runs through subagents, and spawn routing picks each one's model by role (`/lk routes`, `/lk route verify sonnet`). `/agent-map` shows every agent's progress, cost and context, caps how many run at once, and stops a runaway agent. `/budget agent <n>` limits each one's tokens. Uses: loopkeeper, lk-agent-map, lk-token-budget.
 

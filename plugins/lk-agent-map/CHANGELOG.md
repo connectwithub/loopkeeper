@@ -2,6 +2,14 @@
 
 All notable changes to lk-agent-map are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.3] - 2026-10-14
+
+### Changed
+
+- The README's notes for directory reviewers explain the `caller` field read in `hooks/model.ts` (warning
+  `MOD_REFLECTION`): a plain field of the plugin's own `PendingCall` record, the id of the agent that made the call,
+  not `Function.prototype.caller`. No code change.
+
 ## [0.6.2] - 2026-10-11
 
 ### Added

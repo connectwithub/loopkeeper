@@ -272,6 +272,10 @@ declare module 'claude-code' {
       gateLog: LkGateLogRow[]
       // gates: the session's raise of the files-per-turn limit ("Raise to N for this session"), 0 for none
       gateSessionRaise: number
+      // gates and stage: the user's yes for the next push or merge to the default branch, spent by it. Set by the
+      // Ship approval (stage: /lk approve, the Stage pane's Approve gate, the hub's a), /lk gates ship ok and /lk gates
+      // merge ok; cleared by the stage on a move to a stage that is not ship, a reset and the stage-list fallback.
+      gateMergeCredit: boolean
 
       // ---- files (files.ts) ------------------------------------------------------------
       // files: what Claude touched this session (oldest first, at most 200)

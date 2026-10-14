@@ -403,3 +403,32 @@ test('the hub links a mod from its lk- or old plugin name; Secrets on s; every h
   expect(w.toasts.pop()).toBe('Press Enter to open Secrets')
   await ui.unmount()
 })
+
+// The Handoff mod (h), while lk-handoff-guard reports /handoff: the terminal fills `/handoff show` into the prompt; the
+// desktop closes the hub and runs the command handoff with the args show.
+for (const surface of SURFACES) {
+  test(`hub on ${surface}: the Handoff row of lk-handoff-guard opens /handoff show`, { timeoutMs: 20_000 }, async ($, on) => {
+    const handoff: any[] = []
+    on('command.run', { command: 'handoff' }, ($: unknown, e: any) => {
+      handoff.push({ command: e.command, args: e.args })
+      return { text: '' }
+    })
+    const { w } = hubWorld(on, {}, [{ name: 'handoff', description: 'Handoff', source: 'plugin', plugin: 'lk-handoff-guard' }])
+    await start($)
+    await cmd($, '')
+    const ui = await $.ui.mount(hub(surface))
+    expect(((await ui.find({ key: 'mod-handoff' })) as Node).props).toMatchObject({ label: 'Handoff', hotkey: 'h', plain: true })
+    await ui.press({ key: 'mod-handoff' })
+    expect(w.panes.slice(-1)).toEqual(['closed:loopkeeper-hub'])
+    if (surface === 'terminal') {
+      expect(handoff).toEqual([])
+      expect(w.filled).toEqual(['/handoff show'])
+      expect(w.toasts.pop()).toBe('Press Enter to open Handoff')
+    } else {
+      expect(handoff).toEqual([{ command: 'handoff', args: 'show' }])
+      expect(w.filled).toEqual([])
+      expect(w.toasts).toEqual([])
+    }
+    await ui.unmount()
+  })
+}

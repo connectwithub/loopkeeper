@@ -193,8 +193,12 @@ test('one GSD session end to end: every concern live, each step asserted', { tim
   expect(await lk($, 'approve')).toContain('Approved the Ship gate; the pipeline may now move past it.')
   expect(w.state.get('stageShipOpen')).toBe(true)
   expect((await check($, bash('git commit -m "add the cache"'))).decision).toBe('allow')
-  // the merge gate: git push origin main asks exactly once, and Merge lets it run
+  // the merge gate: the Ship approval covers the first git push origin main (no question, recorded); the next one
+  // asks exactly once, and Merge lets it run
   const asked = w.asked.length
+  expect((await check($, bash('git push origin main'))).decision).toBe('allow')
+  expect(w.asked.slice(asked)).toEqual([])
+  expect(await lk($, 'gates text')).toContain('merge allowed push to the default branch · covered by the Ship approval or /lk gates merge ok')
   expect((await check($, bash('git push origin main'))).decision).toBe('allow')
   expect(w.asked.slice(asked)).toEqual([MERGE_Q])
 

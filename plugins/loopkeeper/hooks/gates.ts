@@ -3,17 +3,21 @@
 //   1. Bounded blast radius: a files-per-turn limit per main-loop turn. The limit is the `/lk gates max <n>` session
 //      override when set, otherwise the largest of the base (changeControl.maxFilesPerTurn), the approved plan's file
 //      budget (stageBudget, written by the stage) and the session raise ("Raise to N for this session").
-//   2. Protected paths: globs that are denied, or asked about once per path per session.
+//   2. Protected paths: globs that are denied, or need the user's yes once per path per session (the terminal asks;
+//      elsewhere the user runs `/lk gates allow <path>`).
 //   3. A plan before edits (requirePlan): the stage's stagePlanDone, ExitPlanMode, or `/lk gates plan ok`. Plan
 //      material (the scratchpad under /tmp/claude-*, and changeControl.planPaths) is exempt from this gate and rule 1.
 //   4. A ship gate: commits, pushes, PRs, releases and publishes wait for the stage's stageShipOpen or
 //      `/lk gates ship ok` (ADR 0004: the stage is always there, so there is no one-question fallback).
-//   5. A merge gate: merges and pushes to the default branch wait for green CI and a yes; `git commit --amend` on
-//      shared branches and (opt-in) `git add -A` / `git add .` are refused.
+//   5. A merge gate: merges and pushes to the default branch wait for green CI and a yes. The user's Ship approval
+//      (or `/lk gates ship ok` or `merge ok`) is that yes for the next one; otherwise the terminal asks. `git commit
+//      --amend` on shared branches and (opt-in) `git add -A` / `git add .` are refused.
 //
 // Every verdict is given at tool.check, after the settings rules and the hooks beneath, so a call they already refuse
-// is never asked about twice. A hook that throws fails closed. CLAUDE_MODS_DISABLE=loopkeeper (or all) turns the gates
-// off; the band says so and /lk gates still answers.
+// is never asked about twice. A question is put only in the terminal: off it (the desktop app, mobile, VS Code) a
+// dialog from a permission check is never answered, so the refusal names the command that lets the call through. A
+// hook that throws fails closed. CLAUDE_MODS_DISABLE=loopkeeper (or all) turns the gates off; the band says so and
+// /lk gates still answers.
 //
 // The Files pane lives in files.ts. The seam: Bash writes that pass the gates are recorded here into filesTouched and
 // filesActivity.last (the atoms the pane reads), because only the gates parse Bash for the files it writes.
@@ -95,6 +99,9 @@ const gateShipOk = atom({ plugin: 'loopkeeper', key: 'gateShipOk' } as const, fa
 const gateGrants = atom({ plugin: 'loopkeeper', key: 'gateGrants' } as const, [] as string[])
 const gateLog = atom({ plugin: 'loopkeeper', key: 'gateLog' } as const, [] as LkGateLogRow[])
 const gateSessionRaise = atom({ plugin: 'loopkeeper', key: 'gateSessionRaise' } as const, 0)
+// The user's yes for the next push or merge to the default branch, spent by it: the Ship approval (stage.ts sets it
+// and clears it on leaving the ship stage), /lk gates ship ok or /lk gates merge ok.
+const gateMergeCredit = atom({ plugin: 'loopkeeper', key: 'gateMergeCredit' } as const, false)
 // Declared by stage.ts too, with the same defaults: one value (ADR 0004).
 const stageCurrent = atom({ plugin: 'loopkeeper', key: 'stageCurrent' } as const, 'plan')
 const stagePlanDone = atom({ plugin: 'loopkeeper', key: 'stagePlanDone' } as const, false)
@@ -327,12 +334,23 @@ async function fire($: EngineInterface, row: Omit<LkGateLogRow, 'at'>): Promise<
 
 // ---- Asking -------------------------------------------------------------------------------------------------
 
-async function isInteractive($: EngineInterface): Promise<boolean> {
+/**
+ * Where a question could reach the user: 'terminal' under the REPL; 'app' when only other surfaces draw the session
+ * (the desktop app, mobile, VS Code), where $.ui.ask from a permission check never resolves to an option; 'none' in a
+ * plain -p run.
+ */
+async function askPlace($: EngineInterface): Promise<'terminal' | 'app' | 'none'> {
   try {
-    return (await $.session.surfaces()).length > 0
+    const surfaces = await $.session.surfaces()
+    return surfaces.includes('terminal') ? 'terminal' : surfaces.length > 0 ? 'app' : 'none'
   } catch {
-    return false
+    return 'none'
   }
+}
+
+/** Whether the gates may put a question: only in the terminal. */
+async function isInteractive($: EngineInterface): Promise<boolean> {
+  return (await askPlace($)) === 'terminal'
 }
 
 /** The label picked, or null when nobody could be asked, the question was dismissed, or the answer is not an option. */
@@ -403,6 +421,11 @@ async function decideEdit($: EngineInterface, paths: string[], tool: string, age
       return `${MOD}: ${p} is a protected path (rule "${rule.glob}": deny). Do not edit it or reach it another way. Ask the user to make this change themselves or to change the rule.`
     }
     if (mem.grants.has(p)) continue
+    // off the terminal nobody can be asked: the user grants the path with /lk gates allow, as Allow for session does
+    if (!(await isInteractive($))) {
+      await fire($, { rule: 'protected', target: p, outcome: 'denied', detail: `${rule.glob}: needs the user's yes (no terminal to ask)` })
+      return `${MOD}: ${p} is protected (rule "${rule.glob}": ask) and needs the user's yes. Ask the user to run ${GATES_CMD} allow ${p}, which allows it for this session; do not edit it another way.`
+    }
     const answer = await ask($, `${MOD}: ${p} is protected (rule "${rule.glob}"). Allow this ${tool} edit?`, ASK_PROTECTED)
     mem.turnFired = true
     if (answer === 'Allow for session') {
@@ -415,7 +438,7 @@ async function decideEdit($: EngineInterface, paths: string[], tool: string, age
       await record($, { rule: 'protected', target: p, outcome: 'allowed', detail: `${rule.glob}: allowed once` })
       continue
     }
-    const why = answer === null ? 'nobody could be asked or the question was dismissed' : 'the user chose Deny'
+    const why = answer === null ? 'the question was dismissed' : 'the user chose Deny'
     await fire($, { rule: 'protected', target: p, outcome: 'denied', detail: `${rule.glob}: ${why}` })
     return `${MOD}: the edit to protected path ${p} (rule "${rule.glob}") was refused: ${why}. Do not work around it; ask the user how to proceed.`
   }
@@ -439,7 +462,8 @@ async function decideEdit($: EngineInterface, paths: string[], tool: string, age
     // the figure is computed once, so the label and what choosing it does match
     const figure = raiseTo(lim.limit, lim.slack)
     const options = filesOptions(figure)
-    const interactive = await isInteractive($)
+    const place = await askPlace($)
+    const interactive = place === 'terminal'
     let answer: string | null = null
     if (interactive) answer = await ask($, `${MOD}: this turn already touched ${n} files. Allow more?`, options)
     mem.turnFired = true
@@ -461,6 +485,14 @@ async function decideEdit($: EngineInterface, paths: string[], tool: string, age
       if (over > 0) mem.turnExtra += over
       $.ui.invalidate('prompt.context')
       await record($, { rule: 'files', target: added.join(', '), outcome: 'allowed', detail: `past ${n} files: raised to ${figure} for this session` })
+    } else if (place === 'app') {
+      // off the terminal nobody can be asked: the user raises the limit for the session instead
+      await fire($, { rule: 'files', target: added.join(', '), outcome: 'denied', detail: `past ${n} files: needs the user's yes (no terminal to ask)` })
+      scheduleAbort($)
+      return [
+          `${MOD} stopped this edit: this turn already touched ${n} files (${before.join(', ')}) and ${added.join(', ')} would exceed the limit of ${lim.limit} files per turn, and more needs the user's yes.`,
+          `Stop editing now. Summarise what changed so far, list the files you still intend to touch and why, and ask the user to raise the limit for this session with ${GATES_CMD} max <n> before continuing.`,
+        ].join('\n')
     } else {
       const why = !interactive ? 'no one to ask (non-interactive session)' : answer === 'Stop' ? 'the user chose Stop' : 'the question was dismissed'
       await fire($, { rule: 'files', target: added.join(', '), outcome: 'denied', detail: `past ${n} files: ${why}` })
@@ -570,6 +602,15 @@ async function gitGate($: EngineInterface, config: LkGateConfig, actions: GitAct
     }
   }
 
+  // the user's yes given ahead: the Ship approval, /lk gates ship ok or /lk gates merge ok covers this one call
+  if (await spendMergeCredit($)) {
+    await record($, { rule: 'merge', target: what, outcome: 'allowed', detail: 'covered by the Ship approval or /lk gates merge ok' })
+    return null
+  }
+  if (!(await isInteractive($))) {
+    await fire($, { rule: 'merge', target: what, outcome: 'denied', detail: "needs the user's yes (no terminal to ask)" })
+    return `${MOD}: the ${what} was held: it needs the user's yes. Ask the user to approve the Ship gate (/lk approve) or to run ${GATES_CMD} merge ok, then run it again. Do not retry it another way.`
+  }
   const answer = await ask($, `Merge now? (${MOD}: ${what})`, ASK_MERGE)
   mem.turnFired = true
   await update($, gateTurnFired, () => true)
@@ -577,9 +618,20 @@ async function gitGate($: EngineInterface, config: LkGateConfig, actions: GitAct
     await record($, { rule: 'merge', target: what, outcome: 'allowed', detail: 'the user chose Merge' })
     return null
   }
-  const why = answer === null ? 'nobody could be asked or the question was dismissed' : 'the user chose Cancel'
+  const why = answer === null ? 'the question was dismissed' : 'the user chose Cancel'
   await fire($, { rule: 'merge', target: what, outcome: 'denied', detail: why })
   return `${MOD}: the ${what} was held: ${why}. Do not retry it another way; ask the user when to merge.`
+}
+
+/** Spends the merge credit: true when there was one. One update reads and clears it, so two calls in parallel
+ *  cannot both pass on it. */
+async function spendMergeCredit($: EngineInterface): Promise<boolean> {
+  let had = false
+  await update($, gateMergeCredit, credit => {
+    had = credit === true
+    return false
+  })
+  return had
 }
 
 async function gitBranches($: EngineInterface, dir: string): Promise<{ current: string; defaults: string[] }> {
@@ -955,8 +1007,36 @@ async function setGatesBand($: EngineInterface, shown: boolean): Promise<boolean
   }
 }
 
-/** /lk gates <words>: the answer, or null for a word another concern owns (`files`, the Files pane's). */
-async function gatesCommand($: EngineInterface, rest: string[]): Promise<{ text?: string } | null> {
+/**
+ * /lk gates allow <path>: the user's yes for a protected path whose rule is ask, for the rest of the session (as Allow
+ * for session is in the terminal). The path resolves against the project root, as decideEdit places it; a deny rule
+ * cannot be granted. Alone, it lists the session's grants.
+ */
+async function allowPath($: EngineInterface, raw: string, fromPerson: boolean): Promise<{ text: string }> {
+  await hydrate($)
+  const usage = `usage: ${GATES_CMD} allow <path>`
+  if (raw === '') {
+    const grants = [...mem.grants]
+    return { text: grants.length > 0 ? `Protected paths allowed for this session: ${grants.join(', ')}. ${usage}` : `No protected path is allowed for this session. ${usage}` }
+  }
+  if (!fromPerson) return { text: 'Only the user can allow a protected path.' }
+  const config = await ensureConfig($)
+  const root = await projectRoot($)
+  const p = normalizePath(raw, root)
+  const rule = matchProtected(config.protected, p)
+  if (rule?.action === 'deny') return { text: `${p} matches rule "${rule.glob}": deny. A deny rule cannot be granted; change the rule to edit it.` }
+  mem.grants.add(p)
+  await update($, gateGrants, () => [...mem.grants])
+  await record($, { rule: 'protected', target: p, outcome: 'allowed', detail: `granted by ${GATES_CMD} allow` })
+  return { text: rule ? `${p} is allowed for this session (rule "${rule.glob}": ask).` : `${p} is allowed for this session; no protected rule matches it now.` }
+}
+
+/**
+ * /lk gates <words>: the answer, or null for a word another concern owns (`files`, the Files pane's). `fromPerson`:
+ * the run came from the person (no origin, or composer, bridge or sdk); only they open shipping, allow a merge or
+ * grant a protected path.
+ */
+async function gatesCommand($: EngineInterface, rest: string[], fromPerson: boolean): Promise<{ text?: string } | null> {
   const verb = (rest[0] ?? '').toLowerCase()
   const value = (rest[1] ?? '').toLowerCase()
   const toggle = (rest[2] ?? '').toLowerCase()
@@ -1027,10 +1107,20 @@ async function gatesCommand($: EngineInterface, rest: string[]): Promise<{ text?
       return { text: `shipGate is ${toggle} for this session.` }
     }
     if (value !== 'ok') return { text: `usage: ${GATES_CMD} ship ok | ship gate on|off` }
+    if (!fromPerson) return { text: 'Only the user can approve shipping.' }
     await $.store.set(await sessionKey($, 'shipOk'), true)
     await update($, gateShipOk, () => true)
-    return { text: 'shipping approved for this session: commits, pushes and publishes may go ahead (the merge gate still applies).' }
+    // the no-pipeline form of the Ship approval: it covers the next push or merge to the default branch too
+    await update($, gateMergeCredit, () => true)
+    return { text: 'shipping approved for this session: commits, pushes and publishes may go ahead, and the next push or merge to the default branch is covered.' }
   }
+  if (verb === 'merge') {
+    if (value !== 'ok') return { text: `usage: ${GATES_CMD} merge ok` }
+    if (!fromPerson) return { text: 'Only the user can allow a push or merge to the default branch.' }
+    await update($, gateMergeCredit, () => true)
+    return { text: 'The next push or merge to the default branch is allowed (once).' }
+  }
+  if (verb === 'allow') return allowPath($, rest.slice(1).join(' ').trim(), fromPerson)
   if (verb === 'band') {
     if (value !== 'on' && value !== 'off') return { text: `usage: ${GATES_CMD} band on|off` }
     const saved = await setGatesBand($, value === 'on')
@@ -1110,8 +1200,11 @@ async function gatesSharedLine($: EngineInterface, sub: string, rest: string[], 
   return plan
 }
 
-async function lk($: EngineInterface, e: { args?: unknown }, next: LkNext): Promise<{ text?: string } | undefined> {
+async function lk($: EngineInterface, e: { args?: unknown; origin?: unknown }, next: LkNext): Promise<{ text?: string } | undefined> {
   const args = typeof e?.args === 'string' ? e.args : ''
+  // as the stage's lk() reads it: only the person opens shipping, allows a merge or grants a protected path
+  const origin = e?.origin as { kind?: unknown } | undefined
+  const fromPerson = !origin || origin.kind === 'composer' || origin.kind === 'bridge' || origin.kind === 'sdk'
   const { sub, rest } = subOf(args)
   // Words other concerns also answer: the gates add their line to theirs. /lk text: routing owns the word and answers
   // last; the gates' one-liner and their details go after the stage's. The mode is read before the chain runs, as
@@ -1128,7 +1221,7 @@ async function lk($: EngineInterface, e: { args?: unknown }, next: LkNext): Prom
     return { ...(r ?? {}), text: joinText(line, r?.text) }
   }
   if (sub === 'gates') {
-    const own = await gatesCommand($, rest)
+    const own = await gatesCommand($, rest, fromPerson)
     return own === null ? next(e) : own
   }
   return next(e)

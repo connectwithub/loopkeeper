@@ -4,6 +4,7 @@
 - Date: 2026-10-10
 - Amended: 2026-10-11 (`/lk` alone opens the hub; the Stage pane is `/lk stage`)
 - Amended: 2026-10-12 (gates also read `stageStages`; paths and the config resolve against the session root)
+- Amended: 2026-10-14 (gate questions only in the terminal; the Ship approval covers the next push or merge)
 
 ## Context and Problem Statement
 
@@ -29,3 +30,7 @@ Chosen option: 2, because the absent case cannot happen and the timer-and-send p
 - Good: fewer code paths, one ask on push, no timing dependence.
 - Bad: tests that stubbed pipeline-stage now seed the stage atoms after session start. The four "pipeline-stage absent" ship tests became stage-machine equivalents: defaults open shipping; the gsd preset holds at Plan until approved; non-interactive mode refuses held shipping without asking; `git push origin main` asks once.
 - Bad: GSD mode is machine-wide, not per session.
+
+## Amendment (2026-10-14)
+
+Outside the terminal no gate opens a dialog from a permission check: the desktop app, mobile and VS Code draw the session, but a `$.ui.ask` from a `tool.check` hook is never answered there, so every push to the default branch and every edit of an `ask` protected path was refused. The gates now ask only when `$.session.surfaces()` includes `terminal`, and elsewhere refuse with the command that lets the call through. The user's Ship approval (`/lk approve` at Ship or into it, the Stage pane's Approve gate, the hub's `a`), `/lk gates ship ok` or `/lk gates merge ok` sets a one-shot merge credit (`gateMergeCredit`, declared by the stage and the gates) that the next push or merge to the default branch spends; `gh pr merge` still waits for green CI first, and the stage takes back an unused credit on a move to any stage other than Ship (a `merge ok` given at another stage included) or a reset. A protected `ask` path is allowed for the session with `/lk gates allow <path>`. Only the person can run these words, as with `/lk approve`. In the terminal the `Merge`/`Cancel` and `Allow` dialogs stay for calls the user has not approved ahead; the files-per-turn limit names `/lk gates max <n>` off the terminal.

@@ -167,11 +167,15 @@ test('nobody to ask: held shipping is refused the same way, open shipping runs, 
   expect(w.asked).toEqual([])
 })
 
-test('the merge gate still applies on top of an open ship gate: git push origin main asks once, never twice', async ($, on) => {
+test('ship ok covers the next git push origin main (allowed and recorded, no question); the one after asks once', async ($, on) => {
   const w = world(on, { answers: ['Cancel'] })
   await startTurn($)
   held(w)
-  await lk($, 'gates ship ok')
+  expect(await lk($, 'gates ship ok')).toContain('the next push or merge to the default branch is covered')
+  expect((await check($, bash('git push origin main'))).decision).toBe('allow')
+  expect(w.asked).toEqual([])
+  expect(w.state.get('gateMergeCredit')).toBe(false)
+  expect(await lk($, 'gates text')).toContain('merge allowed push to the default branch · covered by the Ship approval or /lk gates merge ok')
   const r = await check($, bash('git push origin main'))
   expect(r.decision).toBe('deny')
   expect(r.reason).toContain('the user chose Cancel')

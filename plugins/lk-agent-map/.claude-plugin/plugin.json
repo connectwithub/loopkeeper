@@ -1,7 +1,7 @@
 {
   "name": "lk-agent-map",
   "displayName": "loopkeeper Agent Map",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "See and cap your subagents: cards with cost, tokens, context and progress, spawn caps with an override you approve, tree and team views, idle alerts and a Stop button.",
   "author": {
     "name": "connectwithub"

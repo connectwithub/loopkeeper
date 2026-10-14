@@ -645,6 +645,46 @@ test('/lk small-max and size large lift the limit; the guard leaves a refusal fr
   expect(await cmd($, 'size medium')).toBe('Usage: /lk size small|large')
 })
 
+test('a guarded call that throws releases its reserved path and leaves no reservation behind', async ($, on) => {
+  // the call u-boom throws (the edit did not happen); later the same id answers with a refusal
+  const mode = { throws: true }
+  const tool = (e: any) => (e.tool_use_id === 'u-boom' ? (mode.throws ? Promise.reject(new Error('disk full')) : { deny: 'locked' }) : undefined)
+  // beneath the stage, above the stub: what the stage's next(e) settles to for u-boom (a rejection, not a refusal)
+  const settled: string[] = []
+  on('tool.call', {}, async ($: unknown, e: any, next: (e: unknown) => Promise<unknown>) => {
+    try {
+      const r = await next(e)
+      if (e.tool_use_id === 'u-boom') settled.push('resolved')
+      return r
+    } catch (err) {
+      settled.push('rejected')
+      throw err
+    }
+  })
+  stageWorld(on, null, GSD, {}, { tool })
+  await start($)
+  await cmd($, 'size small')
+  const call = (id: string) => $.tool.call({ tool: 'Edit', file_path: 'boom.ts', old_string: 'a', new_string: 'b', tool_use_id: id } as never)
+  expect((await $.tool.check({ ...editOf('boom.ts'), tool_use_id: 'u-boom' } as never)).decision).toBe('allow')
+  expect(await cmd($, 'status')).toContain('Size: small (1/3 files)')
+  let threw = false
+  try {
+    const r = (await call('u-boom')) as { isError?: unknown } | undefined
+    threw = r?.isError === true
+  } catch {
+    threw = true
+  }
+  expect(threw).toBe(true)
+  expect(settled).toEqual(['rejected'])
+  expect(await cmd($, 'status')).toContain('Size: small (0/3 files)')
+  // reserved again under a new id, and that edit runs; a late refusal for u-boom finds no reservation to release
+  expect((await $.tool.check({ ...editOf('boom.ts'), tool_use_id: 'u-again' } as never)).decision).toBe('allow')
+  await call('u-again')
+  mode.throws = false
+  expect(((await call('u-boom')) as { deny?: string }).deny).toBe('locked')
+  expect(await cmd($, 'status')).toContain('Size: small (1/3 files)')
+})
+
 test('set_stage plan without a size reminds Claude to size the task under gsd only', async ($, on) => {
   stageWorld(on, null, GSD)
   await start($)

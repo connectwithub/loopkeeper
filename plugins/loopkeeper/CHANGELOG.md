@@ -2,7 +2,26 @@
 
 All notable changes to the loopkeeper core plugin are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.1.0] - Unreleased
+## [0.1.1] - 2026-10-14
+
+### Added
+
+- `/lk gates merge ok` lets the next push or merge to the default branch through, once.
+- `/lk gates allow <path>` allows a protected path whose rule is `ask` for the rest of the session, as **Allow for session** does in the terminal; `allow` alone lists the paths allowed so far. A `deny` rule cannot be allowed this way.
+
+### Changed
+
+- The user's Ship approval is the yes for the next push or merge to the default branch: `/lk approve` at Ship (approving its gate, finding it already approved, or at a Ship stage with no gate) or into Ship from the stage before it, the Stage pane's `Approve gate` and the hub's `a`. `/lk gates ship ok` gives the same yes. The merge gate spends it on the next push or merge, with no question; `gh pr merge` still waits for green CI first. Leaving the Ship stage, `/lk reset` and a preset that drops the current stage take back an unused one. At a Ship stage with no gate, or with its gate already approved, `/lk approve` answers that the next push or merge is allowed and sends no continue prompt ([ADR 0004](../../docs/adr/0004-stage-machine-always-present.md)).
+- `/lk gates ship ok`, `merge ok` and `allow` count only when the user runs them; from another plugin they are refused, as `/lk approve` already was.
+- The changeControl rules block says how a protected `ask` path and a merge to the default branch get the user's yes.
+- The README's reviewer note on `eval` describes the commands the regular expressions recognise in words, without a quoted shell snippet.
+
+### Fixed
+
+- On the desktop app, mobile and VS Code every push to the default branch and every edit of an `ask` protected path was refused, because a question put from a permission check is never answered there. The gates now ask only in the terminal. Elsewhere a merge or push is refused naming `/lk approve` and `/lk gates merge ok`, a protected `ask` path naming `/lk gates allow <path>`, and an edit past the files-per-turn limit naming `/lk gates max <n>`. In the terminal a dismissed question now says so, rather than that nobody could be asked.
+- The growth guard released a reserved path only when the edit was refused: an edit whose call threw kept its path counted against a small task. It is now released too, and the reservation is dropped however the call ends.
+
+## [0.1.0] - 2026-10-12
 
 First release. loopkeeper is one plugin that replaces five separate mods (pipeline-stage, change-control, gsd-orchestrator, review-loop and decision-pad). Nothing is migrated from the old mods: no config files, store keys or review logs are read. A fresh install starts from defaults.
 
