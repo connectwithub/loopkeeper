@@ -113,9 +113,9 @@ test('bandChip: the band\'s chip, its tone and the note for the quiet right side
 test('ping, cold-send texts and money formatting', () => {
   const s = warm(T0)
   expect(pingText(s, T0 + 55 * MIN, 5, 1.92, HOUR)).toBe(
-    'Prompt cache goes cold in 5 min; a resend after that costs ≈ $1.92 (240k tokens at $8/MTok). Keep warm: /budget keepwarm, or w on the band.',
+    'Prompt cache goes cold in 5 min; a resend after that costs ≈ $1.92 (240k tokens at $8/MTok). Keep warm: /lk-budget keepwarm, or w on the band.',
   )
-  expect(pingText(s, T0 + 57 * MIN, 5, null, HOUR)).toBe('Prompt cache goes cold in 3 min. Keep warm: /budget keepwarm, or w on the band.')
+  expect(pingText(s, T0 + 57 * MIN, 5, null, HOUR)).toBe('Prompt cache goes cold in 3 min. Keep warm: /lk-budget keepwarm, or w on the band.')
   expect(coldSendText(s, 1.92)).toBe('Cache cold: this prompt re-writes 240k tokens of context at the cache-write price, ≈ $1.92.')
   expect(coldSendText(emptyCache(), null)).toBe('Cache cold: this prompt re-writes the context.')
   expect(usdText(0.001)).toBe('<$0.01')
@@ -348,9 +348,9 @@ function world(on: On, opts: { user?: unknown; project?: unknown; usd?: number; 
   return { w, clock }
 }
 
-/** A /budget command input as the composer sends it. */
+/** A /lk-budget command input as the composer sends it. */
 function cmd(args: string): CommandRunInput {
-  return { command: 'budget', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 160 } }
+  return { command: 'lk-budget', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 160 } }
 }
 
 async function start($: Engine) {
@@ -409,7 +409,7 @@ test('the timer pings at 15, 5 and 1 minutes, toasts once when cold, and a new r
   await clock.advance(MIN)
   expect(w.toasts.length).toBe(1)
   expect(w.toasts[0]).toBe(
-    `Prompt cache goes cold in 15 min; a resend after that costs ≈ ${COLD_USD} (82k tokens at $8/MTok). Keep warm: /budget keepwarm, or w on the band.`,
+    `Prompt cache goes cold in 15 min; a resend after that costs ≈ ${COLD_USD} (82k tokens at $8/MTok). Keep warm: /lk-budget keepwarm, or w on the band.`,
   )
   await clock.advance(10 * MIN)
   expect(w.toasts.length).toBe(2)
@@ -430,7 +430,7 @@ test('the timer pings at 15, 5 and 1 minutes, toasts once when cold, and a new r
   expect(w.toasts[4]).toContain('goes cold in 15 min')
 })
 
-test('/budget pings off silences the toasts but the band still shows the cache', async ($, on) => {
+test('/lk-budget pings off silences the toasts but the band still shows the cache', async ($, on) => {
   const { w, clock } = world(on)
   await start($)
   expect((await $.command.run(cmd('pings off'))).text).toBe('Cache pings off: the band still shows the cache.')
@@ -440,7 +440,7 @@ test('/budget pings off silences the toasts but the band still shows the cache',
   expect(await summary($)).toContain('cache cold')
 })
 
-test('/budget keepwarm sends one tiny fork, re-arms the timer and logs its cost', async ($, on) => {
+test('/lk-budget keepwarm sends one tiny fork, re-arms the timer and logs its cost', async ($, on) => {
   const { w, clock } = world(on)
   await start($)
   await turn($, w)
@@ -545,7 +545,7 @@ test('a prompt sent while the cache is cold is logged with its cost and never dr
   expect(w.logs).toEqual([])
   await clock.advance(31 * MIN)
   // A slash command isn't a resend of the conversation.
-  await $.prompt.submit({ text: '/budget', wait: false } as never)
+  await $.prompt.submit({ text: '/lk-budget', wait: false } as never)
   expect(w.logs).toEqual([])
   const toastsBefore = w.toasts.length
   const r = await $.prompt.submit({ text: 'carry on', wait: false } as never)
@@ -670,7 +670,7 @@ test('auto keep-warm: one fork at 3 minutes left with a dim cost line, no pings 
   expect(w.forks.length).toBe(7)
   expect(w.logs[6]).toBe(`auto keep-warm 1/6: ${AUTO_LINE}`)
   // Off again: no more forks.
-  expect(await budget($, 'autowarm off')).toBe('Auto keep-warm off: the cache is refreshed only when you press Keep warm or run /budget keepwarm.')
+  expect(await budget($, 'autowarm off')).toBe('Auto keep-warm off: the cache is refreshed only when you press Keep warm or run /lk-budget keepwarm.')
   await clock.advance(3 * HOUR)
   expect(w.forks.length).toBe(7)
 })
@@ -800,18 +800,18 @@ test('a slow automatic fork lets no ping through, and one still running when a t
   expect(await budget($, 'autowarm')).toBe('Auto keep-warm: on · at 3 min left · 0 of 6 this idle stretch · waits while a turn runs')
 })
 
-test('/budget autowarm replies: usage, a lifetime it never fires under, and a project file that keeps it off', async ($, on) => {
+test('/lk-budget autowarm replies: usage, a lifetime it never fires under, and a project file that keeps it off', async ($, on) => {
   const { w } = world(on, { user: { cacheTtlMinutes: 3 } })
   await start($)
   await fullTurn($, w)
-  expect(await budget($, 'autowarm maybe')).toBe('Use /budget autowarm on or /budget autowarm off.')
+  expect(await budget($, 'autowarm maybe')).toBe('Use /lk-budget autowarm on or /lk-budget autowarm off.')
   expect(await budget($, 'autowarm on')).toContain(
     'Saved for every session on this machine. It never fires while autoKeepWarmMinutes (3) is not under cacheTtlMinutes (3).',
   )
   expect(await budget($, 'autowarm')).toBe('Auto keep-warm: on, but 3 min is not under the 3 min cache lifetime, so it never fires')
 })
 
-test('a project file that sets autoKeepWarm false wins over /budget autowarm on', async ($, on) => {
+test('a project file that sets autoKeepWarm false wins over /lk-budget autowarm on', async ($, on) => {
   world(on, { project: { autoKeepWarm: false } })
   await start($)
   expect(await budget($, 'autowarm on')).toBe('Auto keep-warm saved as on, but .claude/token-budget.json turns it off in this project.')

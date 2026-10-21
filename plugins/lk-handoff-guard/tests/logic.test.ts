@@ -90,7 +90,7 @@ test('thresholds and band colors from a usage reading', async () => {
   expect(bandParts(r41, DEFAULTS)).toEqual({ chip: 'ctx 41%', tone: 'ok', right: [], urgent: false })
   const warn = bandParts(r72, DEFAULTS)
   expect([warn.tone, warn.urgent]).toEqual(['accent', false])
-  expect(warn.right).toEqual(['/handoff at a stopping point'])
+  expect(warn.right).toEqual(['/lk-handoff at a stopping point'])
   const due = bandParts(r86, DEFAULTS)
   expect([due.tone, due.urgent]).toEqual(['danger', true])
   expect(due.chip).toBe('ctx 86%')

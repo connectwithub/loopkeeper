@@ -122,8 +122,8 @@ describe('cycles', () => {
       expect(out.reply).toContain('Not recorded: login_page has used its 4 cycles')
       expect(out.reply).toContain('what changed since the last cycle')
       expect(out.reply).toContain('"Allow 4 more"')
-      expect(out.reply).toContain('/reviews more login_page')
-      expect(out.reply).toContain('/reviews max <n> login_page')
+      expect(out.reply).toContain('/lk-reviews more login_page')
+      expect(out.reply).toContain('/lk-reviews max <n> login_page')
     }
   })
 
@@ -422,17 +422,17 @@ describe('names and keys', () => {
     expect(SUBJECTS_PREFIX).toBe('loopkeeper:review:subjects:')
     expect(storeKeyOf('/work/project')).toBe('loopkeeper:review:subjects:/work/project')
     expect(storeKeyOf('')).toBe('loopkeeper:review:subjects:-')
-    expect(USAGE).toContain('Usage: /reviews [text')
+    expect(USAGE).toContain('Usage: /lk-reviews [text')
     expect(USAGE).not.toMatch(/\/review\b(?!s)/)
   })
 
-  test('replies point the user to /reviews, never to the built-in /review', () => {
+  test('replies point the user to /lk-reviews, never to the built-in /review', () => {
     const shipped = run([9.1], { verdict: 'ship' })
     const out = applyCycle(shipped, cycleInputOf({ subject: 'login_page', score: 9.3 }), D, T0 + 5)
-    expect(!out.ok && out.reply).toContain('/reviews reopen login_page')
+    expect(!out.ok && out.reply).toContain('/lk-reviews reopen login_page')
     const limit = applyCycle(run([7, 7, 7, 7]), cycleInputOf({ subject: 'login_page', score: 8 }), D, T0 + 9)
-    expect(!limit.ok && limit.reply).toContain('/reviews max <n> login_page')
-    expect(kindsText()).toContain('/reviews kind <subject> <kind>')
+    expect(!limit.ok && limit.reply).toContain('/lk-reviews max <n> login_page')
+    expect(kindsText()).toContain('/lk-reviews kind <subject> <kind>')
     for (const text of [statusText(shipped), kindsText(), USAGE]) expect(text).not.toMatch(/\/review\b(?!s)/)
   })
 })
@@ -447,7 +447,7 @@ describe('config layer', () => {
     expect(kindDefaultsFrom([1, 2])).toEqual({})
   })
 
-  test('precedence: preset < config kind < the /reviews override', () => {
+  test('precedence: preset < config kind < the /lk-reviews override', () => {
     expect(presetFor('critic', {})).toEqual({ target: 9, maxCycles: 4 })
     expect(presetFor('critic', { kinds: KINDS_CONF })).toEqual({ target: 8, maxCycles: 2 })
     expect(presetFor('plan', { kinds: KINDS_CONF })).toEqual({ maxCycles: 5 })

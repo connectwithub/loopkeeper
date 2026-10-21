@@ -1,4 +1,4 @@
-// Files concern, ported from change-control: the Files pane (/files, /lk gates files) and git status.
+// Files concern, ported from change-control: the Files pane (/lk-files, /lk gates files) and git status.
 //
 // It watches rather than rules. tool.call hooks on Read, NotebookRead, Glob, Grep and the edit tools set "what Claude
 // is doing right now" before `await next(e)`, clear it after, and record the file when the call was not refused and did
@@ -74,7 +74,7 @@ const gitRoots = new Map<string, string>()
 type Watch = { verb: LkFilesActivity['verb']; path: string; pattern?: string; tool: string; creating?: boolean }
 type Failure = { error?: { kind?: string; message?: string }; called?: boolean }
 
-/** CLAUDE_MODS_DISABLE names loopkeeper (or all): nothing is tracked and no band line is drawn; /files still opens. */
+/** CLAUDE_MODS_DISABLE names loopkeeper (or all): nothing is tracked and no band line is drawn; /lk-files still opens. */
 async function isKilled($: EngineInterface): Promise<boolean> {
   if (killed !== null) return killed
   let raw: unknown = ''
@@ -239,7 +239,7 @@ async function preloadFiles($: EngineInterface): Promise<void> {
   }
 }
 
-/** /files and /lk gates files: open the pane (the ui.open hook preloads it). */
+/** /lk-files and /lk gates files: open the pane (the ui.open hook preloads it). */
 async function openFiles($: EngineInterface): Promise<void> {
   await $.ui.open({ id: FILES_PANE, title: 'Files', focus: true, closeOnEscape: true })
 }
@@ -317,10 +317,10 @@ function filesActions($: EngineInterface, cwd: string): FilesActions {
   }
 }
 
-// ---- /files, /lk gates files and the /lk status line ------------------------------------------------------------
+// ---- /lk-files, /lk gates files and the /lk status line ------------------------------------------------------------
 
 async function statusLine($: EngineInterface): Promise<string> {
-  if (await isKilled($)) return `files ● off · ${DISABLE_ENV} names ${PLUGIN}, so nothing is tracked (/files still opens)`
+  if (await isKilled($)) return `files ● off · ${DISABLE_ENV} names ${PLUGIN}, so nothing is tracked (/lk-files still opens)`
   const n = touchedCount(await read($, filesTouched))
   const last = (await read($, filesActivity)).last
   return `files ● ${n} touched${last ? ` · last: ${last}` : ''}`
@@ -506,7 +506,7 @@ export function wireFiles(on: On): void {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  on('command.run', { command: 'files' }, async $ => {
+  on('command.run', { command: 'lk-files' }, async $ => {
     await openFiles($)
     return {}
   }).catch(async ($, e, next) => ({ text: failText(next) }))
@@ -514,7 +514,7 @@ export function wireFiles(on: On): void {
   on('command.run', { command: 'lk' }, async ($, e, next) => lk($, e, next)).catch(($, e, next) => lkFailed($, e, next))
   on('command.run', { command: 'loopkeeper' }, async ($, e, next) => lk($, e, next)).catch(($, e, next) => lkFailed($, e, next))
 
-  // Before the Files pane opens its folders are listed and git read: here for an open from a hook (/files, /lk gates
+  // Before the Files pane opens its folders are listed and git read: here for an open from a hook (/lk-files, /lk gates
   // files); a Button's onPress runs beneath every hook, so its open skips this plugin's own ui.open hooks.
   on('ui.open', {}, async ($, e, next) => {
     if ((e as { id?: unknown }).id === FILES_PANE) await preloadFiles($)

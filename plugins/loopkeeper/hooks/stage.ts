@@ -192,16 +192,16 @@ const CONCERN_WORDS = ['stage', 'gates', 'files', 'routing', 'review', 'decision
 // ---- The hub and the nav bar --------------------------------------------------------------------------------------
 // HUB_ID, HUB_ROWS and PANES (every loopkeeper pane in wiring order) come from lib/panes.ts.
 // The other mods the hub links to, each only while $.command.list() reports its command from one of its `plugins`; a
-// press runs the command with `args` (off the terminal) or puts `text` in the composer. `plugins` lists the lk- name
-// first and the old name after it, so the hub still links while either is installed during the switch.
+// press runs the command with `args` (off the terminal) or puts `text` in the composer. `plugins` lists the lk- plugin
+// name only: the old unprefixed plugins register the old command names, which `command` no longer matches.
 const HUB_MODS = [
-  { key: 'mod-agents', hotkey: 'm', label: 'Agents', command: 'agent-map', args: 'cards', plugins: ['lk-agent-map', 'agent-map'], text: '/agent-map cards' },
-  { key: 'mod-budget', hotkey: 'u', label: 'Budget', command: 'budget', args: '', plugins: ['lk-token-budget', 'token-budget'], text: '/budget' },
-  { key: 'mod-handoff', hotkey: 'h', label: 'Handoff', command: 'handoff', args: 'show', plugins: ['lk-handoff-guard', 'handoff-guard'], text: '/handoff show' },
-  { key: 'mod-attention', hotkey: 't', label: 'Attention', command: 'attention', args: '', plugins: ['lk-attention', 'attention'], text: '/attention' },
-  { key: 'mod-where', hotkey: 'w', label: 'Where', command: 'where', args: '', plugins: ['lk-where-am-i', 'where-am-i'], text: '/where' },
-  { key: 'mod-prs', hotkey: 'p', label: 'PRs', command: 'pr', args: '', plugins: ['lk-pr-watch', 'pr-watch'], text: '/pr' },
-  { key: 'mod-secrets', hotkey: 's', label: 'Secrets', command: 'secret-guard', args: '', plugins: ['lk-secret-guard', 'secret-guard'], text: '/secret-guard' },
+  { key: 'mod-agents', hotkey: 'm', label: 'Agents', command: 'lk-agents', args: 'cards', plugins: ['lk-agent-map'], text: '/lk-agents cards' },
+  { key: 'mod-budget', hotkey: 'u', label: 'Budget', command: 'lk-budget', args: '', plugins: ['lk-token-budget'], text: '/lk-budget' },
+  { key: 'mod-handoff', hotkey: 'h', label: 'Handoff', command: 'lk-handoff', args: 'show', plugins: ['lk-handoff-guard'], text: '/lk-handoff show' },
+  { key: 'mod-attention', hotkey: 't', label: 'Attention', command: 'lk-attention', args: '', plugins: ['lk-attention'], text: '/lk-attention' },
+  { key: 'mod-where', hotkey: 'w', label: 'Where', command: 'lk-where', args: '', plugins: ['lk-where-am-i'], text: '/lk-where' },
+  { key: 'mod-prs', hotkey: 'p', label: 'PRs', command: 'lk-prs', args: '', plugins: ['lk-pr-watch'], text: '/lk-prs' },
+  { key: 'mod-secrets', hotkey: 's', label: 'Secrets', command: 'lk-secrets', args: '', plugins: ['lk-secret-guard'], text: '/lk-secrets' },
 ] as const
 const KEYS_TEXT =
   'loopkeeper keys: /lk opens the hub, /lk stage the Stage pane. In any loopkeeper pane, 0-6 switch panels: ' +
@@ -1240,7 +1240,7 @@ function navItems($: EngineInterface, fromId: string) {
 }
 
 // The other mods' commands $.command.list() reports, matched on name and plugin ('name@marketplace' counts), kept for
-// the hub to draw with the plugin they came from, the lk- one when both are listed. A list that cannot be read leaves
+// the hub to draw with the plugin they came from. A list that cannot be read leaves
 // the last one.
 async function readHubCommands($: EngineInterface): Promise<void> {
   try {
@@ -2112,9 +2112,9 @@ export function wireStage(on: On): void {
     return out
   })
 
-  // /reviews more | stop | max from the person: same carry-on, sent from a timer like /lk gates (the review concern
+  // /lk-reviews more | stop | max from the person: same carry-on, sent from a timer like /lk gates (the review concern
   // answers below this hook; a non-person run never moves reviewAnswered)
-  on('command.run', { command: 'reviews' }, async ($, e, next) => {
+  on('command.run', { command: 'lk-reviews' }, async ($, e, next) => {
     const before = (await read($, reviewAnswered)).seq
     const r = await next(e)
     try {

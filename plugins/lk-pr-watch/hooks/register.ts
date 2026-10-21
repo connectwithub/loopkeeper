@@ -1,13 +1,13 @@
 // pr-watch: PR and CI state for the current branch above the prompt, with a note to Claude
 // when a check fails.
 //
-// session.start        loads config, registers /pr, starts the poll timer, finds the branch's PR
+// session.start        loads config, registers /lk-prs, starts the poll timer, finds the branch's PR
 // classic.SessionStart after /clear, /resume or /branch ($.state was reset): the same again
 // tool.call (Bash)     after `gh pr create`, `git push` or `gh pr merge`: finds the PR again;
 //                      a push or create opens a 20 minute "hot" window of faster polling
 // prompt.submit        a prompt that is only PR URLs is consumed ({ drop }) and they are watched
-// command.run          /pr and its subcommands
-// ui.render            the one-line band above the prompt and the /pr pane
+// command.run          /lk-prs and its subcommands
+// ui.render            the one-line band above the prompt and the /lk-prs pane
 //
 // All gh work runs in the background (`void work($).catch(() => {})`): no turn waits on it.
 // Helpers that take $ are top-level functions so static analysis can read them.
@@ -305,7 +305,7 @@ async function removeIds($: Api, ids: string[]): Promise<void> {
   await update($, prsAtom, (list: Watched[]) => list.filter(p => !ids.includes(p.id)))
 }
 
-/** /pr and its subcommands. */
+/** /lk-prs and its subcommands. */
 async function runCommand($: Api, args: string): Promise<{ text?: string }> {
   const cmd = parseCommand(args)
   if (cmd.kind === 'open') {
@@ -381,7 +381,7 @@ export function register(on: On) {
     void discover($).catch(() => {})
     try {
       await $.command.register({
-        name: 'pr',
+        name: 'lk-prs',
         description: 'PR watch: open the pane, or add, rm, refresh, band on|off, text',
         argumentHint: '[add <url|number> | rm <number> | refresh | band on|off | text]',
         immediate: true,
@@ -442,7 +442,7 @@ export function register(on: On) {
     return { drop: `pr-watch: ${said.join(', ')}` }
   })
 
-  on('command.run', { command: 'pr' }, async ($, e) => {
+  on('command.run', { command: 'lk-prs' }, async ($, e) => {
     try {
       return await runCommand($, typeof e.args === 'string' ? e.args : '')
     } catch (err) {
@@ -495,7 +495,7 @@ export function register(on: On) {
     const top = primaryOf(prs)
     if (!top) {
       return kit.page([
-        kit.hero({ kicker: 'pull requests', title: 'No PR watched', sub: 'Push a branch with a PR, paste a PR URL, or run /pr add <url|number>.', tone: 'muted' }),
+        kit.hero({ kicker: 'pull requests', title: 'No PR watched', sub: 'Push a branch with a PR, paste a PR URL, or run /lk-prs add <url|number>.', tone: 'muted' }),
         bottom,
       ]) as never
     }

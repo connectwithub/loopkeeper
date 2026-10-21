@@ -1,4 +1,4 @@
-// pane.test.ts: the /attention pane and the band, drawn with the kit, on both surfaces.
+// pane.test.ts: the /lk-attention pane and the band, drawn with the kit, on both surfaces.
 import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
@@ -164,7 +164,7 @@ test('an empty inbox draws Nothing waiting and the hint on both surfaces', async
     const ui = await $.ui.mount({ ...PANE, surface })
     expect(await ui.find({ type: 'Text', text: 'Nothing waiting' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'INBOX · 0' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: 'Nothing yet. /attention test checks notify-send and the sound.' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'Nothing yet. /lk-attention test checks notify-send and the sound.' })).toBeDefined()
     await ui.unmount()
   }
 })

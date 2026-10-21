@@ -101,13 +101,13 @@ test('the band lists the six concerns in wiring order', async ($, on) => {
 })
 
 test('only the commands we own are attempted, and a refusal is survived', async ($, on) => {
-  const w = world(on, { refuse: ['files'] })
+  const w = world(on, { refuse: ['lk-files'] })
   await start($)
-  const owned = ['lk', 'loopkeeper', 'reviews', 'decide', 'decisions', 'files']
+  const owned = ['lk', 'loopkeeper', 'lk-reviews', 'lk-decide', 'lk-decisions', 'lk-files']
   expect([...new Set(w.attempted)].sort()).toEqual([...owned].sort())
   expect(w.attempted).not.toContain('loop')
   expect(w.attempted).not.toContain('review')
-  expect(w.registered).not.toContain('files')
+  expect(w.registered).not.toContain('lk-files')
   // the tools still registered after the refused command
   expect(w.tools.map(t => t.name).sort()).toEqual(['record_decision', 'review_cycle', 'review_item', 'review_status', 'set_stage'])
   expect(w.tools.every(t => t.isDeferred === false)).toBe(true)

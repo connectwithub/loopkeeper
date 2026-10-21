@@ -1,6 +1,6 @@
 # lk-handoff-guard
 
-An add-on plugin of the loopkeeper set (its command stays `/handoff`). Never lose a session to the context limit. The plugin watches context fill and writes a session handoff into the project's handoff folder, `.claude/brain/` (see [The handoff folder](#the-handoff-folder)), before the limit is reached. It then clears the session and continues from that handoff. What the session knew is written down as plain Markdown (status, next steps, dead ends, decisions, open questions) that you and the next session can read, instead of living only in the summary a compaction makes.
+An add-on plugin of the loopkeeper set (its command stays `/lk-handoff`). Never lose a session to the context limit. The plugin watches context fill and writes a session handoff into the project's handoff folder, `.claude/brain/` (see [The handoff folder](#the-handoff-folder)), before the limit is reached. It then clears the session and continues from that handoff. What the session knew is written down as plain Markdown (status, next steps, dead ends, decisions, open questions) that you and the next session can read, instead of living only in the summary a compaction makes.
 
 **Use it when**
 
@@ -12,13 +12,13 @@ An add-on plugin of the loopkeeper set (its command stays `/handoff`). Never los
 
 **Data handling:** it keeps its settings, the last brief and a pending resume entry in its own plugin store, and its context readings in session state. It reads `~/.claude/handoff-guard.json` and `<project>/.claude/handoff-guard.json`, and writes only the four handoff files in `<project>/.claude/brain/`. It runs read-only `git rev-parse` and `git log`. Each handoff makes one model call on your own Claude Code session, which spends tokens on your account; it sends nothing over the network of its own. It collects no personal data; the handoff files and saved settings stay until you delete them. Details under [Footprint](#footprint).
 
-**Commands:** `/handoff` and its options are listed under [Commands](#commands).
+**Commands:** `/lk-handoff` and its options are listed under [Commands](#commands).
 
 How it behaves as the context fills:
 
 - Below `warnAt` (70%): a quiet band, `handoff ● ctx 41%` in the ok colour.
-- At `warnAt`: the chip turns to the Claude orange (the kit's accent tone, not the theme's warning colour), and one toast says "context 72%: run /handoff when you reach a stopping point".
-- At `handoffAt` (85%), the chip turns red, the band's right side ("handoff due: /handoff clear") takes the default text colour instead of the quiet one, and the mode decides what happens:
+- At `warnAt`: the chip turns to the Claude orange (the kit's accent tone, not the theme's warning colour), and one toast says "context 72%: run /lk-handoff when you reach a stopping point".
+- At `handoffAt` (85%), the chip turns red, the band's right side ("handoff due: /lk-handoff clear") takes the default text colour instead of the quiet one, and the mode decides what happens:
   - **ask** (default): the mod asks "Context at 86%. Write the handoff and clear now?" with three options: **Handoff now**, **Later (ask at 92%)** and **Off this session**.
   - **auto**: it writes the handoff and clears without asking.
   - **off**: only the red band.
@@ -51,18 +51,18 @@ Turn it off or on again with `/plugin disable lk-handoff-guard@loopkeeper` and
 
 | Command | What it does |
 | :- | :- |
-| `/handoff` | Write the handoff now, without clearing |
-| `/handoff clear` | Write the handoff, then `/clear` and resume from it |
-| `/handoff status` | Context %, levels, mode, and the last handoff's time and path |
-| `/handoff show` | Pane with the handoff state, the last 10 readings, the last brief, and a Write button (see [Pane](#pane)) |
-| `/handoff mode ask\|auto\|off` | Set the mode |
-| `/handoff at <0-1>` | Handoff level (`0.85`, `85` and `85%` all work) |
-| `/handoff warn <0-1>` | Warning level |
-| `/handoff band on\|off` | Show or hide the band. The band stacks other mods' band content under its own line. |
+| `/lk-handoff` | Write the handoff now, without clearing |
+| `/lk-handoff clear` | Write the handoff, then `/clear` and resume from it |
+| `/lk-handoff status` | Context %, levels, mode, and the last handoff's time and path |
+| `/lk-handoff show` | Pane with the handoff state, the last 10 readings, the last brief, and a Write button (see [Pane](#pane)) |
+| `/lk-handoff mode ask\|auto\|off` | Set the mode |
+| `/lk-handoff at <0-1>` | Handoff level (`0.85`, `85` and `85%` all work) |
+| `/lk-handoff warn <0-1>` | Warning level |
+| `/lk-handoff band on\|off` | Show or hide the band. The band stacks other mods' band content under its own line. |
 
 ## Pane
 
-`/handoff show` opens a pane drawn with the kit (`hooks/kit.ts`, a verbatim copy of the loopkeeper core's kit v3): bordered, unfilled cards on every surface, with `● text` badges in the terminal and fully rounded Svg pills in the Desktop app. At the top, a hero card (kicker HANDOFF GUARD) gives the handoff state in the band's words, such as "Context 72% · /handoff at a stopping point", "handoff due: /handoff clear" or "next handoff at 85%", with the tokens, the mode and the last handoff's time under it. Levels use theme colours: ok in green, warn in the accent orange, due in red (the hero, the Context tile, the bars and the level badges); the warn pill is orange in the Desktop app too. Tiles show **Context**, **Warn at** (orange), **Handoff at** (red) and **Mode**, and a bar shows the context fill. The **READINGS · n** section lists the last 10 readings, each with a level badge (ok, warn, due), its time, where it was taken and its own bar. The **LAST HANDOFF** section shows the brief's source as a badge (fork and complete in green, facts in orange), its path, any unverified figures (an orange badge), and the brief itself. The **Write handoff** (`w`) and **Close** (`c`) buttons sit at the bottom. The band above the prompt is one kit line: the bold label, the context chip in the level's colour, and the right side in the quiet colour, or in the default text colour once the handoff is due.
+`/lk-handoff show` opens a pane drawn with the kit (`hooks/kit.ts`, a verbatim copy of the loopkeeper core's kit v3): bordered, unfilled cards on every surface, with `● text` badges in the terminal and fully rounded Svg pills in the Desktop app. At the top, a hero card (kicker HANDOFF GUARD) gives the handoff state in the band's words, such as "Context 72% · /lk-handoff at a stopping point", "handoff due: /lk-handoff clear" or "next handoff at 85%", with the tokens, the mode and the last handoff's time under it. Levels use theme colours: ok in green, warn in the accent orange, due in red (the hero, the Context tile, the bars and the level badges); the warn pill is orange in the Desktop app too. Tiles show **Context**, **Warn at** (orange), **Handoff at** (red) and **Mode**, and a bar shows the context fill. The **READINGS · n** section lists the last 10 readings, each with a level badge (ok, warn, due), its time, where it was taken and its own bar. The **LAST HANDOFF** section shows the brief's source as a badge (fork and complete in green, facts in orange), its path, any unverified figures (an orange badge), and the brief itself. The **Write handoff** (`w`) and **Close** (`c`) buttons sit at the bottom. The band above the prompt is one kit line: the bold label, the context chip in the level's colour, and the right side in the quiet colour, or in the default text colour once the handoff is due.
 
 ## Config
 
@@ -71,7 +71,7 @@ The layers are merged in this order, and later layers win:
 1. the defaults;
 2. `~/.claude/handoff-guard.json`;
 3. `<cwd>/.claude/handoff-guard.json`;
-4. what the `/handoff` commands saved in `$.store`.
+4. what the `/lk-handoff` commands saved in `$.store`.
 
 ```json
 { "warnAt": 0.70, "handoffAt": 0.85, "reaskAt": 0.92, "denyAt": 0.95,
@@ -98,7 +98,7 @@ Levels are kept in order (warn ≤ handoff ≤ reask ≤ deny), and bad values a
    - `log.md`: one `- YYYY-MM-DD — text` line per session, under 300 characters. A second handoff in the same session replaces the session's own line while it is still the last line.
    - `decisions.md` and `questions.md`: dated lines are appended, and exact duplicates are skipped.
 4. **A toast with the path.**
-5. **Clear and resume (ask and auto flows, and `/handoff clear`).** A pending entry goes into `$.store`, and then `$.command.run({command:'clear'})` runs from a short `$.clock.after` timer. The timer is needed because a `command.run` hook may not run a command, and a `turn.step` hook holds the turn. On the next `classic.SessionStart` with `source=clear`, the mod deletes the entry and submits one line: "Resume from the handoff in .claude/brain/project.md (written <time>); read it first."
+5. **Clear and resume (ask and auto flows, and `/lk-handoff clear`).** A pending entry goes into `$.store`, and then `$.command.run({command:'clear'})` runs from a short `$.clock.after` timer. The timer is needed because a `command.run` hook may not run a command, and a `turn.step` hook holds the turn. On the next `classic.SessionStart` with `source=clear`, the mod deletes the entry and submits one line: "Resume from the handoff in .claude/brain/project.md (written <time>); read it first."
 
 **Why `$.store`, not module variables (claude-auto-handoff's choice).** A hot reload of the module between the handoff and the clear would lose a module variable. `$.store` survives both a reload and the clear, and it is keyed by working directory. `$.state` holds only per-session state (readings, warned or asked flags, edited files). `/clear` resets it, which is the reset the mod wants. The entry is deleted before the prompt is submitted, so a session is never seeded twice, and entries older than 15 minutes are ignored.
 
@@ -131,7 +131,7 @@ What `claude plugin validate --strict .` reports for this plugin (Claude Code 2.
 | Refusals | `tool.call` refuses new tool calls only in auto mode past `denyAt` (95%); `turn.step` ends a turn to hand off. Compaction is never blocked. |
 | Calls (`$.…`) | `clock` (`after`, `now`); `command` (`register`, `run`); `env.get`; `fs` (`exists`, `read`, `write`); `model` (`complete`, `fork`); `process.run`; `prompt.submit`; `session` (`cwd`, `id`, `messages`, `usage`); `state` (`get`, `set`); `store` (`delete`, `get`, `set`); `ui` (`ask`, `close`, `open`, `resolve`, `toast`). |
 | State | 16 atoms under `lk-handoff-guard`; it also reads the loopkeeper core's `stageCurrent` when the core is on. |
-| Store | The `/handoff` settings, the last brief and the pending resume entry, keyed by working directory. |
+| Store | The `/lk-handoff` settings, the last brief and the pending resume entry, keyed by working directory. |
 | Env | Reads `HOME`; writes nothing. |
 
 What it runs:
@@ -143,7 +143,7 @@ What it runs:
   with `model` (haiku) and `maxBriefTokens`. Both spend tokens on your account. If both fail, only the facts are
   written.
 - **Prompts submitted**: after a handoff that cleared, one resume line (`$.prompt.submit`) in the fresh session.
-- **Commands run**: `/clear`, after a handoff in the ask and auto flows and on `/handoff clear`.
+- **Commands run**: `/clear`, after a handoff in the ask and auto flows and on `/lk-handoff clear`.
 - **Network**: none of its own.
 
 ## Notes for directory reviewers
@@ -153,15 +153,15 @@ The directory's validator listed these items for this plugin. Each bullet says w
 - **Programs it runs** (policy holds `MOD_RUNS_PROCESS`, `MOD_PROCESS_COMMAND_COMPUTED`). Only `git`, from one helper, `git()` (line 279): `$.process.run(['git', ...argv], { cwd, timeoutMs: 5000 })`, in the session's directory. Its two calls are in `collectFacts()` (lines 307–308): `git rev-parse --abbrev-ref HEAD` and `git log -5 --pretty=format:%h %s`. Both read only; they put the branch and the last five commit subjects in the handoff's facts.
 - **Local data and the conversation** (policy holds `MOD_LOCAL_DATA_LEAVES`, `MOD_SESSION_DATA_LEAVES`). The arguments to `git` are fixed, so nothing read goes into a command. The conversation (`$.session.messages()`, line 298) is read when a handoff is written, to draft the note: first with `$.model.fork` (line 340), a fork of the session itself with a prompt that holds the facts block, else with `$.model.complete` (line 347) on the configured model (default `haiku`) with the most recent part of the transcript. Both go through Claude Code to the model service the session already uses; there is no other destination. The text the plugin composes for these prompts passes through `redact()` in `hooks/logic.ts`, which replaces credential-shaped strings with `[redacted]`.
 - **Files it writes** (policy hold `MOD_WRITES_BUILD_FILE`, note `MOD_WRITES_FILES`). All writes are in `writeBrain()` (lines 372, 380, 395) and go to `<project>/.claude/brain/` only: `project.md` (its Status today, Next and Dead ends sections and the `updated` date), `log.md` (one dated line per session) and `decisions.md` / `questions.md` (dated lines appended). Each path is `join(cwd, '.claude/brain', name)` with the name written in the code. These are the user's own project notes in Markdown, not build, start-up or settings files; no tool runs them.
-- **The slash command it runs** (policy hold `MOD_RUNS_COMMAND`). `runClear()` (line 457) runs `$.command.run({ command: 'clear' })`, that is `/clear`, and no other command. It runs only after a handoff was written: when the user answers **Handoff now** to the question at `handoffAt` (ask mode, the default), when the context passes `handoffAt` in auto mode, or on `/handoff clear`. If `/clear` is refused, a toast gives the handoff's path.
+- **The slash command it runs** (policy hold `MOD_RUNS_COMMAND`). `runClear()` (line 457) runs `$.command.run({ command: 'clear' })`, that is `/clear`, and no other command. It runs only after a handoff was written: when the user answers **Handoff now** to the question at `handoffAt` (ask mode, the default), when the context passes `handoffAt` in auto mode, or on `/lk-handoff clear`. If `/clear` is refused, a toast gives the handoff's path.
 - **The resume prompt** (policy hold `MOD_DATA_LEAVES_BY_PROMPT`). After a handoff that cleared, `consumePending()` (line 483) submits one prompt in the fresh session: `Resume from the handoff in .claude/brain/project.md (written <YYYY-MM-DD HH:MM>); read it first.` The only variable part is the time the handoff was written; it carries no file content. The queued entry is deleted before the submit, so it goes once, and only within 15 minutes of the handoff.
 - **The `classic.SessionStart` hook** (policy hold `MOD_ANSWERS_PERMISSION`, note `MOD_HOOKS_POLICY_EVENT`). The hook (line 613) calls `next(e)` first and returns its result unchanged: it never sets or alters the session's first message, settings, instructions or permissions. After `clear`, `resume` or `compact` it reloads the config and measures context fill; after `clear` it submits the queued resume prompt above.
 - **"Uses a credential from the user's machine"** (policy hold `MCP_FORWARDS_CREDENTIAL_ENV`). No credential is read or sent. The "key" the check found in `hooks/logic.ts` is `redact()` (line 244): regular expressions that match names such as `API_KEY=…` and token shapes such as `sk-…` or `ghp_…`, in order to replace them with `[redacted]`. `http://www.w3.org/2000/svg` in `hooks/kit.ts` is the SVG namespace inside the markup the UI kit draws, not a request. The plugin reads `HOME` only to find its config file.
 - **Fields in `plugin.json`** (warnings `UNKNOWN_KEY`). `documentationUrl` and `supportUrl` are listing fields the directory reads. `types` points at `types/index.d.ts`, the `$.state` contract that `claude plugin validate` checks. Claude Code ignores all three at load time.
 - **Icon** (warning `UNREAD_ASSET_REFERENCED`, in this README; earlier `ICON_MISSING`). The icon is `.claude-plugin/icon.png` (512 × 512); its source is `docs/assets/icons/lk-handoff-guard.svg` in the repo. This README names the two files only to say where the icon is. They are images; no hook, script or setting loads or runs them.
 - **Calls named in text** (note `MOD_CALL_NAMED_IN_TEXT`). `tool.call` and `session.compact` are named in the header comment (lines 11–12), which lists the hooks. The `tool.call` hook (line 691) refuses a call only in auto mode, in the main loop, once context fill passes `denyAt` (default 95%), with a message that the handoff is being written; `AskUserQuestion`, the plugin's own tools and calls that carry a `consent` value are never refused. Otherwise it returns what `next(e)` gave back, unchanged, after noting edited file paths for the handoff.
-- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/handoff`, at session start (line 600). It registers no tools or agents.
-- **Hooks on events that are also calls** (note `MOD_HOOKS_OPERATION`). `prompt.submit` (line 633) passes every prompt on unchanged with `next(e)`; it only clears the band's "resumed" marker once the user types a prompt. `session.compact` (line 727) writes the handoff first when none was written since the last clear, then lets compaction run; it never blocks it. `command.run` (line 750) has the matcher `{ command: 'handoff' }`, so it runs only for `/handoff`. None of them makes the call it hooks.
+- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/lk-handoff`, at session start (line 600). It registers no tools or agents.
+- **Hooks on events that are also calls** (note `MOD_HOOKS_OPERATION`). `prompt.submit` (line 633) passes every prompt on unchanged with `next(e)`; it only clears the band's "resumed" marker once the user types a prompt. `session.compact` (line 727) writes the handoff first when none was written since the last clear, then lets compaction run; it never blocks it. `command.run` (line 750) has the matcher `{ command: 'lk-handoff' }`, so it runs only for `/lk-handoff`. None of them makes the call it hooks.
 
 ## Credits
 

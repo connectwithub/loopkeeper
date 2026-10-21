@@ -10,9 +10,9 @@ A loopkeeper add-on for Claude Code that keeps one line above the prompt saying 
 
 **Install:** `/plugin install lk-where-am-i@loopkeeper`, after `/plugin marketplace add connectwithub/loopkeeper` (more under [Install](#install)). Requires Claude Code 2.1.294 or later. Its usage-window chips need a Claude subscription.
 
-**Data handling:** it keeps the settings you save with `/where` in its own plugin store (a JSON file under your Claude Code configuration folder) and the last git reading in session state. It reads `~/.claude/where-am-i.json`, runs read-only `git` in the session's folder and writes no file. It makes no model calls and sends nothing over the network. It collects no personal data; the saved settings stay until you delete them. Details under [What it runs](#what-it-runs).
+**Data handling:** it keeps the settings you save with `/lk-where` in its own plugin store (a JSON file under your Claude Code configuration folder) and the last git reading in session state. It reads `~/.claude/where-am-i.json`, runs read-only `git` in the session's folder and writes no file. It makes no model calls and sends nothing over the network. It collects no personal data; the saved settings stay until you delete them. Details under [What it runs](#what-it-runs).
 
-**Commands:** `/where` and its options are listed under [Commands](#commands).
+**Commands:** `/lk-where` and its options are listed under [Commands](#commands).
 
 The band (the figures are examples):
 
@@ -51,15 +51,15 @@ Check it from its folder with `claude plugin validate --strict .` and `claude pl
 
 | Command | What it does |
 | :- | :- |
-| `/where` | Opens the pane (below) |
-| `/where text` | Prints the same details into the transcript |
-| `/where refresh` | Checks git again now |
-| `/where band on\|off` | Shows or hides the line (saved) |
-| `/where cache <min>` | Sets the prompt-cache TTL in minutes (saved) |
+| `/lk-where` | Opens the pane (below) |
+| `/lk-where text` | Prints the same details into the transcript |
+| `/lk-where refresh` | Checks git again now |
+| `/lk-where band on\|off` | Shows or hides the line (saved) |
+| `/lk-where cache <min>` | Sets the prompt-cache TTL in minutes (saved) |
 
 ## Pane
 
-`/where` draws one pane with the loopkeeper kit (kit v3), the same in the terminal and the desktop app. At the top a **where you are** card: `repo@branch` (with `⑂wt:<name>` in a linked worktree) as the title, and the dirty count, unpushed commits and time since the last commit under it. Then four tiles: **Changed**, **Unpushed**, **Cache** (time left, warn tone under 5 minutes) and **Cost**. Then headers with counts: **Location** (repo, branch, worktree, cwd, top level, default branch, upstream, changes, last commit), **Usage** (a bar per window, warn tone at 80% and danger at 95%, the reset time on the right), **Prompt cache** (time left, the TTL and where it came from), and **Worktrees** (`●` and a `here` pill on this one, `locked` and `prunable` pills, the branch on the right). The pills are Svg on the desktop and `● here` chips in the terminal. Buttons: **r** Refresh, **c** Close.
+`/lk-where` draws one pane with the loopkeeper kit (kit v3), the same in the terminal and the desktop app. At the top a **where you are** card: `repo@branch` (with `⑂wt:<name>` in a linked worktree) as the title, and the dirty count, unpushed commits and time since the last commit under it. Then four tiles: **Changed**, **Unpushed**, **Cache** (time left, warn tone under 5 minutes) and **Cost**. Then headers with counts: **Location** (repo, branch, worktree, cwd, top level, default branch, upstream, changes, last commit), **Usage** (a bar per window, warn tone at 80% and danger at 95%, the reset time on the right), **Prompt cache** (time left, the TTL and where it came from), and **Worktrees** (`●` and a `here` pill on this one, `locked` and `prunable` pills, the branch on the right). The pills are Svg on the desktop and `● here` chips in the terminal. Buttons: **r** Refresh, **c** Close.
 
 ## Configure
 
@@ -69,7 +69,7 @@ Check it from its folder with `claude plugin validate --strict .` and `claude pl
 { "cacheTtlMin": 60, "band": true }
 ```
 
-Settings saved with `/where` win over the file. Read at session start and after `/clear`, `/resume`, `/branch`.
+Settings saved with `/lk-where` win over the file. Read at session start and after `/clear`, `/resume`, `/branch`.
 
 ## When it refreshes
 
@@ -79,10 +79,10 @@ Git is read on session start, after `/clear` / `/resume` / `/branch`, when the s
 
 `claude plugin validate --strict .` lists the footprint:
 
-- **Hooks**: `session.start`, `classic.SessionStart` (`/clear`, `/resume`, `/branch`), `classic.CwdChanged`, `turn.start`, `turn.step`, `turn.complete`, `session.measure`, `session.end`, `command.run` (`/where`), and `ui.render` for the band and the pane. Every hook passes its event on unchanged.
+- **Hooks**: `session.start`, `classic.SessionStart` (`/clear`, `/resume`, `/branch`), `classic.CwdChanged`, `turn.start`, `turn.step`, `turn.complete`, `session.measure`, `session.end`, `command.run` (`/lk-where`), and `ui.render` for the band and the pane. Every hook passes its event on unchanged.
 - **Processes**: read-only `git` through `$.process.run`, in the session's directory, each capped at 2 seconds: `rev-parse`, `symbolic-ref`, `status --porcelain` (with `--no-optional-locks`), `rev-list --count`, `log -1` and `worktree list --porcelain`. Nothing that writes to the repository.
 - **Files**: reads `~/.claude/where-am-i.json` (or the one under `CLAUDE_CONFIG_DIR`); `HOME` and `CLAUDE_CONFIG_DIR` are the only environment variables it reads. It writes no file.
-- **Stored data**: the settings saved with `/where`, in the plugin's `$.store`; the last git reading and usage windows in `$.state`.
+- **Stored data**: the settings saved with `/lk-where`, in the plugin's `$.store`; the last git reading and usage windows in `$.state`.
 - **Model calls and network**: none.
 - **Timers**: one 60-second `$.clock.every` tick.
 
@@ -95,9 +95,9 @@ The directory's validator listed these items for this plugin. Each bullet says w
 - **Fields in `plugin.json`** (warnings `UNKNOWN_KEY`). `documentationUrl` and `supportUrl` are listing fields the directory reads. `types` points at `types/index.d.ts`, the `$.state` contract that `claude plugin validate` checks. Claude Code ignores all three at load time.
 - **Icon** (warning `UNREAD_ASSET_REFERENCED`, in this README; earlier `ICON_MISSING`). The icon is `.claude-plugin/icon.png` (512 × 512); its source is `docs/assets/icons/lk-where-am-i.svg` in the repo. This README names the two files only to say where the icon is. They are images; no hook, script or setting loads or runs them.
 - **A call named in text** (note `MOD_CALL_NAMED_IN_TEXT`). `command.run` is named in the header comment of `hooks/register.ts` (line 11), which lists the hooks.
-- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/where`, at session start (line 343). It registers no tools or agents.
+- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/lk-where`, at session start (line 343). It registers no tools or agents.
 - **Classic hooks** (note `MOD_HOOKS_POLICY_EVENT`). `classic.SessionStart` with source `clear`, `resume` or `fork` (line 356) loads the settings and refreshes git again, because those resets clear `$.state`. `classic.CwdChanged` (line 366) stores the new directory and refreshes git. Both return `next(e)` unchanged; neither alters settings, instructions or other hooks.
-- **The `command.run` hook** (note `MOD_HOOKS_OPERATION`). The hook at line 431 has the matcher `{ command: 'where' }`, so it runs only for `/where`: it opens the pane, prints a text summary, refreshes git, shows or hides the band, or sets the cache TTL. It does not see or change any other command.
+- **The `command.run` hook** (note `MOD_HOOKS_OPERATION`). The hook at line 431 has the matcher `{ command: 'lk-where' }`, so it runs only for `/lk-where`: it opens the pane, prints a text summary, refreshes git, shows or hides the band, or sets the cache TTL. It does not see or change any other command.
 
 ## Limitations
 

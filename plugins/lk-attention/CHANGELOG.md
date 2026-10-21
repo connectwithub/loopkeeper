@@ -6,6 +6,7 @@ All notable changes to lk-attention are recorded here. The format follows [Keep 
 
 ### Changed
 
+- The command is now `/lk-attention` (was `/attention`): every loopkeeper command starts with `lk-`.
 - The README's notes for directory reviewers cover the icon warning `UNREAD_ASSET_REFERENCED` and the sound files it names.
 
 ## [0.3.1] - 2026-10-11

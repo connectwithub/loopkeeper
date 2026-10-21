@@ -1,6 +1,6 @@
 // handoff-guard: never lose a session to the context limit.
 //
-// session.start        loads config, reads context fill, registers /handoff; seeds a session
+// session.start        loads config, reads context fill, registers /lk-handoff; seeds a session
 //                      that missed the clear signal (resume-before-load race, from session-saver)
 // classic.SessionStart after /clear: reloads config ($.state was reset) and submits the one-line
 //                      resume prompt queued in $.store by the handoff that cleared
@@ -11,7 +11,7 @@
 // tool.call            records edited files; in auto mode past denyAt refuses new calls
 // session.compact      writes the handoff first when none was written since the last clear, then
 //                      lets compaction proceed (never blocks it)
-// command.run          /handoff and its subcommands
+// command.run          /lk-handoff and its subcommands
 // ui.render            the one-line band (stacks other mods' band under it) and the pane
 //
 // State that must survive /clear (the queued resume prompt, the last brief, settings) lives in
@@ -198,7 +198,7 @@ async function saveSetting($: Api, patch: Partial<Config>): Promise<Config> {
   return loadConfig($)
 }
 
-/** The last brief for this project, from $.store, so /handoff status and the pane survive /clear. */
+/** The last brief for this project, from $.store, so /lk-handoff status and the pane survive /clear. */
 async function loadLast($: Api): Promise<void> {
   const cwd = await cwdOf($)
   const v = (await storeGet($, 'last:' + cwd)) as BriefInfo | undefined
@@ -228,7 +228,7 @@ async function evaluate($: Api, r: Reading, where: 'start' | 'step' | 'complete'
   const level = levelOf(r.frac, cfg)
   if (level !== 'ok' && !(await read($, warnedAtom))) {
     await update($, warnedAtom, () => true)
-    toast($, `context ${pct(r.frac)}%: run /handoff when you reach a stopping point`)
+    toast($, `context ${pct(r.frac)}%: run /lk-handoff when you reach a stopping point`)
   }
   if (where === 'start' || level !== 'due') return 'none'
   if (cfg.mode === 'off' || (await read($, sessionOffAtom))) return 'none'
@@ -264,7 +264,7 @@ async function evaluate($: Api, r: Reading, where: 'start' | 'step' | 'complete'
   }
   if (answer === ASK_OFF) {
     await update($, sessionOffAtom, () => true)
-    toast($, 'handoff-guard: off for this session. /handoff still writes one.')
+    toast($, 'handoff-guard: off for this session. /lk-handoff still writes one.')
     return 'none'
   }
   if (first) await update($, nextAskAtom, () => cfg.reaskAt)
@@ -509,13 +509,13 @@ function heroTitle(r: Reading | null, cfg: Config, o: { busy: boolean; sessionOf
   const level = levelOf(r.frac, cfg)
   if (level === 'due') {
     if (cfg.mode === 'off' || o.sessionOff) return `${ctx} · handoff due · guard off`
-    return cfg.mode === 'auto' ? `${ctx} · handoff due · auto handoff` : `${ctx} · handoff due: /handoff clear`
+    return cfg.mode === 'auto' ? `${ctx} · handoff due · auto handoff` : `${ctx} · handoff due: /lk-handoff clear`
   }
-  if (level === 'warn') return `${ctx} · /handoff at a stopping point`
+  if (level === 'warn') return `${ctx} · /lk-handoff at a stopping point`
   return `${ctx} · next handoff at ${pct(cfg.handoffAt)}%`
 }
 
-// ---------------------------------------------------------------- /handoff
+// ---------------------------------------------------------------- /lk-handoff
 
 async function statusText($: Api): Promise<string> {
   const cfg = await read($, configAtom)
@@ -573,7 +573,7 @@ async function runCommand($: Api, args: string): Promise<{ text?: string }> {
     return { text: `Warning at ${pct(cfg.warnAt)}%, handoff at ${pct(cfg.handoffAt)}%.` }
   }
   if (sub === 'band') {
-    if (arg !== 'on' && arg !== 'off') return { text: 'Use /handoff band on or /handoff band off.' }
+    if (arg !== 'on' && arg !== 'off') return { text: 'Use /lk-handoff band on or /lk-handoff band off.' }
     const cfg = await saveSetting($, { band: arg === 'on' })
     return { text: cfg.band ? 'Band shown above the prompt.' : 'Band hidden.' }
   }
@@ -598,7 +598,7 @@ export function register(on: On) {
     }
     try {
       await $.command.register({
-        name: 'handoff',
+        name: 'lk-handoff',
         description: 'Write the brain handoff now; or clear, status, show, mode, at, warn, band',
         argumentHint: '[clear | status | show | mode ask|auto|off | at <0-1> | warn <0-1> | band on|off]',
         immediate: true,
@@ -747,7 +747,7 @@ export function register(on: On) {
     return result
   })
 
-  on('command.run', { command: 'handoff' }, async ($, e) => {
+  on('command.run', { command: 'lk-handoff' }, async ($, e) => {
     try {
       return await runCommand($, typeof e.args === 'string' ? e.args : '')
     } catch (err) {
@@ -847,7 +847,7 @@ export function register(on: On) {
           last.flagged.length ? kit.row({ left: [kit.pill('unverified', 'accent'), last.flagged.join(', ')] }) : null,
           ui.Markdown({ text: last.preview.split('\n').slice(0, 60).join('\n') }),
         ]
-      : [kit.text('No handoff written for this project yet. /handoff writes one.', { color: QUIET })]
+      : [kit.text('No handoff written for this project yet. /lk-handoff writes one.', { color: QUIET })]
 
     return kit.page([
       hero,

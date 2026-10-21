@@ -697,7 +697,7 @@ export function nearAnyCap(uses: CapUse[], warnAt: number): boolean {
 export function denyText(u: CapUse): string {
   return (
     'agent-map: ' + CAP_NAMES[u.kind] + ' reached (' + u.n + '/' + u.max + '). Wait for running subagents to return, or batch the work into fewer agents. ' +
-    'The user can raise it with /agent-map cap ' + u.kind + ' <n>.'
+    'The user can raise it with /lk-agents cap ' + u.kind + ' <n>.'
   )
 }
 
@@ -743,11 +743,11 @@ const CAP_KEY: Record<string, keyof CapConfig> = {
 }
 
 export const CAP_USAGE =
-  'Usage: /agent-map cap [concurrent <n> | turn <n> | session <n> | returned <k> | warn <0.1-1> | grace <ms> | reset [<kind>]] (0 turns a cap off)'
+  'Usage: /lk-agents cap [concurrent <n> | turn <n> | session <n> | returned <k> | warn <0.1-1> | grace <ms> | reset [<kind>]] (0 turns a cap off)'
 
 const isCapWord = (kind: string | undefined): kind is string => !!kind && Object.prototype.hasOwnProperty.call(CAP_KEY, kind)
 
-/** `/agent-map cap concurrent 6`, `cap returned 200` (thousands of tokens) or `cap returned 200k`, `cap warn 0.8`. */
+/** `/lk-agents cap concurrent 6`, `cap returned 200` (thousands of tokens) or `cap returned 200k`, `cap warn 0.8`. */
 export function parseCapCommand(args: readonly string[]): CapCommand {
   const kind = args[0]
   const raw = (args[1] ?? '').toLowerCase()
@@ -767,7 +767,7 @@ export function capKeyOf(kind: CapKind | 'returned' | 'warn' | 'grace'): keyof C
   return CAP_KEY[kind]
 }
 
-/** `/agent-map cap reset [kind]`: the saved override to clear, every one without a kind. */
+/** `/lk-agents cap reset [kind]`: the saved override to clear, every one without a kind. */
 export function parseCapReset(args: readonly string[]): { kind?: CapCommandKind; key?: keyof CapConfig } | { error: string } {
   const kind = args[1]
   if (kind === undefined) return {}

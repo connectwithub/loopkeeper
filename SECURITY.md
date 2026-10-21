@@ -39,7 +39,7 @@ Its README lists the same in more detail under [Footprint](plugins/loopkeeper/RE
 - **Model calls**: only through the decision watch, which is off by default. When on, it calls `$.model.complete` with the configured model on your own Claude Code session.
 - **Prompts submitted**: after you approve something that was waiting (`/lk approve`, or an Approve button in the band, the Stage pane or the hub), it submits one prompt, framed as a message from the plugin and not as yours, that tells the model to carry on. Never in a non-interactive session (no person at the prompt and no app surface attached) or with the kill switch on. Turn it off with `pipeline.continueOnApprove: false`.
 - **Turns ended**: when an edit would go past the per-turn file budget and you choose Stop (or no one can answer), it refuses the edit and ends the running turn a moment later, so the model stops instead of trying another tool.
-- **Other plugins' commands**: the hub's Other mods keys open an installed add-on. In the desktop app a press runs that add-on's command (for example `/agent-map cards`), which opens its pane. In the terminal it puts the command in an empty prompt box and you press Enter; it never replaces a draft.
+- **Other plugins' commands**: the hub's Other mods keys open an installed add-on. In the desktop app a press runs that add-on's command (for example `/lk-agents cards`), which opens its pane. In the terminal it puts the command in an empty prompt box and you press Enter; it never replaces a draft.
 - **Tools for the model**: it registers `set_stage`, `review_cycle`, `review_item`, `review_status` and `record_decision`. They change only the core's own state, the review log and the decision log.
 - **Network**: none of its own. The `gh` queries reach GitHub through the `gh` CLI.
 
@@ -69,7 +69,7 @@ Linux with GNOME only.
 ### lk-token-budget
 
 - **Processes, network**: none. Writes no file.
-- **Model calls**: `$.model.fork` for Keep warm only, one small request per press of **Keep warm** or `/budget keepwarm`. The automatic keep-warm is off by default; after `/budget autowarm on` it sends up to `autoKeepWarmMax` such requests per idle stretch, in every session on the machine. **Each one spends tokens**: the context at the cache-read price, or the full cache write if the cache has already lapsed. Each is logged with its estimated cost.
+- **Model calls**: `$.model.fork` for Keep warm only, one small request per press of **Keep warm** or `/lk-budget keepwarm`. The automatic keep-warm is off by default; after `/lk-budget autowarm on` it sends up to `autoKeepWarmMax` such requests per idle stretch, in every session on the machine. **Each one spends tokens**: the context at the cache-read price, or the full cache write if the cache has already lapsed. Each is logged with its estimated cost.
 - **Refusals**: once a budget is spent, depending on the action you chose, it refuses new subagents or tool calls.
 - Its hooks fail open: if one throws, the call goes ahead.
 
@@ -89,7 +89,7 @@ Linux with GNOME only.
 
 - **Processes, model calls, network**: none. Writes no file.
 - **Refusals**: before a `Write`, `Edit`, `MultiEdit`, `NotebookEdit` or `Bash` call, it scans only the new text. A credential-shaped string is refused; a weaker match asks you (`Allow once` / `Block`). Values are always shown masked and never stored.
-- It fails closed: if the guard errors on a call, the call is refused. `/secret-guard off` turns it off for the session.
+- It fails closed: if the guard errors on a call, the call is refused. `/lk-secrets off` turns it off for the session.
 
 ## Failing closed and the kill switch
 

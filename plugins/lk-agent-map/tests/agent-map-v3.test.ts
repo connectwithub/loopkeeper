@@ -1,14 +1,14 @@
 // 0.3.0: spawn caps and the override ask, context cost of results, cards,
-// team lanes, the lifecycle log, /agent-map cap, and the waiting grace.
+// team lanes, the lifecycle log, /lk-agents cap, and the waiting grace.
 import { expect, test } from 'claude-code/testing'
 
 import { fmtClock } from '../hooks/format'
 import { BAND, PANE, complete, mapText, setup, spawn, start } from './fixtures'
 
 const CONC_DENY =
-  'agent-map: concurrency cap reached (4/4). Wait for running subagents to return, or batch the work into fewer agents. The user can raise it with /agent-map cap concurrent <n>.'
+  'agent-map: concurrency cap reached (4/4). Wait for running subagents to return, or batch the work into fewer agents. The user can raise it with /lk-agents cap concurrent <n>.'
 
-const cmd = async ($: any, args: string) => (await $.command.run({ command: 'agent-map', args })).text as string
+const cmd = async ($: any, args: string) => (await $.command.run({ command: 'lk-agents', args })).text as string
 const bandLine = async ($: any) => {
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   // The kit line's Texts joined by its two-space gap; the color is the state chip's
@@ -52,7 +52,7 @@ test('the per-turn cap counts spawns this turn, leaves forks out, and resets on 
   expect(fork.agentId).toBe('agent-tu-f')
   const denied = await spawn($, { toolUseId: 'tu-3', description: 'job 3', type: 'general-purpose', model: 'sonnet' })
   expect(denied.deny).toContain('agent-map: per-turn spawn cap reached (2/2).')
-  expect(denied.deny).toContain('/agent-map cap turn <n>.')
+  expect(denied.deny).toContain('/lk-agents cap turn <n>.')
   await $.turn.start({ text: 'next', turnId: 'turn-2' })
   expect((await spawn($, { toolUseId: 'tu-4', description: 'job 4', type: 'general-purpose', model: 'sonnet' })).agentId).toBe('agent-tu-4')
   expect((await bandLine($)).text).toBe('agents  ● 4 running  ✓ 0 done  ✗ 0  ● ok  0 tok')
@@ -142,7 +142,7 @@ test('an Agent result is measured as returnedTokens, and the session total warns
   expect(await cmd($, 'log')).toContain('done survey · in 00:01 · 0 tok · → 38k to main')
 })
 
-test('/agent-map cards lays out one bordered card per agent, running first', async ($, on) => {
+test('/lk-agents cards lays out one bordered card per agent, running first', async ($, on) => {
   const world = setup(on)
   await start($)
   world.agentResults.set('tu-1', 'z'.repeat(4_000))
@@ -176,7 +176,7 @@ test('/agent-map cards lays out one bordered card per agent, running first', asy
   expect(await mapText($)).toContain('├─ ✓ finished first one  Explore  haiku  00:05  0 tools  0 tok  → 1k to main')
 })
 
-test('/agent-map team groups agents by parent into lanes, teammates in their own', async ($, on) => {
+test('/lk-agents team groups agents by parent into lanes, teammates in their own', async ($, on) => {
   const world = setup(on)
   await start($)
   await spawn($, { toolUseId: 'tu-1', description: 'lead', type: 'general-purpose', model: 'opus' })
@@ -236,7 +236,7 @@ test('the lifecycle log records spawn, first tool, waiting, resumed, stop and en
   expect(await ui.find({ type: 'Text', text: /spawned builder/ })).toBeUndefined()
 })
 
-test('/agent-map cap shows, sets and saves caps over the config files', async ($, on) => {
+test('/lk-agents cap shows, sets and saves caps over the config files', async ($, on) => {
   const world = setup(on)
   world.files.set('/home/tester/.claude/agent-map.json', JSON.stringify({ maxConcurrent: 6, maxPerTurn: 10 }))
   world.files.set('/work/.claude/agent-map.json', JSON.stringify({ maxPerTurn: 12, warnAt: 0.5 }))
@@ -250,8 +250,8 @@ test('/agent-map cap shows, sets and saves caps over the config files', async ($
   expect(await cmd($, 'cap grace 1500')).toBe('agent-map: grace cap set to 1500 ms')
   expect(await cmd($, 'cap session 0')).toBe('agent-map: session cap set to off')
   expect(world.store.get('caps')).toEqual({ maxConcurrent: 2, maxReturnedTokens: 200_000, warnAt: 0.9, waitGraceMs: 1500, maxPerSession: 0 })
-  expect(await cmd($, 'cap bogus 3')).toContain('Usage: /agent-map cap')
-  expect(await cmd($, 'cap turn many')).toContain('Usage: /agent-map cap')
+  expect(await cmd($, 'cap bogus 3')).toContain('Usage: /lk-agents cap')
+  expect(await cmd($, 'cap turn many')).toContain('Usage: /lk-agents cap')
   await many($, 2)
   expect((await spawn($, { toolUseId: 'tu-3', description: 'x', type: 'Plan', model: 'opus' })).deny).toContain('concurrency cap reached (2/2)')
 })

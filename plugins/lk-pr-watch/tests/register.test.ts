@@ -154,18 +154,18 @@ test('a newly failed check toasts and appends one note; it is not repeated', asy
   const w = world(on)
   await start($, w)
   w.gql.set(42, graphql({ contexts: [pass('build'), fail('test')] }))
-  await $.command.run({ command: 'pr', args: 'refresh' })
+  await $.command.run({ command: 'lk-prs', args: 'refresh' })
   expect(w.toasts).toContain('PR #42: check "test" failed')
   expect(w.notes).toEqual([
     '[pr-watch: automated notice, not typed by the user] Check "test" failed on PR #42 (acme/widgets): https://github.com/acme/widgets/actions/runs/1/job/test',
   ])
   expect((await band($))?.tones[0]).toBe(TONES.danger.fg)
   // still failing on the next poll: no second note
-  await $.command.run({ command: 'pr', args: 'refresh' })
+  await $.command.run({ command: 'lk-prs', args: 'refresh' })
   expect(w.notes.length).toBe(1)
   // two more checks fail at once: one note each
   w.gql.set(42, graphql({ contexts: [fail('build'), fail('test'), fail('lint')] }))
-  await $.command.run({ command: 'pr', args: 'refresh' })
+  await $.command.run({ command: 'lk-prs', args: 'refresh' })
   expect(w.notes.length).toBe(3)
 })
 
@@ -173,15 +173,15 @@ test('failed to green, review changes and merged toast; notifyOn filters them', 
   const w = world(on, { files: { '/work/.claude/pr-watch.json': { notifyOn: ['green', 'merged'] } } })
   await start($, w)
   w.gql.set(42, graphql({ contexts: [pass('build'), fail('test')] }))
-  await $.command.run({ command: 'pr', args: 'refresh' })
+  await $.command.run({ command: 'lk-prs', args: 'refresh' })
   // "failed" is not in notifyOn: no toast, but the note still goes to Claude
   expect(w.toasts).toEqual([])
   expect(w.notes.length).toBe(1)
   w.gql.set(42, graphql({ contexts: [pass('build'), pass('test')], reviewDecision: 'CHANGES_REQUESTED' }))
-  await $.command.run({ command: 'pr', args: 'refresh' })
+  await $.command.run({ command: 'lk-prs', args: 'refresh' })
   expect(w.toasts).toEqual(['PR #42: all checks green'])
   w.gql.set(42, graphql({ contexts: [pass('build'), pass('test')], reviewDecision: 'APPROVED', state: 'MERGED' }))
-  await $.command.run({ command: 'pr', args: 'refresh' })
+  await $.command.run({ command: 'lk-prs', args: 'refresh' })
   expect(w.toasts).toEqual(['PR #42: all checks green', 'PR #42 merged'])
 })
 
@@ -189,7 +189,7 @@ test('review requested changes toasts under the default notifyOn', async ($, on)
   const w = world(on)
   await start($, w)
   w.gql.set(42, graphql({ contexts: [pass('build'), pending('test')], reviewDecision: 'CHANGES_REQUESTED' }))
-  await $.command.run({ command: 'pr', args: 'refresh' })
+  await $.command.run({ command: 'lk-prs', args: 'refresh' })
   expect(w.toasts).toEqual(['PR #42: review changes requested'])
   expect(w.notes).toEqual([])
 })
@@ -198,7 +198,7 @@ test('appendNoteOnFailure false sends no note', async ($, on) => {
   const w = world(on, { files: { '/home/tester/.claude/pr-watch.json': { appendNoteOnFailure: false } } })
   await start($, w)
   w.gql.set(42, graphql({ contexts: [pass('build'), fail('test')] }))
-  await $.command.run({ command: 'pr', args: 'refresh' })
+  await $.command.run({ command: 'lk-prs', args: 'refresh' })
   expect(w.toasts).toContain('PR #42: check "test" failed')
   expect(w.notes).toEqual([])
 })
@@ -266,16 +266,16 @@ test('gh pr merge looks again and the merge toasts', async ($, on) => {
   expect((await band($))?.text).toBe('PR #42  ● checks 2/2 ✓  ● review required  ● merged')
 })
 
-test('/pr add, rm, band and text', async ($, on) => {
+test('/lk-prs add, rm, band and text', async ($, on) => {
   const w = world(on, { noPr: true })
   w.gql.set(9, graphql({ number: 9, contexts: [fail('lint')] }))
   w.gql.set(5, graphql({ number: 5 }))
   await start($, w)
-  expect((await $.command.run({ command: 'pr', args: 'add 9' })).text).toBe(
+  expect((await $.command.run({ command: 'lk-prs', args: 'add 9' })).text).toBe(
     'Watching acme/widgets#9: PR #9 ● checks 0/1 ✓ 1 ✗ · review: review required · mergeable',
   )
   expect(w.argvs.some(a => a.join(' ').startsWith('gh pr view 9 --json'))).toBe(true)
-  expect((await $.command.run({ command: 'pr', args: 'add https://github.com/acme/widgets/pull/5' })).text).toContain('Watching acme/widgets#5')
+  expect((await $.command.run({ command: 'lk-prs', args: 'add https://github.com/acme/widgets/pull/5' })).text).toContain('Watching acme/widgets#5')
   // a failed check makes the band urgent: the right side is drawn in the default text color
   expect(await band($)).toEqual({
     text: 'PR #9  ● checks 0/1 ✓ 1 ✗  ● review required  ● mergeable',
@@ -283,24 +283,24 @@ test('/pr add, rm, band and text', async ($, on) => {
     right: '+1 more',
     rightColor: undefined,
   })
-  const text = String((await $.command.run({ command: 'pr', args: 'text' })).text)
+  const text = String((await $.command.run({ command: 'lk-prs', args: 'text' })).text)
   expect(text).toContain('acme/widgets#9 https://github.com/acme/widgets/pull/9')
   expect(text).toContain('✗ lint fail 1m 23s https://github.com/acme/widgets/actions/runs/1/job/lint')
-  expect((await $.command.run({ command: 'pr', args: 'rm 9' })).text).toBe('Stopped watching acme/widgets#9.')
-  expect((await $.command.run({ command: 'pr', args: 'rm 9' })).text).toContain('no watched PR matches')
-  expect((await $.command.run({ command: 'pr', args: 'band off' })).text).toBe('PR band hidden.')
+  expect((await $.command.run({ command: 'lk-prs', args: 'rm 9' })).text).toBe('Stopped watching acme/widgets#9.')
+  expect((await $.command.run({ command: 'lk-prs', args: 'rm 9' })).text).toContain('no watched PR matches')
+  expect((await $.command.run({ command: 'lk-prs', args: 'band off' })).text).toBe('PR band hidden.')
   expect(w.saved.get('band')).toBe(false)
   expect(await band($)).toBeUndefined()
-  await $.command.run({ command: 'pr', args: 'band on' })
+  await $.command.run({ command: 'lk-prs', args: 'band on' })
   expect((await band($))?.text).toContain('PR #5')
-  expect((await $.command.run({ command: 'pr', args: 'wat' })).text).toContain('Usage: /pr')
+  expect((await $.command.run({ command: 'lk-prs', args: 'wat' })).text).toContain('Usage: /lk-prs')
 })
 
 test('the pane lists checks with links and its buttons work', async ($, on) => {
   const w = world(on)
   w.gql.set(42, MIXED)
   await start($, w)
-  await $.command.run({ command: 'pr', args: '' })
+  await $.command.run({ command: 'lk-prs', args: '' })
   expect(w.opened).toEqual(['pr-watch'])
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: '#42 Add the widget cache' })).toBeDefined()
@@ -333,7 +333,7 @@ test('a gh failure is shown, never thrown', async ($, on) => {
   await start($, w)
   // the failure chip in danger and gh's error on the right side, in the default text color (urgent)
   expect(await band($)).toEqual({ text: 'PR #42  ● gh failed', tones: [TONES.danger.fg], right: 'HTTP 404', rightColor: undefined })
-  expect(String((await $.command.run({ command: 'pr', args: 'text' })).text)).toContain('gh failed: HTTP 404')
+  expect(String((await $.command.run({ command: 'lk-prs', args: 'text' })).text)).toContain('gh failed: HTTP 404')
 })
 
 test('/clear reloads config and finds the PR again', async ($, on) => {

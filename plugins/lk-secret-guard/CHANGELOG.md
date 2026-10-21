@@ -6,6 +6,7 @@ All notable changes to lk-secret-guard are recorded here. The format follows [Ke
 
 ### Changed
 
+- The command is now `/lk-secrets` (was `/secret-guard`), so every loopkeeper command starts with `lk-` and none clashes with a command Claude Code ships. Subcommands keep their words (`/lk-secrets off`).
 - The README's notes for directory reviewers cover the icon warning `UNREAD_ASSET_REFERENCED`.
 
 ## [0.3.1] - 2026-10-11

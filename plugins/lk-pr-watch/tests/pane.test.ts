@@ -1,4 +1,4 @@
-// pane.test.ts: the /pr pane and the band, drawn with the kit, on both surfaces.
+// pane.test.ts: the /lk-prs pane and the band, drawn with the kit, on both surfaces.
 import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
@@ -94,8 +94,8 @@ function world(on: On, opts: { noPr?: boolean } = {}): World {
 async function fixture($: Engine, w: World): Promise<void> {
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   await w.clock.settle()
-  await $.command.run({ command: 'pr', args: 'add 7' })
-  await $.command.run({ command: 'pr', args: 'add 9' })
+  await $.command.run({ command: 'lk-prs', args: 'add 7' })
+  await $.command.run({ command: 'lk-prs', args: 'add 9' })
 }
 
 test('the pane draws the branch PR as the hero, tiles over every PR, and one card per PR', async ($, on) => {

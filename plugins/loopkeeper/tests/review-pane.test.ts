@@ -1,4 +1,4 @@
-// The /reviews pane and the review band, drawn with the kit, on both surfaces. These assert text and
+// The /lk-reviews pane and the review band, drawn with the kit, on both surfaces. These assert text and
 // structure (what is drawn, in which order, which keys press), not the kit's colors: those belong to the kit tests.
 // Kit v3: the item pills keep their width, and the gauges are kit.progress Svg bars off the terminal.
 import { expect, test } from 'claude-code/testing'

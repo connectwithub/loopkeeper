@@ -54,7 +54,7 @@ export type Watched = {
   owner: string
   repo: string
   number: number
-  /** 'branch': found for the current branch; 'user': added by URL or /pr add. */
+  /** 'branch': found for the current branch; 'user': added by URL or /lk-prs add. */
   source: 'branch' | 'user'
   /** The last good poll, or null before the first one. */
   snap: Snapshot | null

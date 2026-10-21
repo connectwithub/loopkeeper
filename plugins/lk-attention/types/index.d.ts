@@ -19,9 +19,9 @@ export type AttentionEvent = {
   resolved?: boolean
 }
 
-/** Defaults, then ~/.claude/attention.json, then <cwd>/.claude/attention.json, then /attention settings. */
+/** Defaults, then ~/.claude/attention.json, then <cwd>/.claude/attention.json, then /lk-attention settings. */
 export type Config = {
-  /** Master switch (/attention on|off). */
+  /** Master switch (/lk-attention on|off). */
   enabled: boolean
   /** Play a sound with each notification. */
   sound: boolean

@@ -1,12 +1,12 @@
 // Review concern: bounded review and critique cycles, visible and enforced. Ported from review-loop.
 //
 // - session.start: loads this folder's subjects from $.store (pruning those idle 14 days), reads the
-//   config file's review section, registers the three tools and /reviews
+//   config file's review section, registers the three tools and /lk-reviews
 // - review_cycle / review_item / review_status are answered here in tool.call; stage's wrapper around
 //   review_cycle reads the reviewSubjects atom afterwards
 // - every cycle is appended to <cwd>/.claude/loopkeeper-review.jsonl (only this concern ever read it)
 // - prompt.context carries a short block with the tool contract and the rule
-// - the band shows the active loop; /reviews opens a pane or prints text; /lk status adds a line
+// - the band shows the active loop; /lk-reviews opens a pane or prints text; /lk status adds a line
 // - the hub (/lk) draws a Reviews row (hotkey 5); the pane leads with the nav bar of every loopkeeper pane
 
 import { atom, read, update } from 'claude-code'
@@ -83,7 +83,7 @@ const reviewSubjects = atom({ plugin: 'loopkeeper', key: 'reviewSubjects' } as c
 const reviewCwd = atom({ plugin: 'loopkeeper', key: 'reviewCwd' } as const, '')
 const reviewBand = atom({ plugin: 'loopkeeper', key: 'reviewBand' } as const, true)
 const reviewContext = atom({ plugin: 'loopkeeper', key: 'reviewContext' } as const, true)
-// only what the user set with /reviews target and /reviews max; the rest comes from the config file or the kind
+// only what the user set with /lk-reviews target and /lk-reviews max; the rest comes from the config file or the kind
 // The person's answer to a loop at its limit: seq moves on each grant or stop, text is what Claude is told. Stage reads
 // it (by key) and sends Claude on after the press or the command.
 const reviewAnswered = atom({ plugin: 'loopkeeper', key: 'reviewAnswered' } as const, { seq: 0, text: '' })
@@ -315,13 +315,13 @@ export function wireReview(on: On): void {
     }
     try {
       await $.command.register({
-        name: 'reviews',
+        name: 'lk-reviews',
         description: 'Review loops: pane, or text | clear | kinds | kind | target | max | ship | reopen | stop | band | context',
         argumentHint: '[text | clear <subject> | kinds | kind <subject> <kind> | target <n> [subject] | max <n> [subject] | band on|off]',
         immediate: true,
       })
     } catch (err) {
-      note($, '/reviews not registered: ' + messageOf(err))
+      note($, '/lk-reviews not registered: ' + messageOf(err))
     }
     return next(e)
   })
@@ -343,7 +343,7 @@ export function wireReview(on: On): void {
     return { result: statusText(await read($, reviewSubjects), name || undefined) }
   }).catch(async () => ({ result: 'loopkeeper: review could not read its state.' }))
 
-  on('command.run', { command: 'reviews' }, async ($, e) => {
+  on('command.run', { command: 'lk-reviews' }, async ($, e) => {
     try {
       // The person's own: no origin, or the composer, the bridge or the sdk (as the stage concern's /lk tests it).
       const origin = (e as { origin?: { kind?: unknown } } | undefined)?.origin
@@ -654,7 +654,7 @@ async function onCommand($: EngineInterface, args: unknown, fromPerson = true): 
   }
   if (verb === 'clear') {
     const name = nameOf(rest.join(' '))
-    if (!name) return { text: 'Usage: /reviews clear <subject>' }
+    if (!name) return { text: 'Usage: /lk-reviews clear <subject>' }
     const subjects = await read($, reviewSubjects)
     const s = findSubject(subjects, name)
     if (!s) return { text: statusText(subjects, name) }
@@ -670,7 +670,7 @@ async function onCommand($: EngineInterface, args: unknown, fromPerson = true): 
   if (verb === 'kind') {
     const kind = kindOf(rest[rest.length - 1])
     const name = nameOf(rest.slice(0, -1).join(' '))
-    if (!name || !kind) return { text: 'Usage: /reviews kind <subject> <kind>, where kind is ' + KIND_NAMES.join(', ') + '.' }
+    if (!name || !kind) return { text: 'Usage: /lk-reviews kind <subject> <kind>, where kind is ' + KIND_NAMES.join(', ') + '.' }
     const subjects = await read($, reviewSubjects)
     const s = findSubject(subjects, name)
     if (!s) return { text: statusText(subjects, name) }
@@ -682,7 +682,7 @@ async function onCommand($: EngineInterface, args: unknown, fromPerson = true): 
     if (!fromPerson) return { text: 'Only the user can allow more review passes.' }
     const last = rest.length > 1 ? validMax(rest[rest.length - 1]) : undefined
     const name = nameOf((last !== undefined ? rest.slice(0, -1) : rest).join(' '))
-    if (!name) return { text: 'Usage: /reviews more <subject> [n]' }
+    if (!name) return { text: 'Usage: /lk-reviews more <subject> [n]' }
     return { text: await grantMore($, name, last) }
   }
   if (verb === 'target' || verb === 'max') {
@@ -692,17 +692,17 @@ async function onCommand($: EngineInterface, args: unknown, fromPerson = true): 
       const d = await read($, reviewDefaults)
       return {
         text: isTarget
-          ? `Default target is ${d.target !== undefined ? fmt(d.target) : 'set by kind (critic 9.0, copy 8.5, design 9.0)'}. Use /reviews target <0–10> [subject].`
-          : `Default max is ${d.maxCycles !== undefined ? d.maxCycles : 'set by kind (critic 4, review 3, plan 2, qa 3, copy 3, design 4)'}. Use /reviews max <1–20> [subject].`,
+          ? `Default target is ${d.target !== undefined ? fmt(d.target) : 'set by kind (critic 9.0, copy 8.5, design 9.0)'}. Use /lk-reviews target <0–10> [subject].`
+          : `Default max is ${d.maxCycles !== undefined ? d.maxCycles : 'set by kind (critic 4, review 3, plan 2, qa 3, copy 3, design 4)'}. Use /lk-reviews max <1–20> [subject].`,
       }
     }
     const name = nameOf(rest.slice(1).join(' '))
     if (name) {
       const s = findSubject(await read($, reviewSubjects), name)
       if (!s) return { text: statusText(await read($, reviewSubjects), name) }
-      if (isTarget && s.doneBy === 'items') return { text: `${s.name} is kind ${s.kind}, done by items: it has no score target. Use /reviews kind ${s.name} critic to score it.` }
+      if (isTarget && s.doneBy === 'items') return { text: `${s.name} is kind ${s.kind}, done by items: it has no score target. Use /lk-reviews kind ${s.name} critic to score it.` }
       const raises = !isTarget && value > s.maxCycles
-      if (raises && !fromPerson) return { text: 'Only the user can raise the limit of a review loop (/reviews max). Lowering it works from anyone.' }
+      if (raises && !fromPerson) return { text: 'Only the user can raise the limit of a review loop (/lk-reviews max). Lowering it works from anyone.' }
       const changed: Subject = { ...s, ...(isTarget ? { target: value } : { maxCycles: value }), updatedAt: await nowMs($) }
       await save($, changed)
       if (raises && atLimit(s)) await answer($, grantText(changed, value - s.maxCycles))
@@ -723,7 +723,7 @@ async function onCommand($: EngineInterface, args: unknown, fromPerson = true): 
   }
   if (verb === 'ship' || verb === 'reopen' || verb === 'stop') {
     const name = nameOf(rest.join(' '))
-    if (!name) return { text: `Usage: /reviews ${verb} <subject>` }
+    if (!name) return { text: `Usage: /lk-reviews ${verb} <subject>` }
     // the person's stop answers a loop at its limit, as the card's Stop here does
     return { text: await setStatus($, name, verb === 'ship' ? 'ship' : verb === 'stop' ? 'stop' : 'active', verb === 'stop' && fromPerson) }
   }
@@ -733,7 +733,7 @@ async function onCommand($: EngineInterface, args: unknown, fromPerson = true): 
     const word = (rest[0] ?? '').toLowerCase()
     if (word !== 'on' && word !== 'off') {
       const isOn = isBand ? await read($, reviewBand) : await read($, reviewContext)
-      return { text: `${label} is ${isOn ? 'on' : 'off'}. Use /reviews ${verb} on|off.` }
+      return { text: `${label} is ${isOn ? 'on' : 'off'}. Use /lk-reviews ${verb} on|off.` }
     }
     const isOn = word === 'on'
     if (isBand) await update($, reviewBand, () => isOn)

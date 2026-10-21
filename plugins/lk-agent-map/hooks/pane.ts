@@ -378,7 +378,7 @@ export function cardsTree(kit: Kit, agents: Agents, order: readonly string[], no
 // ---------------------------------------------------------------- caps
 
 /** How to change the caps, under the Caps block. */
-export const CAPS_HINT = 'Change in /config (lk-agent-map rows); /agent-map cap <kind> <n> saves an override, /agent-map cap reset clears it.'
+export const CAPS_HINT = 'Change in /config (lk-agent-map rows); /lk-agents cap <kind> <n> saves an override, /lk-agents cap reset clears it.'
 
 /** The Caps block's rows, in the order the settings list them. */
 const CAP_ROWS: readonly { key: keyof CapConfig; label: string }[] = [

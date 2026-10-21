@@ -267,16 +267,16 @@ describe('when the watch calls the model', () => {
   test('watch off: no model call; on again: calls; the setting is saved', async ($, on) => {
     const w = world(on)
     await $.session.start(START)
-    expect((await $.command.run({ command: 'decide', args: 'watch off' })).text).toBe(
-      'Decision watch off. No model calls until /decide watch on.',
+    expect((await $.command.run({ command: 'lk-decide', args: 'watch off' })).text).toBe(
+      'Decision watch off. No model calls until /lk-decide watch on.',
     )
     expect(w.store.get('loopkeeper:decisions:watch')).toBe(false)
     await turn($)
     expect(w.calls.length).toBe(0)
-    expect((await $.command.run({ command: 'decide', args: 'watch on' })).text).toBe('Decision watch on (model haiku).')
+    expect((await $.command.run({ command: 'lk-decide', args: 'watch on' })).text).toBe('Decision watch on (model haiku).')
     await turn($)
     expect(w.calls.length).toBe(1)
-    expect((await $.command.run({ command: 'decide', args: 'watch status' })).text).toContain(
+    expect((await $.command.run({ command: 'lk-decide', args: 'watch status' })).text).toContain(
       'Decision watch on · model haiku · 1/20 calls in the last hour',
     )
     expect(w.writes).toEqual([])
@@ -289,13 +289,13 @@ describe('when the watch calls the model', () => {
     expect(w.calls.length).toBe(0)
   })
 
-  test('watchModel from the project file, then /decide watch model; watch keys alone are not a log override', async ($, on) => {
+  test('watchModel from the project file, then /lk-decide watch model; watch keys alone are not a log override', async ($, on) => {
     const w = world(on, { files: { [PROJECT_CONFIG]: '{"decisions":{"watchModel": "sonnet"}}' } })
     await $.session.start(START)
-    const listing = await $.command.run({ command: 'decisions', args: 'text' })
+    const listing = await $.command.run({ command: 'lk-decisions', args: 'text' })
     expect(String(listing.text)).not.toContain('Note:')
     await turn($)
-    expect((await $.command.run({ command: 'decide', args: 'watch model haiku' })).text).toBe('Watch model: haiku.')
+    expect((await $.command.run({ command: 'lk-decide', args: 'watch model haiku' })).text).toBe('Watch model: haiku.')
     await turn($)
     expect(w.calls.map(c => c.model)).toEqual(['sonnet', 'haiku'])
     expect(w.store.get('loopkeeper:decisions:watch-model')).toBe('haiku')
@@ -400,7 +400,7 @@ describe('preferences', () => {
       'prefer small, focused commits!',
       'Write the test before the fix',
     ])
-    expect((await $.command.run({ command: 'decide', args: 'prefs' })).text).toBe(
+    expect((await $.command.run({ command: 'lk-decide', args: 'prefs' })).text).toBe(
       'Learned preferences (3, newest last):\n- Explain trade-offs before editing\n- prefer small, focused commits!\n- Write the test before the fix',
     )
     for (const surface of ['terminal', 'desktop'] as const) {
@@ -409,7 +409,7 @@ describe('preferences', () => {
       expect(await ui.find({ type: 'Text', text: '· Write the test before the fix' })).toBeDefined()
       await ui.unmount()
     }
-    expect((await $.command.run({ command: 'decide', args: 'prefs clear' })).text).toBe('Cleared 3 learned preferences.')
+    expect((await $.command.run({ command: 'lk-decide', args: 'prefs clear' })).text).toBe('Cleared 3 learned preferences.')
     expect(w.store.get('loopkeeper:decisions:prefs:/work/project')).toEqual([])
   })
 })
@@ -432,7 +432,7 @@ describe('the pane', () => {
     })
     await $.session.start(START)
     await turn($)
-    await $.command.run({ command: 'decisions', args: '' })
+    await $.command.run({ command: 'lk-decisions', args: '' })
     for (const surface of ['terminal', 'desktop'] as const) {
       const ui = await $.ui.mount(PANE(surface))
       const badge = (s: string) => new RegExp('\\b' + s + '\\b')
@@ -581,7 +581,7 @@ describe('the watch-cap card', () => {
   test('appears once per pause above the prompt, with the band off too, and as a line in the pane', { timeoutMs: 20_000 }, async ($, on) => {
     const w = await capped($, on)
     expect(w.state.get('decisionCapCard')).toEqual({ since: NOW, hidden: false })
-    await $.command.run({ command: 'decisions', args: 'band off' })
+    await $.command.run({ command: 'lk-decisions', args: 'band off' })
     for (const surface of ['terminal', 'desktop'] as const) {
       const ui = await $.ui.mount(BAND(surface))
       expect(await ui.find({ type: 'Text', text: 'loopkeeper · decision watch' })).toBeDefined()
@@ -669,7 +669,7 @@ describe('the watch-cap card', () => {
 
   test('watch off drops the card', { timeoutMs: 20_000 }, async ($, on) => {
     const w = await capped($, on)
-    await $.command.run({ command: 'decide', args: 'watch off' })
+    await $.command.run({ command: 'lk-decide', args: 'watch off' })
     expect(w.state.get('decisionCapCard')).toEqual({ since: 0, hidden: false })
     const ui = await $.ui.mount(BAND('terminal'))
     expect(await ui.find({ key: 'decisions-cap-more' })).toBeUndefined()
@@ -751,7 +751,7 @@ describe('the watch is off by default (ADR 0006)', () => {
   test('a fresh session with no config makes no model call on a qualifying turn', async ($, on) => {
     const w = world(on, { files: NONE, replies: [{ decisions: [MAJOR], preferences: ['Prefer small commits'] }] })
     await $.session.start(START)
-    expect((await $.command.run({ command: 'decide', args: 'watch status' })).text).toContain('Decision watch off')
+    expect((await $.command.run({ command: 'lk-decide', args: 'watch status' })).text).toContain('Decision watch off')
     await turn($)
     await turn($)
     expect(w.calls.length).toBe(0)
@@ -781,21 +781,21 @@ describe('the watch is off by default (ADR 0006)', () => {
     expect(w.calls.length).toBe(1)
   })
 
-  test('/decide watch on turns it on from a fresh session, and /decide watch off turns it off again', async ($, on) => {
+  test('/lk-decide watch on turns it on from a fresh session, and /lk-decide watch off turns it off again', async ($, on) => {
     const w = world(on, { files: NONE })
     await $.session.start(START)
     await turn($)
     expect(w.calls.length).toBe(0)
-    expect((await $.command.run({ command: 'decide', args: 'watch on' })).text).toBe('Decision watch on (model haiku).')
+    expect((await $.command.run({ command: 'lk-decide', args: 'watch on' })).text).toBe('Decision watch on (model haiku).')
     expect(w.store.get('loopkeeper:decisions:watch')).toBe(true)
     await turn($)
     expect(w.calls.length).toBe(1)
-    await $.command.run({ command: 'decide', args: 'watch off' })
+    await $.command.run({ command: 'lk-decide', args: 'watch off' })
     await turn($)
     expect(w.calls.length).toBe(1)
   })
 
-  test('the saved /decide watch setting wins over the config files, and survives a new session', async ($, on) => {
+  test('the saved /lk-decide watch setting wins over the config files, and survives a new session', async ($, on) => {
     const w = world(on, { files: { [USER_CONFIG]: WATCH_ON }, store: { 'loopkeeper:decisions:watch': false } })
     await $.session.start(START)
     await turn($)
@@ -818,7 +818,7 @@ describe('the watch is off by default (ADR 0006)', () => {
     await turn($)
     const ui = await $.ui.mount(BAND('terminal'))
     expect(await ui.find({ key: 'decisions-record' })).toBeDefined()
-    await $.command.run({ command: 'decide', args: 'watch off' })
+    await $.command.run({ command: 'lk-decide', args: 'watch off' })
     expect(await ui.find({ key: 'decisions-record' })).toBeUndefined()
     await turn($)
     expect(w.calls.length).toBe(1)

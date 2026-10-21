@@ -119,8 +119,8 @@ function world(
 
 async function start($: Engine, cwd = '/work/wt/feat-x') {
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd })
-  // /where refresh waits for the background refresh session.start began.
-  await $.command.run({ command: 'where', args: 'refresh' })
+  // /lk-where refresh waits for the background refresh session.start began.
+  await $.command.run({ command: 'lk-where', args: 'refresh' })
 }
 
 async function step($: Engine, agentId?: string) {
@@ -209,7 +209,7 @@ test('one toast per window at 90% from session.measure, plus cost', async ($, on
   expect(w.toasts).toEqual(['5h usage window at 91%, resets in 1h20'])
   await measure($, [{ kind: 'seven_day', percentUsed: 90 }])
   expect(w.toasts.length).toBe(2)
-  const out = await $.command.run({ command: 'where', args: 'text' })
+  const out = await $.command.run({ command: 'lk-where', args: 'text' })
   expect(String(out.text)).toContain('Session cost    $1.25')
 })
 
@@ -235,17 +235,17 @@ test('cache clock: muted, warn under 5 minutes, cold after the TTL; subagent ste
   expect((await band($)).text).toContain('cache cold')
 })
 
-test('cache TTL from ~/.claude/where-am-i.json, then /where cache', async ($, on) => {
+test('cache TTL from ~/.claude/where-am-i.json, then /lk-where cache', async ($, on) => {
   const w = world(on, { git: linkedRepo(), config: { cacheTtlMin: 5 } })
   await start($)
   await step($)
   await w.clock.advance(2 * MIN)
   expect((await band($)).text).toContain('cache 3m')
-  const r = await $.command.run({ command: 'where', args: 'cache 60' })
+  const r = await $.command.run({ command: 'lk-where', args: 'cache 60' })
   expect(r.text).toBe('Prompt-cache TTL set to 60 minutes.')
   expect(w.saved.get('settings')).toEqual({ cacheTtlMin: 60 })
   expect((await band($)).text).toContain('cache 58m')
-  expect((await $.command.run({ command: 'where', args: 'cache soon' })).text).toContain('minutes')
+  expect((await $.command.run({ command: 'lk-where', args: 'cache soon' })).text).toContain('minutes')
 })
 
 test('detached HEAD with no upstream in the main checkout', async ($, on) => {
@@ -262,7 +262,7 @@ test('detached HEAD with no upstream in the main checkout', async ($, on) => {
   })
   await start($, '/work/acme-repo')
   expect((await band($)).text).toBe('acme-repo@(a1b2c3d)  clean · 14m since commit')
-  const t = String((await $.command.run({ command: 'where', args: 'text' })).text)
+  const t = String((await $.command.run({ command: 'lk-where', args: 'text' })).text)
   expect(t).toContain('detached at a1b2c3d')
   expect(t).toContain('main checkout')
   expect(t).toContain('no upstream')
@@ -283,14 +283,14 @@ test('non-git folder shows the folder name only', async ($, on) => {
   world(on, { cwd: '/home/tester/notes', git: { 'rev-parse --absolute-git-dir --git-common-dir --show-toplevel': fail() } })
   await start($, '/home/tester/notes')
   expect((await band($)).text).toBe('notes (no git)')
-  expect(String((await $.command.run({ command: 'where', args: 'text' })).text)).toContain('not a git repository')
+  expect(String((await $.command.run({ command: 'lk-where', args: 'text' })).text)).toContain('not a git repository')
 })
 
 test('refresh never throws when $.process.run fails', async ($, on) => {
   world(on, { cwd: '/w/app', git: 'throw' })
   await start($, '/w/app')
   await $.turn.complete({ turnId: 't', answer: 'done', durationMs: 1, isAborted: false, usage: null })
-  const r = await $.command.run({ command: 'where', args: 'refresh' })
+  const r = await $.command.run({ command: 'lk-where', args: 'refresh' })
   expect(r.text).toBe('where-am-i: checked again.')
   expect((await band($)).text).toBe('app (no git)')
 })
@@ -305,15 +305,15 @@ test('band stays one truncating row at any bodyColumns', async ($, on) => {
   expect(b.texts.find(t => t.text.startsWith('3 dirty'))!.props.wrap).toBe('truncate')
 })
 
-test('/where band off hides the band and leaves Claude Code content', async ($, on) => {
+test('/lk-where band off hides the band and leaves Claude Code content', async ($, on) => {
   const w = world(on, { git: linkedRepo() })
   await start($)
-  expect((await $.command.run({ command: 'where', args: 'band off' })).text).toBe('Band hidden.')
+  expect((await $.command.run({ command: 'lk-where', args: 'band off' })).text).toBe('Band hidden.')
   const b = await band($)
   expect(b.line).toBeUndefined()
   expect(b.theirs).toBeDefined()
   expect(w.saved.get('settings')).toEqual({ band: false })
-  expect((await $.command.run({ command: 'where', args: 'band on' })).text).toBe('Band shown above the prompt.')
+  expect((await $.command.run({ command: 'lk-where', args: 'band on' })).text).toBe('Band shown above the prompt.')
   expect((await band($)).line).toBeDefined()
 })
 
@@ -325,18 +325,18 @@ test('the 60 s tick refreshes git while idle, not during a turn', async ($, on) 
   await w.clock.advance(60_000)
   expect(w.calls.length).toBe(before)
   await $.turn.complete({ turnId: 't', answer: 'done', durationMs: 1, isAborted: false, usage: null })
-  await $.command.run({ command: 'where', args: 'refresh' })
+  await $.command.run({ command: 'lk-where', args: 'refresh' })
   const after = w.calls.length
   expect(after).toBeGreaterThan(before)
   await w.clock.advance(60_000)
-  await $.command.run({ command: 'where', args: 'refresh' })
+  await $.command.run({ command: 'lk-where', args: 'refresh' })
   expect(w.calls.length).toBeGreaterThan(after)
 })
 
-test('/where opens the pane with worktrees and Refresh / Close buttons', async ($, on) => {
+test('/lk-where opens the pane with worktrees and Refresh / Close buttons', async ($, on) => {
   const w = world(on, { git: linkedRepo() })
   await start($)
-  await $.command.run({ command: 'where', args: '' })
+  await $.command.run({ command: 'lk-where', args: '' })
   expect(w.opened).toEqual(['where-am-i'])
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: 'WORKTREES' })).toBeDefined()
@@ -353,16 +353,16 @@ test('/where opens the pane with worktrees and Refresh / Close buttons', async (
   await ui.unmount()
 })
 
-test('/where with an unknown word prints help', async ($, on) => {
+test('/lk-where with an unknown word prints help', async ($, on) => {
   world(on, { git: linkedRepo() })
   await start($)
-  expect(String((await $.command.run({ command: 'where', args: 'banana' })).text)).toContain('Usage: /where')
+  expect(String((await $.command.run({ command: 'lk-where', args: 'banana' })).text)).toContain('Usage: /lk-where')
 })
 
 test('settings come back after /clear', async ($, on) => {
   const w = world(on, { git: linkedRepo() })
   w.saved.set('settings', { band: false })
   await $.classic.SessionStart({ source: 'clear', cwd: '/work/wt/feat-x' } as never)
-  await $.command.run({ command: 'where', args: 'refresh' })
+  await $.command.run({ command: 'lk-where', args: 'refresh' })
   expect((await band($)).line).toBeUndefined()
 })

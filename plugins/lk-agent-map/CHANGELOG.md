@@ -8,6 +8,7 @@ All notable changes to lk-agent-map are recorded here. The format follows [Keep 
 
 - The README's notes for directory reviewers name every finding code they explain, add `MOD_CALL_NAMED_IN_TEXT` and the
   icon warning `UNREAD_ASSET_REFERENCED`, and their line numbers match the code again. No code change.
+- The command is now `/lk-agents` (was `/agent-map`): every loopkeeper command starts with `lk-`.
 
 ## [0.6.3] - 2026-10-14
 

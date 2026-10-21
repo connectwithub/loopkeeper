@@ -97,17 +97,17 @@ test('the band is hidden until an agent spawns, then shows one line of chips', a
   expect((await ui.find({ type: 'Text', text: /aborted/ }))?.props.color).toBe('inactive')
 })
 
-test('/agent-map band off hides the band and saves the switch', async ($, on) => {
+test('/lk-agents band off hides the band and saves the switch', async ($, on) => {
   const world = setup(on)
   await twoAgents($, world)
-  const r = await $.command.run({ command: 'agent-map', args: 'band off' })
+  const r = await $.command.run({ command: 'lk-agents', args: 'band off' })
   expect(r.text).toBe('Agent band off')
   expect(world.store.get('band')).toBe(false)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /^agents / })).toBeUndefined()
 })
 
-test('/agent-map clear removes only finished agents', async ($, on) => {
+test('/lk-agents clear removes only finished agents', async ($, on) => {
   const world = setup(on)
   await start($)
   await spawn($, { toolUseId: 'tu-1', description: 'done-one', type: 'Explore', model: 'haiku' })
@@ -115,7 +115,7 @@ test('/agent-map clear removes only finished agents', async ($, on) => {
   await spawn($, { toolUseId: 'tu-3', description: 'aborted-one', type: 'Plan', model: 'opus' })
   await complete($, 'agent-tu-1', 1_000)
   await complete($, 'agent-tu-3', 2_000, 'aborted')
-  const r = await $.command.run({ command: 'agent-map', args: 'clear' })
+  const r = await $.command.run({ command: 'lk-agents', args: 'clear' })
   expect(r.text).toBe('Cleared 2 finished agents')
   const text = await mapText($)
   expect(text).toContain('still-running')
@@ -168,7 +168,7 @@ test('the pane keeps every row within bodyColumns', async ($, on) => {
     const b = await ui.find({ key: 'row-' + id })
     expect(b).toBeDefined()
   }
-  const text = (await $.command.run({ command: 'agent-map', args: 'text' })).text as string
+  const text = (await $.command.run({ command: 'lk-agents', args: 'text' })).text as string
   expect(text).toContain('└─ ● a very long description  general-purpose  sonnet')
 })
 

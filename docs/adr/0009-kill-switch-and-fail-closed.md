@@ -16,7 +16,7 @@
 
 Chosen option: 2, because a half-working switch is worse than none.
 
-- `CLAUDE_MODS_DISABLE` (a comma list) containing `loopkeeper` or `all` turns off the enforcing hooks: the gates, the stage's growth guard and spawn routing. It also stops the Files pane's tracking and band line, as change-control did. The bands say so; the gates band reads "OFF for this session". Commands still register, so `/lk` can explain, and `/files` still opens.
+- `CLAUDE_MODS_DISABLE` (a comma list) containing `loopkeeper` or `all` turns off the enforcing hooks: the gates, the stage's growth guard and spawn routing. It also stops the Files pane's tracking and band line, as change-control did. The bands say so; the gates band reads "OFF for this session". Commands still register, so `/lk` can explain, and `/lk-files` still opens.
 - The gates fail closed on a hook error. The refusal reads: "loopkeeper: the gates failed (<kind>: <msg>) and refused this call rather than let it through unchecked. Tell the user; they can run /lk gates off, or set CLAUDE_MODS_DISABLE=loopkeeper."
 - Found in the build: the stage's growth guard wraps the edit check from outside, and its catch would have turned a gates failure into "ask". The gates' edit hook now also catches inside its own body, so it denies.
 - ExitPlanMode still approves the plan. It does not approve the planned file budget ([ADR 0011](0011-plan-scoped-file-budget.md)).

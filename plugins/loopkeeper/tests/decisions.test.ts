@@ -19,7 +19,7 @@ function world(on: On, files: Record<string, string>, dirs: Record<string, strin
 const START = { surface: 'terminal', isInteractive: true, cwd: CWD } as const
 
 async function targetLine($: any): Promise<string> {
-  const out = await $.command.run({ command: 'decisions', args: 'text' })
+  const out = await $.command.run({ command: 'lk-decisions', args: 'text' })
   return String(out.text).split('\n')[0]
 }
 
@@ -74,26 +74,26 @@ describe('target detection', () => {
       '/work/project/brain/decisions.md': '# Decision log\n',
     })
     await $.session.start(START)
-    const out = await $.command.run({ command: 'decisions', args: 'text' })
+    const out = await $.command.run({ command: 'lk-decisions', args: 'text' })
     expect(out.text).toContain('brain/decisions.md (markdown)')
     expect(out.text).toContain('Note: .claude/loopkeeper.json, "decisions" section: "file" must be a relative path inside the project')
   })
 
-  test('/decisions reload detects again', async ($, on) => {
+  test('/lk-decisions reload detects again', async ($, on) => {
     const w = world(on, {})
     await $.session.start(START)
     w.files['/work/project/DECISION_JOURNAL.md'] = '# Decision Journal\n'
-    const out = await $.command.run({ command: 'decisions', args: 'reload' })
+    const out = await $.command.run({ command: 'lk-decisions', args: 'reload' })
     expect(out.text).toBe('Target: DECISION_JOURNAL.md (journal-md, found). 0 recent entries.')
   })
 })
 
-describe('/decide', () => {
+describe('/lk-decide', () => {
   test('appends a jsonl entry, toasts and replies with the file', async ($, on) => {
     const existing = '{"id":"ADR-0001","date":"2026-08-01","title":"Old"}\n'
     const w = world(on, { '/work/project/docs/decisions/decisions.jsonl': existing })
     await $.session.start(START)
-    const out = await $.command.run({ command: 'decide', args: 'Use pnpm over Nx -- fewer moving parts #tooling #ci' })
+    const out = await $.command.run({ command: 'lk-decide', args: 'Use pnpm over Nx -- fewer moving parts #tooling #ci' })
     expect(out.text).toBe('Recorded D-20261008-1405 in docs/decisions/decisions.jsonl')
     expect(w.toasts).toEqual(['Recorded in docs/decisions/decisions.jsonl'])
     expect(w.writes.length).toBe(1)
@@ -115,7 +115,7 @@ describe('/decide', () => {
     const existing = '# Decisions\n\n- 2026-10-01 — Older decision.\n'
     const w = world(on, { '/work/project/.claude/brain/decisions.md': existing })
     await $.session.start(START)
-    await $.command.run({ command: 'decide', args: 'Keep it private -- IP review first #release' })
+    await $.command.run({ command: 'lk-decide', args: 'Keep it private -- IP review first #release' })
     expect(w.files['/work/project/.claude/brain/decisions.md']).toBe(
       existing + '- 2026-10-08 — Keep it private. Why: IP review first. #release\n',
     )
@@ -124,8 +124,8 @@ describe('/decide', () => {
   test('two decisions in one minute get distinct ids', async ($, on) => {
     const w = world(on, {})
     await $.session.start(START)
-    await $.command.run({ command: 'decide', args: 'First' })
-    const out = await $.command.run({ command: 'decide', args: 'Second' })
+    await $.command.run({ command: 'lk-decide', args: 'First' })
+    const out = await $.command.run({ command: 'lk-decide', args: 'Second' })
     expect(out.text).toBe('Recorded D-20261008-1405-2 in .claude/decisions.jsonl')
     const lines = (w.files['/work/project/.claude/decisions.jsonl'] ?? '').trim().split('\n')
     expect(lines.map(line => JSON.parse(line).decision)).toEqual(['First', 'Second'])
@@ -134,15 +134,15 @@ describe('/decide', () => {
   test('no decision: usage, nothing written', async ($, on) => {
     const w = world(on, {})
     await $.session.start(START)
-    const out = await $.command.run({ command: 'decide', args: '  #tag ' })
-    expect(out.text).toContain('Usage: /decide')
+    const out = await $.command.run({ command: 'lk-decide', args: '  #tag ' })
+    expect(out.text).toContain('Usage: /lk-decide')
     expect(w.writes).toEqual([])
   })
 
   test('a failed write is reported, not thrown', async ($, on) => {
     world(on, {}, {}, 'read-only file system')
     await $.session.start(START)
-    const out = await $.command.run({ command: 'decide', args: 'Something' })
+    const out = await $.command.run({ command: 'lk-decide', args: 'Something' })
     expect(out.text).toContain('Not recorded:')
     expect(out.text).toContain('read-only file system')
   })
@@ -185,7 +185,7 @@ describe('record_decision tool', () => {
   })
 })
 
-describe('/decisions', () => {
+describe('/lk-decisions', () => {
   const BRAIN =
     '# Decisions\n\n' +
     Array.from({ length: 25 }, (_, i) => `- 2026-09-${String(i + 1).padStart(2, '0')} — Decision ${i + 1}.`).join('\n') +
@@ -194,7 +194,7 @@ describe('/decisions', () => {
   test('text lists the last 20, newest first', async ($, on) => {
     world(on, { '/work/project/brain/decisions.md': BRAIN })
     await $.session.start(START)
-    const out = await $.command.run({ command: 'decisions', args: 'text' })
+    const out = await $.command.run({ command: 'lk-decisions', args: 'text' })
     const lines = String(out.text).split('\n')
     expect(lines[0]).toBe('Decisions · brain/decisions.md (markdown)')
     expect(lines[1]).toBe('Last 20, newest first:')
@@ -205,7 +205,7 @@ describe('/decisions', () => {
   test('the pane shows the target, the entries and its buttons', async ($, on) => {
     const w = world(on, { '/work/project/brain/decisions.md': '# D\n\n- 2026-10-08 — Use pnpm. Why: simple. #ci\n' })
     await $.session.start(START)
-    expect(await $.command.run({ command: 'decisions', args: '' })).toEqual({})
+    expect(await $.command.run({ command: 'lk-decisions', args: '' })).toEqual({})
     expect(w.panes).toEqual([PANE_ID])
     const ui = await $.ui.mount({
       plugin: 'loopkeeper',
@@ -336,17 +336,17 @@ describe('/decisions', () => {
   test('band on|off is saved in the store', async ($, on) => {
     const w = world(on, {})
     await $.session.start(START)
-    expect((await $.command.run({ command: 'decisions', args: 'band off' })).text).toBe('Band off.')
+    expect((await $.command.run({ command: 'lk-decisions', args: 'band off' })).text).toBe('Band off.')
     expect(w.store.get(BAND_KEY)).toBe(false)
-    expect((await $.command.run({ command: 'decisions', args: 'band' })).text).toContain('Band is off')
-    expect((await $.command.run({ command: 'decisions', args: 'band on' })).text).toBe('Band on.')
+    expect((await $.command.run({ command: 'lk-decisions', args: 'band' })).text).toContain('Band is off')
+    expect((await $.command.run({ command: 'lk-decisions', args: 'band on' })).text).toBe('Band on.')
     expect(w.store.get(BAND_KEY)).toBe(true)
   })
 
   test('unknown arguments print usage', async ($, on) => {
     world(on, {})
     await $.session.start(START)
-    expect((await $.command.run({ command: 'decisions', args: 'frobnicate' })).text).toContain('Usage: /decisions')
+    expect((await $.command.run({ command: 'lk-decisions', args: 'frobnicate' })).text).toContain('Usage: /lk-decisions')
   })
 })
 
@@ -365,16 +365,16 @@ describe('the band above the prompt', () => {
     await $.session.start(START)
     const ui = await $.ui.mount(BAND)
     expect(await ui.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
-    await $.command.run({ command: 'decide', args: 'One' })
+    await $.command.run({ command: 'lk-decide', args: 'One' })
     await $.tool.call({ tool: TOOL, decision: 'Two' })
-    await $.command.run({ command: 'decide', args: 'Three' })
+    await $.command.run({ command: 'lk-decide', args: 'Three' })
     const line = lineOf(await ui.drawn(), 'decisions')
     expect(linePlain(line)).toBe('decisions  ● 3 this session')
     expect(line?.label).toEqual({ text: 'decisions', color: undefined, bold: true })
     expect(line?.chips).toEqual([{ text: '● 3 this session', color: TONES.info.fg, bold: true }])
     expect(line?.right).toBeUndefined()
     // the watch on adds a quiet right side
-    await $.command.run({ command: 'decide', args: 'watch on' })
+    await $.command.run({ command: 'lk-decide', args: 'watch on' })
     const watching = lineOf(await ui.drawn(), 'decisions')
     expect(linePlain(watching)).toBe('decisions  ● 3 this session   watch on')
     expect(watching?.right?.color).toBe(TONES.muted.fg)
@@ -384,7 +384,7 @@ describe('the band above the prompt', () => {
   test('the count line draws the same on the terminal and the desktop, with no dimColor or backgroundColor', async ($, on) => {
     world(on, {})
     await $.session.start(START)
-    await $.command.run({ command: 'decide', args: 'One' })
+    await $.command.run({ command: 'lk-decide', args: 'One' })
     const plain: string[] = []
     for (const surface of ['terminal', 'desktop'] as const) {
       const ui = await $.ui.mount({ ...BAND, surface })
@@ -404,10 +404,10 @@ describe('the band above the prompt', () => {
     const w = world(on, {})
     w.store.set(BAND_KEY, false)
     await $.session.start(START)
-    await $.command.run({ command: 'decide', args: 'One' })
+    await $.command.run({ command: 'lk-decide', args: 'One' })
     const ui = await $.ui.mount(BAND)
     expect(lineOf(await ui.drawn(), 'decisions')).toBeUndefined()
-    await $.command.run({ command: 'decisions', args: 'band on' })
+    await $.command.run({ command: 'lk-decisions', args: 'band on' })
     expect(linePlain(lineOf(await ui.drawn(), 'decisions'))).toBe('decisions  ● 1 this session')
     await ui.unmount()
   })
@@ -445,7 +445,7 @@ describe('the band above the prompt', () => {
     const w = world(on, {})
     w.store.set(BAND_KEY, false)
     await $.classic.SessionStart({ source: 'clear' })
-    expect((await $.command.run({ command: 'decisions', args: 'band' })).text).toContain('Band is off')
+    expect((await $.command.run({ command: 'lk-decisions', args: 'band' })).text).toContain('Band is off')
   })
 })
 
@@ -454,7 +454,7 @@ describe('the log target in the config files', () => {
     const w = world(on, { [PROJECT_CONFIG]: '{"decisions":{"file":"notes/log.md","format":"markdown"}}' })
     await $.session.start(START)
     expect(await targetLine($)).toBe('Decisions · notes/log.md (markdown) · created on first record')
-    await $.command.run({ command: 'decide', args: 'Keep it small -- less to review #scope' })
+    await $.command.run({ command: 'lk-decide', args: 'Keep it small -- less to review #scope' })
     expect(w.files['/work/project/notes/log.md']).toBe('# Decisions\n\n- 2026-10-08 — Keep it small. Why: less to review. #scope\n')
   })
 
@@ -473,7 +473,7 @@ describe('the log target in the config files', () => {
   test('a config with other sections or only watch settings is not an override and raises no note', async ($, on) => {
     world(on, { [PROJECT_CONFIG]: '{"pipeline":{"approval":"ask"},"decisions":{"watch":true}}', '/work/project/DECISION_JOURNAL.md': '# Decision Journal\n' })
     await $.session.start(START)
-    const out = await $.command.run({ command: 'decisions', args: 'text' })
+    const out = await $.command.run({ command: 'lk-decisions', args: 'text' })
     expect(out.text).toContain('DECISION_JOURNAL.md (journal-md)')
     expect(out.text).not.toContain('Note:')
   })
@@ -482,7 +482,7 @@ describe('the log target in the config files', () => {
     world(on, { [PROJECT_CONFIG]: '{"decisions":{"file":"notes/log.md","format":"yaml"}}' })
     await $.session.start(START)
     expect(await targetLine($)).toContain('.claude/decisions.jsonl (jsonl)')
-    expect((await $.command.run({ command: 'decisions', args: 'text' })).text).toContain(
+    expect((await $.command.run({ command: 'lk-decisions', args: 'text' })).text).toContain(
       'Note: .claude/loopkeeper.json, "decisions" section: "format" must be one of jsonl, markdown, journal-md',
     )
   })
@@ -490,26 +490,26 @@ describe('the log target in the config files', () => {
   test('a broken project config is a note and detection carries on', async ($, on) => {
     world(on, { [PROJECT_CONFIG]: '{ nope' })
     await $.session.start(START)
-    expect((await $.command.run({ command: 'decisions', args: 'text' })).text).toContain('Note: .claude/loopkeeper.json is not valid JSON')
+    expect((await $.command.run({ command: 'lk-decisions', args: 'text' })).text).toContain('Note: .claude/loopkeeper.json is not valid JSON')
   })
 })
 
 describe('registration', () => {
-  test('/decide, /decisions and the record_decision tool are registered, and the tool text names no personal tool', async ($, on) => {
+  test('/lk-decide, /lk-decisions and the record_decision tool are registered, and the tool text names no personal tool', async ($, on) => {
     const w = sharedWorld(on, {})
     await start($)
-    expect(w.registered).toEqual(expect.arrayContaining(['decide', 'decisions']))
+    expect(w.registered).toEqual(expect.arrayContaining(['lk-decide', 'lk-decisions']))
     expect(w.tools.map(t => t.name)).toContain('record_decision')
     const text = w.tools.map(t => t.description ?? '').join('\n')
     expect(text).toContain('a decisions.md under .claude/brain')
     expect(text).not.toMatch(/brain.sync|decision.pad/)
   })
 
-  test('a refused /decisions leaves the tool and /decide working', async ($, on) => {
-    const w = sharedWorld(on, { refuse: ['decisions'] })
+  test('a refused /lk-decisions leaves the tool and /lk-decide working', async ($, on) => {
+    const w = sharedWorld(on, { refuse: ['lk-decisions'] })
     await start($)
-    expect(w.registered).toContain('decide')
-    expect(w.registered).not.toContain('decisions')
+    expect(w.registered).toContain('lk-decide')
+    expect(w.registered).not.toContain('lk-decisions')
     expect(w.tools.map(t => t.name)).toContain('record_decision')
   })
 })
@@ -518,7 +518,7 @@ describe('/lk, the end of the chain', () => {
   test('status ends with the decisions line, once', async ($, on) => {
     sharedWorld(on, {})
     await start($)
-    await $.command.run({ command: 'decide', args: 'One' })
+    await $.command.run({ command: 'lk-decide', args: 'One' })
     const text = await lk($, 'status')
     expect(text.match(/decisions ●/g)?.length).toBe(1)
     expect(text.split('\n').pop()).toBe('decisions ● 1 this session · watch off')
@@ -538,12 +538,12 @@ describe('/lk, the end of the chain', () => {
     expect(await lk($, 'band')).not.toContain('unknown')
   })
 
-  test('/lk band decisions on|off sets the same store key as /decisions band', async ($, on) => {
+  test('/lk band decisions on|off sets the same store key as /lk-decisions band', async ($, on) => {
     const w = sharedWorld(on, {})
     await start($)
     expect(await lk($, 'band decisions off')).toContain('band off')
     expect(w.store.get(BAND_KEY)).toBe(false)
-    expect((await $.command.run({ command: 'decisions', args: 'band' })).text).toContain('Band is off')
+    expect((await $.command.run({ command: 'lk-decisions', args: 'band' })).text).toContain('Band is off')
     expect(await lk($, 'band on')).toContain('band on')
     expect(w.store.get(BAND_KEY)).toBe(true)
     // another concern named: not ours (the stage answers for its own band)
@@ -563,7 +563,7 @@ describe('the decisions band in the stack of bands', () => {
   test('one line under no other band, and above the lines of the concerns after it', async ($, on) => {
     sharedWorld(on, {})
     await start($)
-    await $.command.run({ command: 'decide', args: 'One' })
+    await $.command.run({ command: 'lk-decide', args: 'One' })
     const ui = await $.ui.mount(BAND_PROPS)
     const top = await ui.find({ type: 'Box' })
     const lines = texts(top)
@@ -576,7 +576,7 @@ describe('the decisions band in the stack of bands', () => {
   test('a survey in view leaves the band to the others', async ($, on) => {
     sharedWorld(on, {})
     await start($)
-    await $.command.run({ command: 'decide', args: 'One' })
+    await $.command.run({ command: 'lk-decide', args: 'One' })
     const ui = await $.ui.mount({ ...BAND_PROPS, props: { ...BAND_PROPS.props, hasSurvey: true } })
     expect(await ui.find({ type: 'Text', text: /this session/ })).toBeUndefined()
     await ui.unmount()
@@ -619,7 +619,7 @@ describe('the hub row and the nav bar', () => {
     test(`hub on ${surface}: the Decisions row is 6: Decisions and the status words, quiet; a press switches to the pane`, SLOW, async ($, on) => {
       const { w, opened, focused } = linked(on)
       await start($)
-      await $.command.run({ command: 'decide', args: 'One' })
+      await $.command.run({ command: 'lk-decide', args: 'One' })
       const ui = await $.ui.mount(hub(surface))
       const row = await ui.find({ key: 'hub-decisions' })
       expect(textIn(row)).toContain('1 this session · watch off')

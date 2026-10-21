@@ -389,7 +389,7 @@ export function bandText(segs: readonly Seg[]): string {
   return segs.map(s => s.text).join('')
 }
 
-// ---------------------------------------------------------------- pane and /where text
+// ---------------------------------------------------------------- pane and /lk-where text
 
 export type Row = { label: string; value: string; tone?: 'warn' | 'danger' }
 
@@ -485,10 +485,10 @@ export function summaryText(input: BandInput & { costUsd: number | null; ttlSour
 }
 
 export const HELP = [
-  'Usage: /where [text | refresh | band on|off | cache <minutes>]',
-  '  /where              open the pane',
-  '  /where text         print the details here',
-  '  /where refresh      check git again now',
-  '  /where band on|off  show or hide the line above the prompt',
-  '  /where cache <min>  set the prompt-cache TTL (default 60)',
+  'Usage: /lk-where [text | refresh | band on|off | cache <minutes>]',
+  '  /lk-where              open the pane',
+  '  /lk-where text         print the details here',
+  '  /lk-where refresh      check git again now',
+  '  /lk-where band on|off  show or hide the line above the prompt',
+  '  /lk-where cache <min>  set the prompt-cache TTL (default 60)',
 ].join('\n')

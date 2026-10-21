@@ -21,7 +21,7 @@ import { TONES } from './kit.ts'
 import type { Kit } from './kit.ts'
 import { storeKey } from './names.ts'
 
-/** The watch is off until a config file or /decide watch on turns it on (ADR 0006). */
+/** The watch is off until a config file or /lk-decide watch on turns it on (ADR 0006). */
 export const WATCH_DEFAULTS: WatchConfig = { watch: false, watchModel: 'haiku', watchMaxPerHour: 20, watchMinChars: 200 }
 
 export const MAX_PENDING = 5
@@ -301,7 +301,7 @@ export const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((s
 // ---------------------------------------------------------------- the band card
 
 export const WATCH_USAGE =
-  'Usage: /decide prefs [clear]   /decide watch [on | off | status]   /decide watch model <haiku | sonnet | model id>'
+  'Usage: /lk-decide prefs [clear]   /lk-decide watch [on | off | status]   /lk-decide watch model <haiku | sonnet | model id>'
 
 export type Proposal = { minors: Proposed[]; majors: Proposed[]; preferences: string[] }
 

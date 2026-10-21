@@ -1,4 +1,4 @@
-// pane.test.ts: the /where pane and the band, drawn with the kit, on both surfaces.
+// pane.test.ts: the /lk-where pane and the band, drawn with the kit, on both surfaces.
 import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
@@ -91,7 +91,7 @@ function world(on: On) {
 /** Session start, one main-loop request, two usage windows and a cost, then 19 minutes. */
 async function fill($: Engine, w: ReturnType<typeof world>) {
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work/wt/feat-x' })
-  await $.command.run({ command: 'where', args: 'refresh' })
+  await $.command.run({ command: 'lk-where', args: 'refresh' })
   const stream = $.turn.step({ turnId: 't', index: 0, model: 'claude-test', messageCount: 1 })
   let s = await stream.next()
   while (s.done !== true) s = await stream.next()

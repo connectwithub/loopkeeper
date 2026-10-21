@@ -130,7 +130,7 @@ export function autoWarmDue(state: CacheState, now: number, ttlMs: number, cfg: 
   return left !== null && left <= cfg.autoKeepWarmMinutes * 60_000
 }
 
-/** One line on the auto keep-warm for the pane, /budget autowarm and /budget text. */
+/** One line on the auto keep-warm for the pane, /lk-budget autowarm and /lk-budget text. */
 export function autoWarmStatus(state: CacheState, ttlMs: number, cfg: AutoConfig, overBudget = false): string {
   if (!cfg.autoKeepWarm) return 'off'
   const min = cfg.autoKeepWarmMinutes
@@ -234,7 +234,7 @@ export function pingText(state: CacheState, now: number, thresholdMin: number, u
   const left = typeof ttlMs === 'number' ? timeLeftMs(state, now, ttlMs) : null
   if (left !== null && left > 0) min = Math.min(thresholdMin, Math.ceil(left / 60_000))
   const cost = usd === null ? '' : `; a resend after that costs ≈ ${usdText(usd)}${rateText(state, usd)}`
-  return `Prompt cache goes cold in ${min} min${cost}. Keep warm: /budget keepwarm, or w on the band.`
+  return `Prompt cache goes cold in ${min} min${cost}. Keep warm: /lk-budget keepwarm, or w on the band.`
 }
 
 /** The toast once the timer sees the cache go cold. */

@@ -26,7 +26,7 @@ const REC: DecisionRecord = {
   by: 'user',
 }
 
-describe('/decide parsing', () => {
+describe('/lk-decide parsing', () => {
   test('decision, why and tags', async () => {
     expect(parseDecideArgs('Use pnpm workspaces over Nx -- fewer moving parts #tooling #monorepo')).toEqual({
       decision: 'Use pnpm workspaces over Nx',

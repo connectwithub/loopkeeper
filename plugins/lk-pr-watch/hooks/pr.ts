@@ -1,5 +1,5 @@
 // lk-pr-watch: the pure parts. Parsers for `gh pr view --json` and the GraphQL poll, the diff
-// between two polls, the band text, the poll cadence, config merging and the /pr command parser.
+// between two polls, the band text, the poll cadence, config merging and the /lk-prs command parser.
 // Nothing here touches $, so tests call these directly.
 //
 // Borrowed (MIT, Copyright (c) 2026 Seza Akgün, github.com/sezaakgun/cc-pr-tracker): the GraphQL
@@ -394,9 +394,9 @@ export const ICON: Record<Bucket, [string, ToneName]> = {
   cancel: ['⊘', 'danger'],
 }
 
-/** Plain text for /pr text. */
+/** Plain text for /lk-prs text. */
 export function summaryText(prs: readonly Watched[], now: number): string {
-  if (!prs.length) return 'pr-watch: no PR watched. Push a branch with a PR, paste a PR URL, or run /pr add <url|number>.'
+  if (!prs.length) return 'pr-watch: no PR watched. Push a branch with a PR, paste a PR URL, or run /lk-prs add <url|number>.'
   const out: string[] = []
   for (const w of prs) {
     out.push(`${w.id} ${w.url}`)
@@ -464,7 +464,7 @@ export function mergeConfig(user: unknown, project: unknown): Config {
   return { ...DEFAULTS, ...sanitize(user), ...sanitize(project) }
 }
 
-// ---------- /pr ----------
+// ---------- /lk-prs ----------
 
 export type PrCommand =
   | { kind: 'open' }
@@ -477,7 +477,7 @@ export type PrCommand =
   | { kind: 'help'; reason: string }
 
 export const HELP =
-  'Usage: /pr (open the pane) · /pr add <url|number> · /pr rm <number|owner/repo#n> · /pr refresh · /pr band on|off · /pr text'
+  'Usage: /lk-prs (open the pane) · /lk-prs add <url|number> · /lk-prs rm <number|owner/repo#n> · /lk-prs refresh · /lk-prs band on|off · /lk-prs text'
 
 export function parseCommand(args: string): PrCommand {
   const words = (typeof args === 'string' ? args : '').trim().split(/\s+/).filter(Boolean)
@@ -500,14 +500,14 @@ export function parseCommand(args: string): PrCommand {
   if (verb === 'band') {
     const v = arg.toLowerCase()
     if (v === 'on' || v === 'off') return { kind: 'band', on: v === 'on' }
-    return { kind: 'help', reason: 'Use /pr band on or /pr band off.' }
+    return { kind: 'help', reason: 'Use /lk-prs band on or /lk-prs band off.' }
   }
   const ref = parsePrUrl(verb)
   if (ref) return { kind: 'add', ref }
   return { kind: 'help', reason: `Unknown subcommand "${verb}".` }
 }
 
-/** Which watched PRs a /pr rm target names: a number, #number, owner/repo#n or a URL. */
+/** Which watched PRs a /lk-prs rm target names: a number, #number, owner/repo#n or a URL. */
 export function matchTarget(prs: readonly Watched[], target: string): Watched[] {
   const t = target.trim()
   const ref = parsePrUrl(t)

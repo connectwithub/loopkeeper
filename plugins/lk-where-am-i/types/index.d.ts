@@ -54,7 +54,7 @@ export type CacheState =
   | { kind: 'low'; leftMs: number }
   | { kind: 'warm'; leftMs: number }
 
-/** Settings saved by /where in $.store under "settings". */
+/** Settings saved by /lk-where in $.store under "settings". */
 export type Settings = { band?: boolean; cacheTtlMin?: number }
 
 declare module 'claude-code' {
@@ -71,7 +71,7 @@ declare module 'claude-code' {
       now: number
       band: boolean
       ttlMin: number
-      /** Where ttlMin came from: default, ~/.claude/where-am-i.json, or /where cache. */
+      /** Where ttlMin came from: default, ~/.claude/where-am-i.json, or /lk-where cache. */
       ttlSource: string
       cwd: string
     }

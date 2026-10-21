@@ -360,7 +360,7 @@ export function judge(target: Target, config: Config, ctx: PathCtx): Verdict {
 export function blockMessage(f: Finding, where: string): string {
   return (
     `secret-guard: ${f.kind} detected in ${where} (${f.masked}). Secrets must not be written here. ` +
-    `If this is intentional, add the path to allowPaths in .claude/secret-guard.json or run /secret-guard off for this session.`
+    `If this is intentional, add the path to allowPaths in .claude/secret-guard.json or run /lk-secrets off for this session.`
   )
 }
 
@@ -372,12 +372,12 @@ export function askQuestion(f: Finding, where: string, more: number): string {
 /**
  * The band's parts, drawn as kit.line('secret-guard', chips, right): `secret-guard  ● 2 blocked  ● 1 allowed`
  * while on (blocked in danger and allowed in ok once nonzero, else quiet), or `secret-guard  ● off for this
- * session      /secret-guard on to resume` when off, which is urgent: the right side in the default text color.
+ * session      /lk-secrets on to resume` when off, which is urgent: the right side in the default text color.
  */
 export type BandParts = { chips: { text: string; tone: 'danger' | 'ok' | 'muted' }[]; right: string; urgent: boolean }
 
 export function bandParts(isOn: boolean, blocked: number, allowed: number): BandParts {
-  if (!isOn) return { chips: [{ text: 'off for this session', tone: 'danger' }], right: '/secret-guard on to resume', urgent: true }
+  if (!isOn) return { chips: [{ text: 'off for this session', tone: 'danger' }], right: '/lk-secrets on to resume', urgent: true }
   return {
     chips: [
       { text: `${blocked} blocked`, tone: blocked > 0 ? 'danger' : 'muted' },

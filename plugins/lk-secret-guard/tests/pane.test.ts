@@ -1,4 +1,4 @@
-// pane.test.ts: the /secret-guard pane and the band, drawn with the kit, on both surfaces.
+// pane.test.ts: the /lk-secrets pane and the band, drawn with the kit, on both surfaces.
 // Every value is fake: FAKE credentials are assembled at run time (tests/world.ts), the
 // generic secret is `sk-test-000-fake`, and the deny words are made-up nonsense.
 import { expect, test } from 'claude-code/testing'
@@ -107,11 +107,11 @@ test('with nothing blocked the hero says so, and turns red when the guard is off
     expect(await ui.find({ type: 'Text', text: 'No decisions yet this session' })).toBeDefined()
     await ui.unmount()
   }
-  await $.command.run({ command: 'secret-guard', args: 'off' })
+  await $.command.run({ command: 'lk-secrets', args: 'off' })
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...PANE, surface } as never)
     expect(((await ui.find({ type: 'Text', text: 'Nothing blocked yet' })) as Node | undefined)?.props.color).toBe(TONES.danger.fg)
-    expect(await ui.find({ type: 'Text', text: 'The guard is off for this session · /secret-guard on to resume' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'The guard is off for this session · /lk-secrets on to resume' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'Status: OFF for this session' })).toBeDefined()
     await ui.unmount()
   }
@@ -131,7 +131,7 @@ test('the band is one kit line on both surfaces and stacks Claude Code content u
     expect(JSON.stringify(await ui.drawn())).not.toMatch(/dimColor|backgroundColor|"(yellow|white|gray|grey|black|subtle)"/)
     await ui.unmount()
   }
-  await $.command.run({ command: 'secret-guard', args: 'off' })
+  await $.command.run({ command: 'lk-secrets', args: 'off' })
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...BAND, surface } as never)
     // off is urgent: the danger chip, then how to resume in the default text color
@@ -139,7 +139,7 @@ test('the band is one kit line on both surfaces and stacks Claude Code content u
       text: 'secret-guard  ● off for this session',
       tones: [TONES.danger.fg],
       bold: true,
-      right: '/secret-guard on to resume',
+      right: '/lk-secrets on to resume',
       rightColor: undefined,
     })
     expect(await ui.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()

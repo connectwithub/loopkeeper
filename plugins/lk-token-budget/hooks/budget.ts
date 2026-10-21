@@ -246,8 +246,8 @@ export function bandText(tally: Tally, cfg: Config, ctx: number | null, cache?: 
 export function sessionDenyText(tally: Tally, cfg: Config, action: Action): string {
   const spent = `token-budget: session budget spent (${fmt(tally.total)} of ${fmt(cfg.session)}).`
   return action === 'stop'
-    ? `${spent} Stop and report to the user; they can run /budget set <n> or /budget action warn to continue.`
-    : `${spent} No new subagents; finish with what you have, or the user can raise it with /budget set <n>.`
+    ? `${spent} Stop and report to the user; they can run /lk-budget set <n> or /lk-budget action warn to continue.`
+    : `${spent} No new subagents; finish with what you have, or the user can raise it with /lk-budget set <n>.`
 }
 
 export function agentDenyText(used: number, cfg: Config): string {
@@ -276,7 +276,7 @@ export function modelsOf(tally: Tally): Array<[string, number]> {
   return Object.entries(tally.byModel).sort((a, b) => b[1] - a[1])
 }
 
-/** The plain-text summary /budget text prints. */
+/** The plain-text summary /lk-budget text prints. */
 export function summaryText(tally: Tally, cfg: Config, ctx: number | null, lifetime: number, cache?: string): string {
   const lines: string[] = []
   lines.push(bandText(tally, cfg, ctx, cache))
@@ -299,5 +299,5 @@ export function summaryText(tally: Tally, cfg: Config, ctx: number | null, lifet
 }
 
 export const HELP =
-  'Usage: /budget [set <n> | agent <n> | action warn|deny-agents|stop | warn <0-1> | reset | on | off | band on|off | keepwarm | autowarm on|off | pings on|off | text]. ' +
+  'Usage: /lk-budget [set <n> | agent <n> | action warn|deny-agents|stop | warn <0-1> | reset | on | off | band on|off | keepwarm | autowarm on|off | pings on|off | text]. ' +
   'Numbers take 500k, 2m, 1.5m or 1500000.'

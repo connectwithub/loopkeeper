@@ -1,4 +1,4 @@
-// The review concern end to end: tools, store and log, /reviews, the pane, the band, the context block,
+// The review concern end to end: tools, store and log, /lk-reviews, the pane, the band, the context block,
 // kinds, and the config layer. Ported from review-loop's register.test.ts onto the shared fixture.
 import { describe, expect, test } from 'claude-code/testing'
 
@@ -16,7 +16,7 @@ const PANE_ID = 'loopkeeper-review'
 const cycle = async ($: any, input: Record<string, unknown>) => String((await tool($, 'review_cycle', input)).result)
 const item = async ($: any, input: Record<string, unknown>) => String((await tool($, 'review_item', input)).result)
 const status = async ($: any, input: Record<string, unknown> = {}) => String((await tool($, 'review_status', input)).result)
-const reviews = async ($: any, args: string) => String(((await $.command.run({ command: 'reviews', args })) as any).text ?? '')
+const reviews = async ($: any, args: string) => String(((await $.command.run({ command: 'lk-reviews', args })) as any).text ?? '')
 
 describe('tools', () => {
   test('registers the three tools', { timeoutMs: 20_000 }, async ($, on) => {
@@ -153,7 +153,7 @@ describe('store and log', () => {
   })
 })
 
-describe('/reviews', () => {
+describe('/lk-reviews', () => {
   test('text, target, max, clear', async ($, on) => {
     reviewWorld(on)
     await start($)
@@ -164,7 +164,7 @@ describe('/reviews', () => {
     expect(await cycle($, { subject: 'new', score: 8.6 })).toContain('target 8.5 reached')
     expect(await reviews($, 'clear signup_form')).toBe('Cleared signup_form.')
     expect(await reviews($, 'text signup_form')).toContain('No review for "signup_form"')
-    expect(await reviews($, 'nope')).toContain('Usage: /reviews')
+    expect(await reviews($, 'nope')).toContain('Usage: /lk-reviews')
   })
 
   test('reopen at the limit grants one more cycle', async ($, on) => {
@@ -181,7 +181,7 @@ describe('/reviews', () => {
     await cycle($, { subject: 'hero', score: 7.1, items: [{ text: 'Footer', priority: 'p1' }, { text: 'Header', priority: 'p0' }] })
     await cycle($, { subject: 'hero', score: 8.0 })
     await item($, { subject: 'hero', text: 'Footer', done: true, proof: 'out/footer.png' })
-    expect(await $.command.run({ command: 'reviews', args: '' })).toEqual({})
+    expect(await $.command.run({ command: 'lk-reviews', args: '' })).toEqual({})
     expect(w.panes).toEqual([PANE_ID])
     const ui = await $.ui.mount({
       plugin: 'loopkeeper',
@@ -211,7 +211,7 @@ describe('/reviews', () => {
   test('the command is registered as reviews, never as the built-in review or loop', async ($, on) => {
     const w = reviewWorld(on)
     await start($)
-    expect(w.registered).toContain('reviews')
+    expect(w.registered).toContain('lk-reviews')
     expect(w.attempted).not.toContain('review')
     expect(w.attempted).not.toContain('loop')
     expect(await reviews($, 'nope')).not.toMatch(/\/review\b(?!s)/)
@@ -276,7 +276,7 @@ describe('band', () => {
     await cycle($, { subject: 'x', score: 7 })
     const ui = await $.ui.mount(BAND)
     expect(lineOf(await ui.drawn(), 'review')).toBeUndefined()
-    expect(await reviews($, 'band')).toBe('Band is off. Use /reviews band on|off.')
+    expect(await reviews($, 'band')).toBe('Band is off. Use /lk-reviews band on|off.')
     await ui.unmount()
   })
 })
@@ -305,7 +305,7 @@ describe('prompt.context', () => {
     expect(await block($)).toEqual([])
   })
 
-  test('the limits in the block follow the config file and the /reviews override', async ($, on) => {
+  test('the limits in the block follow the config file and the /lk-reviews override', async ($, on) => {
     reviewWorld(on, { files: { [USER_CONFIG]: JSON.stringify({ review: { kinds: { plan: { maxCycles: 5 }, critic: { target: 8 } } } }) } })
     await start($)
     const [conf] = await block($)
@@ -316,7 +316,7 @@ describe('prompt.context', () => {
   })
 })
 
-describe('kinds through the tools and /reviews', () => {
+describe('kinds through the tools and /lk-reviews', () => {
   test('critic, review and plan calls reply in their own words', async ($, on) => {
     const w = reviewWorld(on)
     await start($)
@@ -340,7 +340,7 @@ describe('kinds through the tools and /reviews', () => {
     expect(await cycle($, { subject: 'p' })).toContain('Do not run another validation pass')
   })
 
-  test('/reviews kinds, kind, and target on an items subject', async ($, on) => {
+  test('/lk-reviews kinds, kind, and target on an items subject', async ($, on) => {
     reviewWorld(on)
     await start($)
     const kinds = await reviews($, 'kinds')
@@ -350,9 +350,9 @@ describe('kinds through the tools and /reviews', () => {
     expect(await reviews($, 'target 8 my page')).toContain('no score target')
     const changed = await reviews($, 'kind my page copy')
     expect(changed).toContain('my page is now kind copy (done by score, target 8.5, max 3)')
-    expect(await reviews($, 'kind my page nope')).toContain('Usage: /reviews kind')
+    expect(await reviews($, 'kind my page nope')).toContain('Usage: /lk-reviews kind')
     expect(await reviews($, 'kind ghost copy')).toContain('No review for "ghost"')
-    expect(await reviews($, 'kind')).toContain('Usage: /reviews kind')
+    expect(await reviews($, 'kind')).toContain('Usage: /lk-reviews kind')
   })
 
   test('the band and pane show the kind', async ($, on) => {
@@ -413,7 +413,7 @@ describe('config layer', () => {
     expect(await cycle($, { subject: 'plan-a', kind: 'plan' })).toContain('round 1/4')
   })
 
-  test('the /reviews override beats the config; subjects already running keep their numbers', async ($, on) => {
+  test('the /lk-reviews override beats the config; subjects already running keep their numbers', async ($, on) => {
     reviewWorld(on, { files: { [USER_CONFIG]: JSON.stringify(user) } })
     await start($)
     await cycle($, { subject: 'running', score: 5 })
@@ -443,7 +443,7 @@ describe('config layer', () => {
 describe('allow more passes', () => {
   const OTHER = { kind: 'plugin', name: 'x' }
   const run = async ($: any, args: string, origin?: unknown): Promise<string> =>
-    String(((await $.command.run({ command: 'reviews', args, ...(origin ? { origin } : {}) } as never)) as { text?: string })?.text ?? '')
+    String(((await $.command.run({ command: 'lk-reviews', args, ...(origin ? { origin } : {}) } as never)) as { text?: string })?.text ?? '')
   const answered = (w: any) => w.state.get('reviewAnswered') as { seq: number; text: string } | undefined
   // a critic loop at 4/4 and a review loop at 3/3 with an open item
   async function stuck($: any, kind: 'critic' | 'review' | 'plan' = 'critic') {
@@ -494,7 +494,7 @@ describe('allow more passes', () => {
     })
   })
 
-  test('/reviews more: the kind default or n, capped at 20, refused when not at the limit or not active', { timeoutMs: 40_000 }, async ($, on) => {
+  test('/lk-reviews more: the kind default or n, capped at 20, refused when not at the limit or not active', { timeoutMs: 40_000 }, async ($, on) => {
     const w = reviewWorld(on)
     await start($)
     await cycle($, { subject: 'fresh', score: 5 })

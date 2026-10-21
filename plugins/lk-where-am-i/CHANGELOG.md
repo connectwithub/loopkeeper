@@ -6,6 +6,7 @@ All notable changes to the lk-where-am-i add-on are recorded here. The format fo
 
 ### Changed
 
+- The command is now `/lk-where` (was `/where`): every loopkeeper command starts with `lk-`.
 - The README's notes for directory reviewers cover the icon warning `UNREAD_ASSET_REFERENCED`, and their line numbers match the code again.
 
 ## [0.3.1] - 2026-10-11

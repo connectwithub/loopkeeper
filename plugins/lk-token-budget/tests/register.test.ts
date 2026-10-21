@@ -113,9 +113,9 @@ async function step($: Engine, w: World, u: Usage | null, agentId?: string) {
   return s.value
 }
 
-/** A /budget command input as the composer sends it. */
+/** A /lk-budget command input as the composer sends it. */
 function cmd(args: string): CommandRunInput {
-  return { command: 'budget', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 160 } }
+  return { command: 'lk-budget', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 160 } }
 }
 
 async function complete($: Engine, agentId?: string) {
@@ -215,7 +215,7 @@ test('deny-agents allows a spawn before the budget is spent and denies it after'
   await step($, w, usage(1200))
   const denied = await $.agent.spawn(spawn as never)
   expect(denied.deny).toBe(
-    'token-budget: session budget spent (1k of 1k). No new subagents; finish with what you have, or the user can raise it with /budget set <n>.',
+    'token-budget: session budget spent (1k of 1k). No new subagents; finish with what you have, or the user can raise it with /lk-budget set <n>.',
   )
   expect(w.spawned).toBe(1)
   // Tool calls still run under deny-agents.
@@ -230,14 +230,14 @@ test('stop denies every tool call except the mod’s own tools', async ($, on) =
   await step($, w, usage(1000))
   const r = await $.tool.call({ tool: 'Read', file_path: 'README.md' })
   expect(r.deny).toBe(
-    'token-budget: session budget spent (1k of 1k). Stop and report to the user; they can run /budget set <n> or /budget action warn to continue.',
+    'token-budget: session budget spent (1k of 1k). Stop and report to the user; they can run /lk-budget set <n> or /lk-budget action warn to continue.',
   )
   const own = await $.tool.call({ tool: 'mcp__lk-token-budget__status' } as never)
   expect(own.deny).toBeUndefined()
   expect(w.ran).toEqual(['Bash', 'mcp__lk-token-budget__status'])
 })
 
-test('/budget off counts but never enforces', async ($, on) => {
+test('/lk-budget off counts but never enforces', async ($, on) => {
   const w = world(on, { settings: { session: 1000, action: 'stop' } })
   await start($)
   await $.command.run(cmd('off'))

@@ -26,7 +26,7 @@ for (const [kind, secret] of BLOCKS) {
     const out: any = await $.tool.call(write(`const value = '${secret}'\n`))
     expect(out.deny).toBeDefined()
     expect(out.deny).toContain(`secret-guard: ${kind} detected in src/x.ts (`)
-    expect(out.deny).toContain('add the path to allowPaths in .claude/secret-guard.json or run /secret-guard off')
+    expect(out.deny).toContain('add the path to allowPaths in .claude/secret-guard.json or run /lk-secrets off')
     expect(out.deny.includes(secret)).toBe(false)
     expect(w.ran).toEqual([])
     expect(w.asked).toEqual([])
@@ -270,13 +270,13 @@ test("a subagent's write is guarded too", async ($, on) => {
   expect(out.deny).toContain('AWS access key')
 })
 
-test('/secret-guard off passes everything through, /secret-guard on restores it', async ($, on) => {
+test('/lk-secrets off passes everything through, /lk-secrets on restores it', async ($, on) => {
   const w = world(on)
-  const offText: any = await $.command.run({ command: 'secret-guard', args: 'off' })
+  const offText: any = await $.command.run({ command: 'lk-secrets', args: 'off' })
   expect(offText.text).toContain('off for this session')
   const passed = await $.tool.call(write(FAKE.aws))
   expect(passed).toEqual({ result: 'ran' })
-  await $.command.run({ command: 'secret-guard', args: 'on' })
+  await $.command.run({ command: 'lk-secrets', args: 'on' })
   const blocked: any = await $.tool.call(write(FAKE.aws))
   expect(blocked.deny).toBeDefined()
   expect(w.ran.length).toBe(1)

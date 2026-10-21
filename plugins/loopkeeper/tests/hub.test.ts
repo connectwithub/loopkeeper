@@ -35,9 +35,9 @@ function textIn(node: unknown): string {
 
 // The other mods' commands as $.command.list() reports them: two match, one is another plugin's
 const LISTED = [
-  { name: 'agent-map', description: 'Agents', source: 'plugin', plugin: 'lk-agent-map' },
-  { name: 'budget', description: 'Budget', source: 'plugin', plugin: 'someone-else' },
-  { name: 'where', description: 'Where', source: 'plugin', plugin: 'lk-where-am-i@market' },
+  { name: 'lk-agents', description: 'Agents', source: 'plugin', plugin: 'lk-agent-map' },
+  { name: 'lk-budget', description: 'Budget', source: 'plugin', plugin: 'someone-else' },
+  { name: 'lk-where', description: 'Where', source: 'plugin', plugin: 'lk-where-am-i@market' },
   { name: 'lk', description: 'loopkeeper', source: 'plugin', plugin: 'loopkeeper' },
 ]
 
@@ -55,7 +55,7 @@ const PANEL_KEYS = PANELS.map(p => p.key)
 type Hub = { w: World; opened: any[]; draft: { text: string }; focused: { value: boolean }; lists: { n: number }; ran: any[] }
 
 // A world with command.list (LISTED unless `listed` is given), prompt.read and ui.panes stubbed; ui.open recorded with
-// its options. /agent-map is a known command (its runs recorded); /where is not, so running it is refused.
+// its options. /lk-agents is a known command (its runs recorded); /lk-where is not, so running it is refused.
 function hubWorld(on: any, opts: Parameters<typeof world>[1] = {}, listed: readonly object[] = LISTED): Hub {
   const opened: any[] = []
   const draft = { text: '' }
@@ -66,7 +66,7 @@ function hubWorld(on: any, opts: Parameters<typeof world>[1] = {}, listed: reado
     opened.push(e)
     return next(e)
   })
-  on('command.run', { command: 'agent-map' }, ($: unknown, e: any) => {
+  on('command.run', { command: 'lk-agents' }, ($: unknown, e: any) => {
     ran.push({ command: e.command, args: e.args })
     return { text: '' }
   })
@@ -139,21 +139,21 @@ for (const surface of SURFACES) {
     }
 
     // the terminal: with a draft the press keeps it and says what to type; with an empty composer it closes the hub and
-    // fills. The desktop: the press closes the hub and runs the mod's command (no toast); a refused run (/where is not
+    // fills. The desktop: the press closes the hub and runs the mod's command (no toast); a refused run (/lk-where is not
     // a known command here) falls back to the terminal's way.
     draft.text = 'half a thought'
     await ui.press({ key: 'mod-where' })
     expect(w.filled).toEqual([])
-    expect(w.toasts.pop()).toBe('Type /where to open Where')
+    expect(w.toasts.pop()).toBe('Type /lk-where to open Where')
     draft.text = ''
     await ui.press({ key: 'mod-agents' })
     expect(w.panes.slice(-1)).toEqual(['closed:loopkeeper-hub'])
     if (surface === 'terminal') {
       expect(ran).toEqual([])
-      expect(w.filled).toEqual(['/agent-map cards'])
+      expect(w.filled).toEqual(['/lk-agents cards'])
       expect(w.toasts.pop()).toBe('Press Enter to open Agents')
     } else {
-      expect(ran).toEqual([{ command: 'agent-map', args: 'cards' }])
+      expect(ran).toEqual([{ command: 'lk-agents', args: 'cards' }])
       expect(w.filled).toEqual([])
       expect(w.toasts).toEqual([])
     }
@@ -374,17 +374,18 @@ test('an open of the hub from a hook reads the other mods again; an open of anot
   await ui.unmount()
 })
 
-// During the switch to the lk- names either plugin name links a mod, and both listed draw one Button; a near name or
-// another plugin's command does not. Secrets is the seventh mod, on s, and no two hub Buttons share a hotkey.
-test('the hub links a mod from its lk- or old plugin name; Secrets on s; every hub hotkey is distinct', { timeoutMs: 20_000 }, async ($, on) => {
+// Only the lk- plugin's lk- command links a mod: the old unprefixed plugin and command names do not, nor a near name or
+// another plugin's command. Secrets is the seventh mod, on s, and no two hub Buttons share a hotkey.
+test('the hub links a mod from its lk- plugin and command only; Secrets on s; every hub hotkey is distinct', { timeoutMs: 20_000 }, async ($, on) => {
   const listed = [
     { name: 'agent-map', description: 'Agents', source: 'plugin', plugin: 'agent-map' },
-    { name: 'budget', description: 'Budget', source: 'plugin', plugin: 'token-budget@market' },
-    { name: 'handoff', description: 'Handoff', source: 'plugin', plugin: 'lk-handoff-guard-extra' },
-    { name: 'attention', description: 'Attention', source: 'plugin', plugin: 'someone-else' },
+    { name: 'lk-agents', description: 'Agents', source: 'plugin', plugin: 'lk-agent-map' },
+    { name: 'lk-budget', description: 'Budget', source: 'plugin', plugin: 'lk-token-budget@market' },
+    { name: 'lk-handoff', description: 'Handoff', source: 'plugin', plugin: 'lk-handoff-guard-extra' },
+    { name: 'lk-attention', description: 'Attention', source: 'plugin', plugin: 'someone-else' },
     { name: 'pr', description: 'PRs', source: 'plugin', plugin: 'pr-watch' },
-    { name: 'pr', description: 'PRs', source: 'plugin', plugin: 'lk-pr-watch' },
-    { name: 'secret-guard', description: 'Secrets', source: 'plugin', plugin: 'lk-secret-guard' },
+    { name: 'lk-prs', description: 'PRs', source: 'plugin', plugin: 'lk-pr-watch' },
+    { name: 'lk-secrets', description: 'Secrets', source: 'plugin', plugin: 'lk-secret-guard' },
   ]
   const { w } = hubWorld(on, {}, listed)
   await start($)
@@ -399,21 +400,21 @@ test('the hub links a mod from its lk- or old plugin name; Secrets on s; every h
   expect(((await ui.find({ key: 'mod-secrets' })) as Node).props).toMatchObject({ label: 'Secrets', hotkey: 's', plain: true })
   expect(render(await ui.drawn(), 80)).toContain('m: Agents  u: Budget  p: PRs  s: Secrets')
   await ui.press({ key: 'mod-secrets' })
-  expect(w.filled).toEqual(['/secret-guard'])
+  expect(w.filled).toEqual(['/lk-secrets'])
   expect(w.toasts.pop()).toBe('Press Enter to open Secrets')
   await ui.unmount()
 })
 
-// The Handoff mod (h), while lk-handoff-guard reports /handoff: the terminal fills `/handoff show` into the prompt; the
+// The Handoff mod (h), while lk-handoff-guard reports /lk-handoff: the terminal fills `/lk-handoff show` into the prompt; the
 // desktop closes the hub and runs the command handoff with the args show.
 for (const surface of SURFACES) {
-  test(`hub on ${surface}: the Handoff row of lk-handoff-guard opens /handoff show`, { timeoutMs: 20_000 }, async ($, on) => {
+  test(`hub on ${surface}: the Handoff row of lk-handoff-guard opens /lk-handoff show`, { timeoutMs: 20_000 }, async ($, on) => {
     const handoff: any[] = []
-    on('command.run', { command: 'handoff' }, ($: unknown, e: any) => {
+    on('command.run', { command: 'lk-handoff' }, ($: unknown, e: any) => {
       handoff.push({ command: e.command, args: e.args })
       return { text: '' }
     })
-    const { w } = hubWorld(on, {}, [{ name: 'handoff', description: 'Handoff', source: 'plugin', plugin: 'lk-handoff-guard' }])
+    const { w } = hubWorld(on, {}, [{ name: 'lk-handoff', description: 'Handoff', source: 'plugin', plugin: 'lk-handoff-guard' }])
     await start($)
     await cmd($, '')
     const ui = await $.ui.mount(hub(surface))
@@ -422,10 +423,10 @@ for (const surface of SURFACES) {
     expect(w.panes.slice(-1)).toEqual(['closed:loopkeeper-hub'])
     if (surface === 'terminal') {
       expect(handoff).toEqual([])
-      expect(w.filled).toEqual(['/handoff show'])
+      expect(w.filled).toEqual(['/lk-handoff show'])
       expect(w.toasts.pop()).toBe('Press Enter to open Handoff')
     } else {
-      expect(handoff).toEqual([{ command: 'handoff', args: 'show' }])
+      expect(handoff).toEqual([{ command: 'lk-handoff', args: 'show' }])
       expect(w.filled).toEqual([])
       expect(w.toasts).toEqual([])
     }

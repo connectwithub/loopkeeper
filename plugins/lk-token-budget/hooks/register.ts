@@ -7,14 +7,14 @@
 // agent.spawn     refuses new subagents once the budget is spent ("deny-agents")
 // tool.call       refuses tool calls once the budget is spent ("stop"), and a
 //                 subagent's calls once it passes the per-agent limit
-// command.run     /budget and its subcommands
-// ui.render       the one-line band above the prompt and the /budget pane
+// command.run     /lk-budget and its subcommands
+// ui.render       the one-line band above the prompt and the /lk-budget pane
 //
 // The prompt cache (cache.ts): turn.step of the main loop stamps the last request, a
 // 30-second $.clock.every timer started from session.start (and again on /clear, /resume,
 // /branch) pings before the assumed TTL ends and once when it has, prompt.submit notes a cold
-// send with its cost, and Keep warm (band button, pane button, /budget keepwarm) sends one
-// tiny $.model.fork. With /budget autowarm on (off by default) the timer also sends that fork on
+// send with its cost, and Keep warm (band button, pane button, /lk-budget keepwarm) sends one
+// tiny $.model.fork. With /lk-budget autowarm on (off by default) the timer also sends that fork on
 // its own when autoKeepWarmMinutes are left, at most autoKeepWarmMax times per idle stretch
 // (turn.start to turn.start), one try per warm window, and never while a turn runs, after a
 // compaction, once cold, after a fork that re-wrote the cache, or once the budget is spent.
@@ -300,7 +300,7 @@ async function budgetSpent($: Api, cfg: Config): Promise<boolean> {
   return levelOf((await read($, tallyAtom)).total, cfg) === 'over'
 }
 
-/** The auto keep-warm line for the pane, /budget autowarm and /budget text. */
+/** The auto keep-warm line for the pane, /lk-budget autowarm and /lk-budget text. */
 async function autoStatus($: Api): Promise<string> {
   const cfg = await read($, configAtom)
   return autoWarmStatus(await read($, cacheAtom), ttlOf(cfg), cfg, await budgetSpent($, cfg))
@@ -406,8 +406,8 @@ function keepWarmFailed($: Api, auto: boolean, what: string): string {
 }
 
 /**
- * Sends one tiny fork of the conversation to refresh the cache: on a press, on /budget keepwarm,
- * or (auto) from the timer once /budget autowarm is on. Logs a dim line with its cost.
+ * Sends one tiny fork of the conversation to refresh the cache: on a press, on /lk-budget keepwarm,
+ * or (auto) from the timer once /lk-budget autowarm is on. Logs a dim line with its cost.
  */
 async function keepWarm($: Api, auto = false): Promise<string> {
   if (warming) return 'Keep-warm already running.'
@@ -473,7 +473,7 @@ async function onSessionStart($: Api, cwd: string): Promise<void> {
   await loadLifetime($)
 }
 
-/** /budget and its subcommands. */
+/** /lk-budget and its subcommands. */
 async function runCommand($: Api, args: string): Promise<{ text?: string }> {
   const words = args.trim().split(/\s+/).filter(Boolean)
   const sub = (words[0] ?? '').toLowerCase()
@@ -503,9 +503,9 @@ async function runCommand($: Api, args: string): Promise<{ text?: string }> {
       const autoNow = await autoStatus($)
       return { text: `Auto keep-warm: ${autoNow}` }
     }
-    if (v !== 'on' && v !== 'off') return { text: 'Use /budget autowarm on or /budget autowarm off.' }
+    if (v !== 'on' && v !== 'off') return { text: 'Use /lk-budget autowarm on or /lk-budget autowarm off.' }
     const cfg = await saveSetting($, { autoKeepWarm: v === 'on' })
-    if (v === 'off') return { text: 'Auto keep-warm off: the cache is refreshed only when you press Keep warm or run /budget keepwarm.' }
+    if (v === 'off') return { text: 'Auto keep-warm off: the cache is refreshed only when you press Keep warm or run /lk-budget keepwarm.' }
     if (!cfg.autoKeepWarm) return { text: `Auto keep-warm saved as on, but ${PROJECT_FILE} turns it off in this project.` }
     const s = await read($, cacheAtom)
     const usd = refreshUsd(s, cfg)
@@ -522,7 +522,7 @@ async function runCommand($: Api, args: string): Promise<{ text?: string }> {
   }
   if (sub === 'pings') {
     const v = arg.toLowerCase()
-    if (v !== 'on' && v !== 'off') return { text: 'Use /budget pings on or /budget pings off.' }
+    if (v !== 'on' && v !== 'off') return { text: 'Use /lk-budget pings on or /lk-budget pings off.' }
     const cfg = await saveSetting($, { cachePings: v === 'on' })
     return { text: cfg.cachePings ? 'Cache pings on.' : 'Cache pings off: the band still shows the cache.' }
   }
@@ -557,7 +557,7 @@ async function runCommand($: Api, args: string): Promise<{ text?: string }> {
   }
   if (sub === 'band') {
     const v = arg.toLowerCase()
-    if (v !== 'on' && v !== 'off') return { text: 'Use /budget band on or /budget band off.' }
+    if (v !== 'on' && v !== 'off') return { text: 'Use /lk-budget band on or /lk-budget band off.' }
     const cfg = await saveSetting($, { band: v === 'on' })
     return { text: cfg.band ? 'Band shown above the prompt.' : 'Band hidden.' }
   }
@@ -573,7 +573,7 @@ export function register(on: On) {
     }
     try {
       await $.command.register({
-        name: 'budget',
+        name: 'lk-budget',
         description: 'Token budget and prompt cache: open the pane, or set, agent, action, warn, reset, on, off, band, keepwarm, autowarm, pings, text',
         argumentHint:
           '[set <n> | agent <n> | action <warn|deny-agents|stop> | warn <0-1> | reset | on | off | band on|off | keepwarm | autowarm on|off | pings on|off | text]',
@@ -681,7 +681,7 @@ export function register(on: On) {
       const cfg = await read($, configAtom)
       const tally = await read($, tallyAtom)
       if (!e.agentId && cfg.enforce && cfg.action === 'warn' && levelOf(tally.total, cfg) === 'over') {
-        $.ui.toast(`Session budget spent: ${fmt(tally.total)} of ${fmt(cfg.session)}. Raise it with /budget set <n>.`)
+        $.ui.toast(`Session budget spent: ${fmt(tally.total)} of ${fmt(cfg.session)}. Raise it with /lk-budget set <n>.`)
       }
     } catch {
       // Observing only.
@@ -728,7 +728,7 @@ export function register(on: On) {
     return next(e)
   })
 
-  on('command.run', { command: 'budget' }, async ($, e) => {
+  on('command.run', { command: 'lk-budget' }, async ($, e) => {
     try {
       return await runCommand($, typeof e.args === 'string' ? e.args : '')
     } catch (err) {

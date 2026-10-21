@@ -1,4 +1,4 @@
-// Pure helpers for the decision log: parsing /decide, building entries in each
+// Pure helpers for the decision log: parsing /lk-decide, building entries in each
 // log format, parsing entries back out, and keeping paths inside the project.
 // Nothing here touches the mods API, so tests can call it directly.
 
@@ -31,7 +31,7 @@ export type Entry = {
   by?: 'user' | 'claude'
 }
 
-/** The badge a decision gets in the pane: major or minor (Claude or the watch), you (/decide). */
+/** The badge a decision gets in the pane: major or minor (Claude or the watch), you (/lk-decide). */
 export type Kind = 'major' | 'minor' | 'you'
 
 /** A decision the watch found in a turn, before it is recorded. */
@@ -112,7 +112,7 @@ export function normalizeTags(tags: unknown): string[] {
 }
 
 /**
- * Parses the text after /decide: `<decision> -- <why> #tag #tag`.
+ * Parses the text after /lk-decide: `<decision> -- <why> #tag #tag`.
  * `-- why` and the tags are optional; a tag is a `#word` that starts a token.
  */
 export function parseDecideArgs(args: unknown): DecisionInput {
@@ -382,18 +382,18 @@ export function bandText(n: number): string {
   return `${n} this session`
 }
 
-/** Usage for /decide and /decisions. */
-export const DECIDE_USAGE = 'Usage: /decide <decision> -- <why> #tag #tag   (the "-- why" and the #tags are optional)'
-export const DECISIONS_USAGE = 'Usage: /decisions [text | reload | band on|off]'
+/** Usage for /lk-decide and /lk-decisions. */
+export const DECIDE_USAGE = 'Usage: /lk-decide <decision> -- <why> #tag #tag   (the "-- why" and the #tags are optional)'
+export const DECISIONS_USAGE = 'Usage: /lk-decisions [text | reload | band on|off]'
 
-/** The plain-text listing /decisions text prints. */
+/** The plain-text listing /lk-decisions text prints. */
 export function textListing(target: Target | null, list: readonly Entry[]): string {
-  if (!target) return 'loopkeeper has no decision target yet. Run /decisions reload.'
+  if (!target) return 'loopkeeper has no decision target yet. Run /lk-decisions reload.'
   const head = `Decisions · ${target.file} (${target.format})${target.exists ? '' : ' · created on first record'}`
   const lines = [head]
   if (target.note) lines.push(`Note: ${target.note}`)
   if (list.length === 0) {
-    lines.push('No decisions yet. Record one with /decide <decision> -- <why> #tag')
+    lines.push('No decisions yet. Record one with /lk-decide <decision> -- <why> #tag')
     return lines.join('\n')
   }
   lines.push(`Last ${list.length}, newest first:`)

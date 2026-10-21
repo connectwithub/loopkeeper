@@ -21,14 +21,14 @@ export const DEFAULTS: Config = {
 }
 
 export const HELP = [
-  '/handoff                 write the handoff into .claude/brain/ now (no clear)',
-  '/handoff clear           write the handoff, then /clear and resume from it',
-  '/handoff status          context fill, last handoff time and path',
-  '/handoff show            pane: last brief and readings',
-  '/handoff mode ask|auto|off',
-  '/handoff at <0-1>        handoff level (default 0.85)',
-  '/handoff warn <0-1>      warning level (default 0.70)',
-  '/handoff band on|off',
+  '/lk-handoff                 write the handoff into .claude/brain/ now (no clear)',
+  '/lk-handoff clear           write the handoff, then /clear and resume from it',
+  '/lk-handoff status          context fill, last handoff time and path',
+  '/lk-handoff show            pane: last brief and readings',
+  '/lk-handoff mode ask|auto|off',
+  '/lk-handoff at <0-1>        handoff level (default 0.85)',
+  '/lk-handoff warn <0-1>      warning level (default 0.70)',
+  '/lk-handoff band on|off',
 ].join('\n')
 
 // ---------------------------------------------------------------- config
@@ -123,8 +123,8 @@ export function bandParts(
   if (o.busy) bits.push('writing handoff…')
   else if (level === 'due') {
     if (cfg.mode === 'off' || o.sessionOff) bits.push('handoff due · guard off')
-    else bits.push(cfg.mode === 'auto' ? 'auto handoff' : 'handoff due: /handoff clear')
-  } else if (level === 'warn') bits.push('/handoff at a stopping point')
+    else bits.push(cfg.mode === 'auto' ? 'auto handoff' : 'handoff due: /lk-handoff clear')
+  } else if (level === 'warn') bits.push('/lk-handoff at a stopping point')
   if (o.resumed) bits.push(`resumed from handoff ${shortWhen(o.resumed)}`)
   else if (o.lastWhen) bits.push(`last ${shortWhen(o.lastWhen)}`)
   return { chip: `ctx ${pct(r.frac)}%`, tone: LEVEL_TONE[level], right: bits, urgent: level === 'due' }

@@ -1,6 +1,6 @@
 export type Action = 'warn' | 'deny-agents' | 'stop'
 
-/** The merged settings: defaults, then /budget settings in $.store, then the project file. */
+/** The merged settings: defaults, then /lk-budget settings in $.store, then the project file. */
 export type Config = {
   /** Session budget in tokens; 0 means no session limit. */
   session: number
@@ -10,17 +10,17 @@ export type Config = {
   warnAt: number
   action: Action
   countCacheReads: boolean
-  /** false: count and draw, never deny or nag (/budget off). */
+  /** false: count and draw, never deny or nag (/lk-budget off). */
   enforce: boolean
-  /** Draw the band above the prompt (/budget band on|off). */
+  /** Draw the band above the prompt (/lk-budget band on|off). */
   band: boolean
   /** Assumed prompt-cache lifetime after the main session's last request, in minutes. */
   cacheTtlMinutes: number
   /** Minutes before the cache goes cold at which a toast pings, largest first. */
   cacheWarnMinutes: number[]
-  /** Toast at each warn threshold and once when the cache goes cold (/budget pings on|off). */
+  /** Toast at each warn threshold and once when the cache goes cold (/lk-budget pings on|off). */
   cachePings: boolean
-  /** Send the keep-warm on its own when autoKeepWarmMinutes are left (/budget autowarm on|off). Off by default; a project file can only turn it off. */
+  /** Send the keep-warm on its own when autoKeepWarmMinutes are left (/lk-budget autowarm on|off). Off by default; a project file can only turn it off. */
   autoKeepWarm: boolean
   /** Minutes before the cache goes cold at which the automatic keep-warm fires: at least 1, and under cacheTtlMinutes or it never fires. */
   autoKeepWarmMinutes: number

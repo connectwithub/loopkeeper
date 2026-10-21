@@ -3,6 +3,7 @@
 - Status: accepted
 - Date: 2026-10-10
 - Amended: 2026-10-11 (`/lk` alone opens the hub; the Stage pane is `/lk stage`)
+- Amended: 2026-10-21 (commands other than /lk take the lk- prefix; see [ADR 0016](0016-lk-command-prefix.md))
 
 ## Context and Problem Statement
 
@@ -23,8 +24,8 @@ The merged plugin needs short command names. The old mods used `/pipeline`, `/ch
 Chosen option: 3, because it avoids every refused name and keeps the commands that did not clash.
 
 - `/lk` and `/loopkeeper` carry the stage machine. `/lk` alone opens the loopkeeper hub (requestId `loopkeeper-hub`), `/lk stage` opens the Stage pane, and `/lk help` lists the keys ([ADR 0014](0014-hub-and-keys.md)). Both words are read before a stage id, so a custom stage with the id `stage` or `help` is reached with `/lk next`, `/lk back` or `set_stage` instead of `/lk <stage-id>`. change-control's words move under `/lk gates ...`. gsd's `/gsd reset` becomes `/lk route reset`; `/lk reset` stays the stage reset. `/lk text` is the plain-text status.
-- `/reviews` keeps review-loop's grammar.
-- `/decide`, `/decisions` and `/files` are unchanged.
+- `/reviews` keeps review-loop's grammar (since 2026-10-21 `/lk-reviews`, [ADR 0016](0016-lk-command-prefix.md)).
+- `/decide`, `/decisions` and `/files` are unchanged (since 2026-10-21 `/lk-decide`, `/lk-decisions` and `/lk-files`, [ADR 0016](0016-lk-command-prefix.md)).
 - `/lk on|off` (GSD mode) is distinct from `/lk gates on|off` (the gates' session switch).
 - The plugin never registers `loop` or `review`, and never matches a `command.run` hook on them.
 - Every registration is wrapped in try/catch, so a refused name leaves the rest working.

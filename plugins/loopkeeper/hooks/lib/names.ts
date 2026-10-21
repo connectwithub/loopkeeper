@@ -8,10 +8,10 @@ export const DISABLE_ENV = 'CLAUDE_MODS_DISABLE'
 export const CMD = {
   lk: 'lk',
   loopkeeper: 'loopkeeper',
-  reviews: 'reviews',
-  decide: 'decide',
-  decisions: 'decisions',
-  files: 'files',
+  reviews: 'lk-reviews',
+  decide: 'lk-decide',
+  decisions: 'lk-decisions',
+  files: 'lk-files',
 } as const
 
 /** Tools, by the name registered and by the name Claude sees. */

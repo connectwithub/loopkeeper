@@ -17,7 +17,7 @@ The decision watch reads qualifying turns and asks a model whether a decision wa
 
 Chosen option: 2, because a plugin should not make model calls on the user's session until asked.
 
-- `decisions.watch` is false by default. `/decide watch on`, or `"watch": true` in either config file, turns it on.
+- `decisions.watch` is false by default. `/lk-decide watch on`, or `"watch": true` in either config file, turns it on.
 - Its caps stay: an hourly cap across sessions (20), at most five pending majors, an 8 s timeout and a minimum turn length.
 - The markdown decision log format is named `markdown`. `brain-md` is still accepted as an alias. Public strings never name personal tools.
 
@@ -25,4 +25,4 @@ Chosen option: 2, because a plugin should not make model calls on the user's ses
 
 - Good: a fresh install makes no model calls.
 - Good: the format name is neutral, and old configs that say `brain-md` keep working.
-- Bad: users who want automatic capture must opt in, and may not know the watch exists. `/decide` shows its state.
+- Bad: users who want automatic capture must opt in, and may not know the watch exists. `/lk-decide` shows its state.

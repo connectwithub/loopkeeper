@@ -1,4 +1,4 @@
-// pane.test.ts: the /handoff show pane and the band, drawn with the kit, on both surfaces.
+// pane.test.ts: the /lk-handoff show pane and the band, drawn with the kit, on both surfaces.
 import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
@@ -163,13 +163,13 @@ test('the pane draws the handoff state as the hero, tiles, readings with level b
   await start($)
   w.ctx.percent = 72
   await complete($)
-  await $.command.run({ command: 'handoff', args: '' })
+  await $.command.run({ command: 'lk-handoff', args: '' })
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...PANE, surface })
     expect(await ui.find({ type: 'Text', text: 'handoff guard' })).toBeDefined()
     // The warn level draws in the Claude orange (the accent tone), never the warning color: the hero
     // title and the Warn at tile's value.
-    const title = (await ui.find({ type: 'Text', text: 'Context 72% · /handoff at a stopping point' })) as Node | undefined
+    const title = (await ui.find({ type: 'Text', text: 'Context 72% · /lk-handoff at a stopping point' })) as Node | undefined
     expect(title?.props.color).toBe(TONES.accent.fg)
     expect(((await ui.find({ type: 'Text', text: '70%' })) as Node | undefined)?.props.color).toBe(TONES.accent.fg)
     expect(await ui.find({ type: 'Text', text: '144k of 200k tokens · mode ask · last handoff 2026-10-09 14:02' })).toBeDefined()
@@ -220,7 +220,7 @@ test('a due reading in off mode, and no handoff yet, draw on both surfaces', asy
     expect(title?.props.color).toBe(TONES.danger.fg)
     if (surface === 'terminal') expect(await ui.find({ type: 'Text', text: '● due ' })).toBeDefined()
     else expect(svgPill(await ui.drawn(), 'due')?.props.source).toBe(pillSvg('due ', 'danger'))
-    expect(await ui.find({ type: 'Text', text: 'No handoff written for this project yet. /handoff writes one.' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'No handoff written for this project yet. /lk-handoff writes one.' })).toBeDefined()
     await ui.unmount()
   }
 })
@@ -234,7 +234,7 @@ test('the band is a kit line with the context chip in the level tone on both sur
   w.ctx.percent = 72
   await complete($)
   for (const surface of SURFACES) {
-    expect(await band($, surface)).toEqual({ texts: ['handoff', '● ctx 72%', '/handoff at a stopping point'], chip: TONES.accent.fg, right: TONES.muted.fg, stacked: true })
+    expect(await band($, surface)).toEqual({ texts: ['handoff', '● ctx 72%', '/lk-handoff at a stopping point'], chip: TONES.accent.fg, right: TONES.muted.fg, stacked: true })
   }
   w.ctx.percent = 90
   await complete($)
@@ -251,7 +251,7 @@ test('the drawn pane fills nothing; its pills are Svg chips in the Desktop app a
   await complete($)
   w.ctx.percent = 90
   await complete($)
-  await $.command.run({ command: 'handoff', args: '' })
+  await $.command.run({ command: 'lk-handoff', args: '' })
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...PANE, surface })
     const tree: unknown = JSON.parse(JSON.stringify(await ui.drawn()))
@@ -272,7 +272,7 @@ test('the pane root is a page: a column with one row between blocks; the reading
   await start($)
   w.ctx.percent = 72
   await complete($)
-  await $.command.run({ command: 'handoff', args: '' })
+  await $.command.run({ command: 'lk-handoff', args: '' })
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...PANE, surface })
     const root = (await ui.drawn()) as Node

@@ -1,16 +1,16 @@
 // Decisions concern: capture decisions into the project's own decision log from inside the session,
 // browse the recent ones, and (when switched on) watch turns for decisions worth keeping.
 //
-// - session.start: finds the log (config override, known files, ADR dir, default), registers /decide,
-//   /decisions and the record_decision tool
-// - /decide and record_decision append one entry, never rewriting what is there
-// - /decisions opens a pane of the last 20; /decisions text prints them
+// - session.start: finds the log (config override, known files, ADR dir, default), registers /lk-decide,
+//   /lk-decisions and the record_decision tool
+// - /lk-decide and record_decision append one entry, never rewriting what is there
+// - /lk-decisions opens a pane of the last 20; /lk-decisions text prints them
 // - the band above the prompt counts this session's decisions, and holds the watch's major decisions
 //   with Record and Skip (lib/watch.ts); the pane has Record and Skip on each pending row, and Record all
 // - when the hourly cap pauses the watch, a card above the prompt and a line in the pane offer
 //   Allow <watchMaxPerHour> more and Keep paused, once per pause
-// - /decide prefs and /decide watch … steer the watch, which is OFF until a config file or
-//   /decide watch on turns it on
+// - /lk-decide prefs and /lk-decide watch … steer the watch, which is OFF until a config file or
+//   /lk-decide watch on turns it on
 // - the end of the /lk chain: /lk status adds the decisions line, anything no earlier concern owns
 //   is answered here with one "unknown sub-command" line
 // - the hub (/lk) draws a Decisions row (hotkey 6), the last of the hub chain; the pane leads with the
@@ -370,7 +370,7 @@ async function record($: EngineInterface, input: DecisionInput, by: 'user' | 'cl
 // ---------------------------------------------------------------- the decision watch
 
 /**
- * The watch settings: defaults (off), the user file, the project file, then what /decide watch saved
+ * The watch settings: defaults (off), the user file, the project file, then what /lk-decide watch saved
  * in the store. A bad value in any layer is ignored. Config problems in the decisions section are
  * logged once per session.
  */
@@ -704,7 +704,7 @@ async function watchStatus($: EngineInterface, now: number): Promise<string> {
   )
 }
 
-/** /decide prefs …, /decide watch …; null when the text is a decision to record. */
+/** /lk-decide prefs …, /lk-decide watch …; null when the text is a decision to record. */
 async function watchCommand($: EngineInterface, args: unknown, now: number): Promise<{ text: string } | null> {
   const text = (typeof args === 'string' ? args : '').trim().replace(/\s+/g, ' ')
   const lower = text.toLowerCase()
@@ -725,7 +725,7 @@ async function watchCommand($: EngineInterface, args: unknown, now: number): Pro
     const isOn = lower === 'watch on'
     const saved = await setWatch($, isOn)
     const cfg = await loadWatchConfig($)
-    const what = isOn ? `Decision watch on (model ${cfg.watchModel}).` : 'Decision watch off. No model calls until /decide watch on.'
+    const what = isOn ? `Decision watch on (model ${cfg.watchModel}).` : 'Decision watch off. No model calls until /lk-decide watch on.'
     return { text: saved ? what : what + ' Not saved: the store refused it.' }
   }
   const model = /^watch model(?: (\S+))?$/i.exec(text)
@@ -884,22 +884,22 @@ export function wireDecisions(on: On): void {
     }
     try {
       await $.command.register({
-        name: 'decide',
+        name: 'lk-decide',
         description: "Record a decision in this project's decision log",
         argumentHint: '<decision> -- <why> #tag | prefs [clear] | watch on|off|status | watch model <id>',
       })
     } catch (err) {
-      note($, 'loopkeeper: /decide not registered: ' + messageOf(err))
+      note($, 'loopkeeper: /lk-decide not registered: ' + messageOf(err))
     }
     try {
       await $.command.register({
-        name: 'decisions',
+        name: 'lk-decisions',
         description: 'Browse recent decisions (pane), or: text | reload | band on|off',
         argumentHint: '[text | reload | band on|off]',
         immediate: true,
       })
     } catch (err) {
-      note($, 'loopkeeper: /decisions not registered: ' + messageOf(err))
+      note($, 'loopkeeper: /lk-decisions not registered: ' + messageOf(err))
     }
     return next(e)
   })
@@ -916,7 +916,7 @@ export function wireDecisions(on: On): void {
     return next(e)
   }).catch(async (_$, e, next) => next(e))
 
-  on('command.run', { command: 'decide' }, async ($, e) => {
+  on('command.run', { command: 'lk-decide' }, async ($, e) => {
     const sub = await watchCommand($, e?.args, await nowMs($))
     if (sub) return sub
     const input = parseDecideArgs(e?.args)
@@ -926,9 +926,9 @@ export function wireDecisions(on: On): void {
     await noteRecorded($, input.decision, 'you')
     toast($, 'Recorded in ' + done.file)
     return { text: `Recorded ${done.id} in ${done.file}` }
-  }).catch(async () => ({ text: 'Not recorded: loopkeeper failed while handling /decide.' }))
+  }).catch(async () => ({ text: 'Not recorded: loopkeeper failed while handling /lk-decide.' }))
 
-  on('command.run', { command: 'decisions' }, async ($, e) => {
+  on('command.run', { command: 'lk-decisions' }, async ($, e) => {
     const args = (typeof e?.args === 'string' ? e.args : '').trim().toLowerCase().split(/\s+/).filter(Boolean)
     const verb = args[0] ?? ''
     if (verb === '' || verb === 'open' || verb === 'pane') {
@@ -954,13 +954,13 @@ export function wireDecisions(on: On): void {
       const word = args[1] ?? ''
       if (word !== 'on' && word !== 'off') {
         const isOn = await read($, decisionBand)
-        return { text: `Band is ${isOn ? 'on' : 'off'}. Use /decisions band on|off.` }
+        return { text: `Band is ${isOn ? 'on' : 'off'}. Use /lk-decisions band on|off.` }
       }
       const saved = await setBand($, word === 'on')
       return { text: saved ? `Band ${word}.` : `Band ${word} for this session; not saved.` }
     }
     return { text: DECISIONS_USAGE }
-  }).catch(async () => ({ text: 'loopkeeper: /decisions failed.' }))
+  }).catch(async () => ({ text: 'loopkeeper: /lk-decisions failed.' }))
 
   on('command.run', { command: 'lk' }, async ($, e) => lk($, e)).catch(async () => ({ text: 'decisions ● failed' }))
   on('command.run', { command: 'loopkeeper' }, async ($, e) => lk($, e)).catch(async () => ({ text: 'decisions ● failed' }))
@@ -1083,7 +1083,7 @@ export function wireDecisions(on: On): void {
     const kinds = new Map(await read($, decisionKinds))
     const head = t
       ? `${t.file} · ${t.format}${t.exists ? '' : ' · created on first record'}`
-      : 'no target yet: run /decisions reload'
+      : 'no target yet: run /lk-decisions reload'
 
     const hero = k.hero({
       kicker: 'decisions',
@@ -1213,7 +1213,7 @@ export function wireDecisions(on: On): void {
         // kit 3.1: one row between entries (list), each entry tight inside
         rows.length
           ? k.list(rows)
-          : Text({ color: TONES.muted.fg, children: ['No decisions yet. Record one with /decide <decision> -- <why> #tag'] }),
+          : Text({ color: TONES.muted.fg, children: ['No decisions yet. Record one with /lk-decide <decision> -- <why> #tag'] }),
       ]),
     )
     blocks.push(

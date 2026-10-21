@@ -12,14 +12,14 @@ A loopkeeper add-on for Claude Code that shows the pull request and CI state for
 
 **Data handling:** it keeps one setting (the band on or off) in its own plugin store and the watched PRs in session state; it reads `~/.claude/pr-watch.json` and `<project>/.claude/pr-watch.json` and writes no file. Its only network traffic is `gh pr view` and `gh api graphql`, which reach GitHub's API through your own `gh` sign-in; it reads and stores no token. It makes no model calls; a newly failed check adds one note to the transcript. It collects no personal data; the saved setting stays until you delete it. Details under [What it runs and touches](#what-it-runs-and-touches).
 
-**Commands:** `/pr` and its options are listed under [Commands](#commands).
+**Commands:** `/lk-prs` and its options are listed under [Commands](#commands).
 
 lk-pr-watch adds:
 
 - **A band above the prompt**, one kit line, only while a PR is watched:
   `PR #42  ● checks 3/5 ✓ 1 ✗ 1 …  ● changes requested  ● mergeable      +1 more`
   The PR number in bold, then three chips, each in its own theme tone: the checks (ok when all passed, warning while one runs, error when one failed, quiet with none), the review decision (ok approved, error changes requested, warning review required, quiet with none) and mergeability (ok mergeable or merged, warning behind, error conflicts or closed, quiet for a draft or unknown). The right side holds `+N more` when several PRs are watched and `refresh failed` after a failed poll; it is quiet, and drawn in the default text color when the PR needs you (a failed check, changes requested, a conflict, a closed PR, or `gh` failing). Other bands stay below it.
-- **A `/pr` pane**: the branch's PR as a hero, tiles over every watched PR, and one card per PR with its state, a checks bar, the review decision, every check with a link to its run, and buttons (see [Pane](#pane)).
+- **A `/lk-prs` pane**: the branch's PR as a hero, tiles over every watched PR, and one card per PR with its state, a checks bar, the review decision, every check with a link to its run, and buttons (see [Pane](#pane)).
 - **Toasts** on transitions: a check failed, all checks green, the review decision changed, the PR merged.
 - **A note to Claude** when a check newly fails, through `$.session.append`: a user-role row Claude reads on its next turn, naming the check and its run URL. It never submits a prompt or starts a turn by itself.
 
@@ -46,7 +46,7 @@ To try a checkout without installing: `claude --plugin-dir /path/to/loopkeeper/p
 
 - **The current branch's PR**: found with `gh pr view --json number,url,title,state,isDraft,mergeable,reviewDecision,headRefName,baseRefName` when the session starts, after `/clear`, `/resume` or `/branch`, and after any Bash call Claude makes whose command contains `gh pr create`, `git push` or `gh pr merge`. A new branch PR replaces the old one; a branch with no PR drops it.
 - **A bare PR URL as a prompt**: paste `https://github.com/owner/repo/pull/7` (one or more URLs and nothing else) and it is consumed, no model turn runs, and the PR is watched. A prompt with a URL among other words goes to Claude unchanged.
-- **`/pr add <url|number>`**: a number is looked up in the current repo with `gh pr view <number>`.
+- **`/lk-prs add <url|number>`**: a number is looked up in the current repo with `gh pr view <number>`.
 
 ## Polling
 
@@ -59,18 +59,18 @@ Each poll is diffed against the previous one. The first poll of a PR reports not
 
 ## Pane
 
-`/pr` opens a pane drawn with the kit (`hooks/kit.ts`, a copy of the loopkeeper core's UI kit): bordered, unfilled cards on every surface, with `● text` chips in the terminal and rounded pill chips in the Desktop app. At the top, a hero card (kicker `pull requests`) names the branch's PR, else the first one watched, with its number and title, over its state, repo and whether it is this branch's or added; its border and title take the PR's level (the theme's ok, warning or error color). Tiles count over every watched PR: **Open**, **Checks passing** (passed of all checks), **Failing** checks and PRs **Awaiting review**. Under **Watched · n**, each PR gets a card: a state pill (open in the info color, merged ok, closed and draft quiet, failing in the error color when a check failed) beside its number and title, with the repo on the right; a bar of passed checks with `k/n checks` and how many are failing or running; the review decision as a pill (approved ok, changes requested error, review required warning) with mergeability and merge state in the quiet color and the age of the last poll (`polled 2m ago`) on the right; every check (latest run per name) with its icon in its tone, a link to its run, its status and duration; the PR's URL; and **Open in browser** (`xdg-open`, then `open`), **Copy URL** and **Stop watching**. **r: Refresh now** and **c: Close** sit at the bottom. Colors are theme keys, so the pane follows the light or dark theme.
+`/lk-prs` opens a pane drawn with the kit (`hooks/kit.ts`, a copy of the loopkeeper core's UI kit): bordered, unfilled cards on every surface, with `● text` chips in the terminal and rounded pill chips in the Desktop app. At the top, a hero card (kicker `pull requests`) names the branch's PR, else the first one watched, with its number and title, over its state, repo and whether it is this branch's or added; its border and title take the PR's level (the theme's ok, warning or error color). Tiles count over every watched PR: **Open**, **Checks passing** (passed of all checks), **Failing** checks and PRs **Awaiting review**. Under **Watched · n**, each PR gets a card: a state pill (open in the info color, merged ok, closed and draft quiet, failing in the error color when a check failed) beside its number and title, with the repo on the right; a bar of passed checks with `k/n checks` and how many are failing or running; the review decision as a pill (approved ok, changes requested error, review required warning) with mergeability and merge state in the quiet color and the age of the last poll (`polled 2m ago`) on the right; every check (latest run per name) with its icon in its tone, a link to its run, its status and duration; the PR's URL; and **Open in browser** (`xdg-open`, then `open`), **Copy URL** and **Stop watching**. **r: Refresh now** and **c: Close** sit at the bottom. Colors are theme keys, so the pane follows the light or dark theme.
 
 ## Commands
 
 | Command | What it does |
 | :- | :- |
-| `/pr` | Opens the pane |
-| `/pr add <url\|number>` | Watches a PR |
-| `/pr rm <number\|owner/repo#n\|url>` | Stops watching it |
-| `/pr refresh` | Looks for the branch's PR again and polls every watched PR now |
-| `/pr band on\|off` | Shows or hides the band; saved for every project |
-| `/pr text` | Prints the state as text in the transcript |
+| `/lk-prs` | Opens the pane |
+| `/lk-prs add <url\|number>` | Watches a PR |
+| `/lk-prs rm <number\|owner/repo#n\|url>` | Stops watching it |
+| `/lk-prs refresh` | Looks for the branch's PR again and polls every watched PR now |
+| `/lk-prs band on\|off` | Shows or hides the band; saved for every project |
+| `/lk-prs text` | Prints the state as text in the transcript |
 
 The command is registered with `immediate: true`, so it runs while Claude is working.
 
@@ -97,7 +97,7 @@ Files are read at session start and after `/clear`, `/resume` or `/branch`.
 
 | File | What it holds |
 | :- | :- |
-| `hooks/register.ts` | The hooks: session start, Bash calls, prompt submit, `/pr`, band and pane |
+| `hooks/register.ts` | The hooks: session start, Bash calls, prompt submit, `/lk-prs`, band and pane |
 | `hooks/pr.ts` | Pure parts: the GraphQL query, parsers for `gh pr view` and the GraphQL response, the diff, the band's parts and text, cadence, config and command parsing |
 | `hooks/kit.ts` | The UI kit the band and pane are drawn with: a verbatim copy of the loopkeeper core's `hooks/lib/kit.ts` (CI checks that the copies match) |
 | `types/index.d.ts` | The `$.state` contract |
@@ -109,7 +109,7 @@ From `claude plugin validate --strict .` and the code:
 
 - **Processes**: `gh pr view` and `gh api graphql` (GitHub's API, through your `gh` sign-in), in the session's working directory, in the background with a timeout; `xdg-open`, then `open`, when you press **Open in browser**.
 - **Files**: reads `~/.claude/pr-watch.json` and `<cwd>/.claude/pr-watch.json`; writes none.
-- **Stored data**: one key, `band` (the `/pr band on|off` choice), in the plugin's store.
+- **Stored data**: one key, `band` (the `/lk-prs band on|off` choice), in the plugin's store.
 - **Environment**: reads `HOME`.
 - **Model calls**: none. A failed check adds one user-role note to the transcript; Claude reads it on its next turn.
 - **Other**: toasts, the clipboard (**Copy URL**), a 10 second timer.
@@ -119,7 +119,7 @@ From `claude plugin validate --strict .` and the code:
 The directory's validator listed these items for this plugin. Each bullet says what the code does and where.
 
 - **Programs it runs** (policy holds `MOD_RUNS_PROCESS`, `MOD_PROCESS_COMMAND_COMPUTED`). Every program starts from one helper, `run()` in `hooks/register.ts` (line 102): `$.process.run(argv, { cwd, timeoutMs: 30000 })`, in the session's directory. The commands are:
-  - `gh pr view --json number,url,title,state,isDraft,mergeable,reviewDecision,headRefName,baseRefName`, to find the current branch's PR (`discover()`), and `gh pr view <number> --json …` the same, for `/pr add <number>`;
+  - `gh pr view --json number,url,title,state,isDraft,mergeable,reviewDecision,headRefName,baseRefName`, to find the current branch's PR (`discover()`), and `gh pr view <number> --json …` the same, for `/lk-prs add <number>`;
   - `gh api graphql -f query=<QUERY> -f o=<owner> -f r=<repo> -F n=<number>`, to poll one PR (`graphqlArgv()` in `hooks/pr.ts`, line 222; `QUERY` is the fixed query at line 18 of that file);
   - `xdg-open <url>`, then `open <url>` if that fails, only when the user presses **Open in browser** (`openUrl()`). The URL is always `https://github.com/<owner>/<repo>/pull/<number>`, built by `refOf()` in `hooks/pr.ts`.
 
@@ -129,9 +129,9 @@ The directory's validator listed these items for this plugin. Each bullet says w
 - **Fields in `plugin.json`** (warnings `UNKNOWN_KEY`). `documentationUrl` and `supportUrl` are listing fields the directory reads. `types` points at `types/index.d.ts`, the `$.state` contract that `claude plugin validate` checks. Claude Code ignores all three at load time.
 - **Icon** (warning `UNREAD_ASSET_REFERENCED`, in this README; earlier `ICON_MISSING`). The icon is `.claude-plugin/icon.png` (512 × 512); its source is `docs/assets/icons/lk-pr-watch.svg` in the repo. This README names the two files only to say where the icon is. They are images; no hook, script or setting loads or runs them.
 - **Calls named in text** (note `MOD_CALL_NAMED_IN_TEXT`). `tool.call`, `prompt.submit` and `command.run` are named in the header comment of `hooks/register.ts` (lines 6–9), which lists the hooks. The `tool.call` hook (line 406) watches `Bash` calls: it returns what `next(e)` gave back, unchanged, and after a call that was not refused and that ran `gh pr create`, `gh pr merge` or `git push`, it looks up the branch's PR again.
-- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/pr`, at session start (line 383). It registers no tools or agents.
+- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/lk-prs`, at session start (line 383). It registers no tools or agents.
 - **Classic hook** (note `MOD_HOOKS_POLICY_EVENT`). `classic.SessionStart` with source `clear`, `resume` or `fork` (line 396) loads the config and the band setting again, because those resets clear `$.state`, and looks up the branch's PR. It returns `next(e)` unchanged and alters nothing that passes through it.
-- **Hooks on events that are also calls** (note `MOD_HOOKS_OPERATION`). `prompt.submit` (line 423) is described above. `command.run` (line 445) has the matcher `{ command: 'pr' }`, so it runs only for `/pr`. Neither makes the call it hooks.
+- **Hooks on events that are also calls** (note `MOD_HOOKS_OPERATION`). `prompt.submit` (line 423) is described above. `command.run` (line 445) has the matcher `{ command: 'lk-prs' }`, so it runs only for `/lk-prs`. Neither makes the call it hooks.
 
 ## Borrowed from
 
@@ -149,6 +149,6 @@ The MIT notice applies to those parts. The rest is written for this add-on.
 - Checks beyond the first 100 contexts on the head commit are not seen.
 - One GraphQL call per PR per poll counts against your GitHub API rate limit; with many PRs watched, raise `pollSec`.
 - The watch list lives in `$.state`: it survives a hot reload but not a new session, and `/clear` starts it again from the branch's PR.
-- Discovery after Bash matches on the command text, so `git push` inside a script file Claude runs is not seen. Use `/pr refresh`.
+- Discovery after Bash matches on the command text, so `git push` inside a script file Claude runs is not seen. Use `/lk-prs refresh`.
 - The pane shows durations of running checks against the local clock. The branch name is not kept, so the hero says "this branch" rather than naming it.
 - `gh pr view` for the branch needs the branch pushed with an upstream; a fork's PR may need `gh pr view` to resolve the head repo.

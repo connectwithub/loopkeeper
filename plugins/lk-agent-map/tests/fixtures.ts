@@ -186,7 +186,7 @@ export async function complete($: any, agentId: string, durationMs: number, reas
 }
 
 export async function mapText($: any): Promise<string> {
-  const r = await $.command.run({ command: 'agent-map', args: 'text' })
+  const r = await $.command.run({ command: 'lk-agents', args: 'text' })
   return r.text
 }
 

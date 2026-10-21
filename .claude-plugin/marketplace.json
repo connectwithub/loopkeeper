@@ -40,7 +40,7 @@
     {
       "name": "lk-attention",
       "source": "./plugins/lk-attention",
-      "description": "Know when Claude needs you or finished something long: a desktop notification, a sound, a toast, a band and an /attention inbox. Linux with GNOME.",
+      "description": "Know when Claude needs you or finished something long: a desktop notification, a sound, a toast, a band and an /lk-attention inbox. Linux with GNOME.",
       "category": "productivity",
       "tags": ["notifications", "alerts", "desktop", "sound", "gnome", "linux", "inbox"],
       "keywords": ["notifications", "alerts", "desktop", "sound", "gnome", "linux", "inbox"]
@@ -64,7 +64,7 @@
     {
       "name": "lk-where-am-i",
       "source": "./plugins/lk-where-am-i",
-      "description": "One line above the prompt with the repo, branch and worktree, how dirty it is, and the account's usage windows and prompt cache, plus a /where pane.",
+      "description": "One line above the prompt with the repo, branch and worktree, how dirty it is, and the account's usage windows and prompt cache, plus a /lk-where pane.",
       "category": "productivity",
       "tags": ["git", "branch", "worktree", "status-line", "usage", "prompt-cache"],
       "keywords": ["git", "branch", "worktree", "status-line", "usage", "prompt-cache"]

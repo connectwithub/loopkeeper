@@ -27,10 +27,10 @@ test('the band counts blocks and allows in one line', async ($, on) => {
   await ui.unmount()
 })
 
-test('/secret-guard band off hides the band and saves the choice', async ($, on) => {
+test('/lk-secrets band off hides the band and saves the choice', async ($, on) => {
   const w = world(on)
   await $.tool.call(write(FAKE.aws))
-  const out: any = await $.command.run({ command: 'secret-guard', args: 'band off' })
+  const out: any = await $.command.run({ command: 'lk-secrets', args: 'band off' })
   expect(out.text).toContain('band off')
   expect(w.store.get('band')).toBe(false)
   const ui = await $.ui.mount(BAND as any)
@@ -48,15 +48,15 @@ test('the saved band setting is loaded at session start', async ($, on) => {
   await ui.unmount()
 })
 
-test('/secret-guard off shows an urgent band: a danger chip and how to resume in the default text color', async ($, on) => {
+test('/lk-secrets off shows an urgent band: a danger chip and how to resume in the default text color', async ($, on) => {
   world(on)
-  await $.command.run({ command: 'secret-guard', args: 'off' })
+  await $.command.run({ command: 'lk-secrets', args: 'off' })
   const ui = await $.ui.mount(BAND as any)
   expect(bandSeen(await ui.find({ key: 'secret-guard-band' }))).toEqual({
     text: 'secret-guard  ● off for this session',
     tones: [TONES.danger.fg],
     bold: true,
-    right: '/secret-guard on to resume',
+    right: '/lk-secrets on to resume',
     rightColor: undefined,
   })
   await ui.unmount()
@@ -66,7 +66,7 @@ test('the pane shows status, config, counts and masked rows, never the raw value
   world(on, { files: projectConfig({ deny: ['Zorblax'] }) })
   await $.tool.call({ ...write(FAKE.aws), agentId: 'agent-7' })
   await $.tool.call(write('Zorblax', 'README.md'))
-  const opened: any = await $.command.run({ command: 'secret-guard', args: '' })
+  const opened: any = await $.command.run({ command: 'lk-secrets', args: '' })
   expect(opened).toEqual({})
   const ui = await $.ui.mount(PANE as any)
   expect(await ui.find({ type: 'Text', text: 'Status: ON' })).toBeDefined()
@@ -83,23 +83,23 @@ test('the pane shows status, config, counts and masked rows, never the raw value
   await ui.unmount()
 })
 
-test('/secret-guard test reports what would happen, masked', async ($, on) => {
+test('/lk-secrets test reports what would happen, masked', async ($, on) => {
   world(on)
   const out: any = await $.command.run({
-    command: 'secret-guard',
+    command: 'lk-secrets',
     args: `test key=${FAKE.stripe} and ${FAKE.jwt}`,
   })
   expect(out.text).toContain('would BLOCK: Stripe live key (sk_l…')
   expect(out.text).toContain('would ASK (warn): JWT')
   expect(out.text.includes(FAKE.stripe)).toBe(false)
   expect(out.text.includes(FAKE.jwt)).toBe(false)
-  const clean: any = await $.command.run({ command: 'secret-guard', args: 'test hello world' })
+  const clean: any = await $.command.run({ command: 'lk-secrets', args: 'test hello world' })
   expect(clean.text).toContain('nothing in that text would be flagged')
 })
 
-test('/secret-guard reload reports the files it found without listing words', async ($, on) => {
+test('/lk-secrets reload reports the files it found without listing words', async ($, on) => {
   world(on, { files: projectConfig({ deny: ['Zorblax', 'Quuxcorp'], publicPaths: ['README'] }) })
-  const out: any = await $.command.run({ command: 'secret-guard', args: 'reload' })
+  const out: any = await $.command.run({ command: 'lk-secrets', args: 'reload' })
   expect(out.text).toContain('reloaded /work/.claude/secret-guard.json')
   expect(out.text).toContain('2 deny word(s)')
   expect(out.text.includes('Zorblax')).toBe(false)
@@ -107,6 +107,6 @@ test('/secret-guard reload reports the files it found without listing words', as
 
 test('an unknown subcommand prints usage', async ($, on) => {
   world(on)
-  const out: any = await $.command.run({ command: 'secret-guard', args: 'dance' })
-  expect(out.text).toContain('usage: /secret-guard')
+  const out: any = await $.command.run({ command: 'lk-secrets', args: 'dance' })
+  expect(out.text).toContain('usage: /lk-secrets')
 })

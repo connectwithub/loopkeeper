@@ -23,8 +23,8 @@ export type Subjects = Record<string, Subject>
 /** Per-kind target and cycle limit, from the config file's review section. */
 export type KindDefaults = Record<string, { target?: number; maxCycles?: number }>
 /**
- * Defaults beyond the kind presets. `target` and `maxCycles` are what the user set with /reviews target and
- * /reviews max (they win over everything); `kinds` is the config file's per-kind layer. A missing value
+ * Defaults beyond the kind presets. `target` and `maxCycles` are what the user set with /lk-reviews target and
+ * /lk-reviews max (they win over everything); `kinds` is the config file's per-kind layer. A missing value
  * means the next layer down applies: store override, then config kind, then the kind's preset.
  */
 export type Defaults = { target?: number; maxCycles?: number; kinds?: KindDefaults }
@@ -43,7 +43,7 @@ const MAX_ITEMS = 50
 const SPARKS = '▁▂▃▄▅▆▇█'
 
 export const USAGE = [
-  'Usage: /reviews [text | clear <subject> | kinds | kind <subject> <kind> | target <n> [subject] |',
+  'Usage: /lk-reviews [text | clear <subject> | kinds | kind <subject> <kind> | target <n> [subject] |',
   '        max <n> [subject] | more <subject> [n] | ship <subject> | reopen <subject> | stop <subject> | band on|off | context on|off]',
 ].join('\n')
 
@@ -73,7 +73,7 @@ export function doneByOf(v: unknown): DoneBy | undefined {
   return s === 'score' || s === 'items' ? s : undefined
 }
 
-/** The table /reviews kinds prints. */
+/** The table /lk-reviews kinds prints. */
 export function kindsText(): string {
   const rows = KIND_NAMES.map(k => {
     const p = KINDS[k]
@@ -83,7 +83,7 @@ export function kindsText(): string {
   const width = head.map((h, i) => Math.max(h.length, ...rows.map(r => r[i]!.length)))
   const line = (r: string[]) => r.map((c, i) => c.padEnd(width[i]!)).join('  ').trimEnd()
   return [
-    'Kinds: set with "kind" on the first review_cycle, or change with /reviews kind <subject> <kind>.',
+    'Kinds: set with "kind" on the first review_cycle, or change with /lk-reviews kind <subject> <kind>.',
     line(head),
     ...rows.map(line),
     'Score kinds are done when the last score reaches the target. Item kinds are done when no p0 or p1 item is open and the last verdict is not iterate or stop.',
@@ -92,7 +92,7 @@ export function kindsText(): string {
 
 /**
  * The target and cycle limit a new subject of this kind starts with:
- * the kind's preset, over it the config file's kind entry, over that the user's /reviews target and max.
+ * the kind's preset, over it the config file's kind entry, over that the user's /lk-reviews target and max.
  */
 export function presetFor(kind: Kind, defaults: Defaults): { target?: number; maxCycles: number } {
   const p = KINDS[kind]
@@ -120,7 +120,7 @@ function newSubject(name: string, kind: Kind, doneBy: DoneBy | undefined, target
   return s
 }
 
-/** The kind's preset applied to an existing subject (/reviews kind). History and items stay. */
+/** The kind's preset applied to an existing subject (/lk-reviews kind). History and items stay. */
 export function withKind(s: Subject, kind: Kind, defaults: Defaults, now: number): Subject {
   const fresh = newSubject(s.name, kind, undefined, undefined, undefined, defaults, now)
   const out: Subject = { ...s, cycles: s.cycles.map(c => ({ ...c })), items: s.items.map(i => ({ ...i })), kind, doneBy: fresh.doneBy, maxCycles: fresh.maxCycles, updatedAt: now }
@@ -359,7 +359,7 @@ export type MoreOutcome = { ok: true; subject: Subject; added: number } | { ok: 
  * limit (not active, done, or with passes left) and at the cap. `added` is what the limit actually moved by.
  */
 export function allowMore(s: Subject, n: number): MoreOutcome {
-  if (s.status !== 'active') return { ok: false, reply: `${s.name} is ${s.status === 'ship' ? 'shipped' : 'stopped'}: reopen it first (/reviews reopen ${s.name}).` }
+  if (s.status !== 'active') return { ok: false, reply: `${s.name} is ${s.status === 'ship' ? 'shipped' : 'stopped'}: reopen it first (/lk-reviews reopen ${s.name}).` }
   if (reached(s)) return { ok: false, reply: `${s.name} is done: nothing to allow.` }
   if (!atLimit(s)) return { ok: false, reply: `${s.name} still has ${cyclesLeft(s)} ${unitOf(s)}${cyclesLeft(s) === 1 ? '' : 's'} left (${usedCycles(s)}/${s.maxCycles}): nothing to allow yet.` }
   const base = Math.max(s.maxCycles, usedCycles(s))
@@ -530,7 +530,7 @@ function mergeItems(items: Item[], incoming: CycleInput['items'], cycle: number)
 /**
  * Applies one pass. Kind, doneBy, target and maxCycles from the tool count only
  * when the subject is new (or has no cycle yet): after that only the user
- * changes them (/reviews kind, target, max), so the limit cannot be moved from
+ * changes them (/lk-reviews kind, target, max), so the limit cannot be moved from
  * inside the loop.
  */
 export function applyCycle(subjects: Subjects, input: CycleInput, defaults: Defaults, now: number): CycleOutcome {
@@ -545,12 +545,12 @@ export function applyCycle(subjects: Subjects, input: CycleInput, defaults: Defa
     if (s.doneBy === 'items' && input.target !== undefined) warnings.push(`target ignored: kind ${s.kind} is done by items, not by score`)
   } else {
     s = clone(existing)
-    if (input.kind && input.kind !== s.kind) warnings.push(`kind stays ${s.kind}: only the user changes it (/reviews kind ${s.name} <kind>)`)
+    if (input.kind && input.kind !== s.kind) warnings.push(`kind stays ${s.kind}: only the user changes it (/lk-reviews kind ${s.name} <kind>)`)
     if (input.doneBy && input.doneBy !== s.doneBy) warnings.push(`doneBy stays ${s.doneBy} for ${s.name}`)
     if (input.target !== undefined && s.doneBy === 'score' && input.target !== s.target)
-      warnings.push(`target stays ${fmt(targetOf(s))}: only the user changes it (/reviews target <n> ${s.name})`)
+      warnings.push(`target stays ${fmt(targetOf(s))}: only the user changes it (/lk-reviews target <n> ${s.name})`)
     if (input.maxCycles !== undefined && input.maxCycles !== s.maxCycles)
-      warnings.push(`maxCycles stays ${s.maxCycles}: only the user changes it (/reviews max <n> ${s.name})`)
+      warnings.push(`maxCycles stays ${s.maxCycles}: only the user changes it (/lk-reviews max <n> ${s.name})`)
   }
   if (s.doneBy === 'score' && input.score === undefined) {
     return { ok: false, reply: `Not recorded: "score" is required for kind ${s.kind} (done by score), a number from 0 to 10. For a review that ends when no p0/p1 item is open, use kind review, plan or qa.` }
@@ -560,7 +560,7 @@ export function applyCycle(subjects: Subjects, input: CycleInput, defaults: Defa
     const how = s.status === 'ship' ? 'shipped' : 'stopped'
     return {
       ok: false,
-      reply: `Not recorded: ${s.name} is ${how}. The user can reopen it from /reviews (or /reviews reopen ${s.name}).\n\n${subjectText(s)}`,
+      reply: `Not recorded: ${s.name} is ${how}. The user can reopen it from /lk-reviews (or /lk-reviews reopen ${s.name}).\n\n${subjectText(s)}`,
     }
   }
   const number = input.cycle ?? usedCycles(s) + 1
@@ -570,8 +570,8 @@ export function applyCycle(subjects: Subjects, input: CycleInput, defaults: Defa
       reply:
         `Not recorded: ${s.name} has used its ${s.maxCycles} ${unitOf(s)}s (${unitOf(s)} ${number} is past the limit). ` +
         `Do not run another ${wordOf(s)}. Stop: tell the user what changed since the last ${unitOf(s)} (the fixes made and what is still open) and ask them to allow more: ` +
-        `"Allow ${morePasses(s, defaults)} more" on the card above the prompt or in the Review pane, or /reviews more ${s.name}. ` +
-        `The user can also set the limit with /reviews max <n> ${s.name}.\n\n${subjectText(s)}`,
+        `"Allow ${morePasses(s, defaults)} more" on the card above the prompt or in the Review pane, or /lk-reviews more ${s.name}. ` +
+        `The user can also set the limit with /lk-reviews max <n> ${s.name}.\n\n${subjectText(s)}`,
     }
   }
   const cycle: Cycle = { cycle: number, at: now }
@@ -681,7 +681,7 @@ export function progressText(s: Subject): string {
   return `${unit} ${usedCycles(s)}/${s.maxCycles} · ${goal} · ${left} ${unit}${left === 1 ? '' : 's'} left`
 }
 
-/** The block of text the tools and /reviews text reply with for one subject. */
+/** The block of text the tools and /lk-reviews text reply with for one subject. */
 export function subjectText(s: Subject): string {
   const used = usedCycles(s)
   const last = lastCycle(s)
@@ -693,7 +693,7 @@ export function subjectText(s: Subject): string {
   lines.push(`${historyLabel(s)}: ${historyText(s)}${delta ? ` (${delta})` : ''}`)
   const left = cyclesLeft(s)
   const leftText = `${left} ${unit}${left === 1 ? '' : 's'} left`
-  const shipHint = s.status === 'ship' ? '' : ': ready to ship (call review_cycle with verdict "ship", or the user marks it shipped in /reviews)'
+  const shipHint = s.status === 'ship' ? '' : ': ready to ship (call review_cycle with verdict "ship", or the user marks it shipped in /lk-reviews)'
   if (s.doneBy === 'score') {
     const target = targetOf(s)
     if (!last) {
@@ -715,7 +715,7 @@ export function subjectText(s: Subject): string {
   if (notConverging(s) && s.status === 'active') {
     lines.push(
       `not converging: surface to the user. Do not run another ${wordOf(s)}; tell the user what changed since the last ${unitOf(s)} (the fixes made and what is still open) ` +
-        `and ask them to allow more: "Allow more" on the card above the prompt or in the Review pane, or /reviews more ${s.name}.`,
+        `and ask them to allow more: "Allow more" on the card above the prompt or in the Review pane, or /lk-reviews more ${s.name}.`,
     )
   }
   const open = openItems(s)
@@ -800,7 +800,7 @@ export function bandOf(subjects: Subjects): Band | null {
   }
 }
 
-/** What the user has set as defaults, for the pane and /reviews target|max. */
+/** What the user has set as defaults, for the pane and /lk-reviews target|max. */
 export function defaultsLine(d: Defaults): string {
   return `defaults: target ${d.target !== undefined ? fmt(d.target) : 'by kind'} · max ${d.maxCycles !== undefined ? d.maxCycles : 'by kind'}`
 }

@@ -357,7 +357,7 @@ declare module 'claude-code' {
       reviewBand: boolean
       // review: whether the rules block asks the model to report passes
       reviewContext: boolean
-      // review: defaults set with /reviews target and /reviews max
+      // review: defaults set with /lk-reviews target and /lk-reviews max
       reviewDefaults: { target?: number; maxCycles?: number }
       // review: the person's last "more passes" answer: seq counts them, text is the carry-on prompt the stage submits
       reviewAnswered: { seq: number; text: string }

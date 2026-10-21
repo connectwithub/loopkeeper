@@ -1,15 +1,15 @@
 // lk-where-am-i: one line above the prompt with the repo, branch, worktree,
 // dirtiness, the account's usage windows and the prompt-cache clock.
 //
-// session.start          registers /where, loads settings, starts the 60 s tick,
+// session.start          registers /lk-where, loads settings, starts the 60 s tick,
 //                        refreshes git in the background
 // classic.SessionStart   the same after /clear, /resume, /branch (state was reset)
 // classic.CwdChanged     refreshes git when the session's directory moves
 // turn.start/complete    marks the main loop busy; refreshes git after each turn
 // turn.step              stamps the end of each main-loop model request (cache clock)
 // session.measure        reads rateLimits and cost, one toast per window at 90%
-// command.run            /where and its subcommands
-// ui.render              the band (AbovePrompt) and the /where pane
+// command.run            /lk-where and its subcommands
+// ui.render              the band (AbovePrompt) and the /lk-where pane
 //
 // Observe only: every hook passes its event on unchanged, and every git call is
 // capped, caught, and run in the background so no turn waits on it.
@@ -221,7 +221,7 @@ async function readConfigFile($: Api): Promise<{ path: string; cfg: Record<strin
   }
 }
 
-/** Defaults, then ~/.claude/where-am-i.json, then what /where saved. */
+/** Defaults, then ~/.claude/where-am-i.json, then what /lk-where saved. */
 async function loadSettings($: Api): Promise<void> {
   let ttl = DEFAULT_TTL_MIN
   let source = 'default'
@@ -239,7 +239,7 @@ async function loadSettings($: Api): Promise<void> {
   const st = sanitizeTtl(saved.cacheTtlMin)
   if (st !== null) {
     ttl = st
-    source = '/where cache'
+    source = '/lk-where cache'
   }
   if (typeof saved.band === 'boolean') band = saved.band
   await update($, ttlAtom, () => ttl)
@@ -318,13 +318,13 @@ async function runCommand($: Api, args: string): Promise<{ text?: string }> {
     return { text: 'where-am-i: checked again.' }
   }
   if (sub === 'band') {
-    if (arg !== 'on' && arg !== 'off') return { text: 'Use /where band on or /where band off.' }
+    if (arg !== 'on' && arg !== 'off') return { text: 'Use /lk-where band on or /lk-where band off.' }
     await saveSetting($, { band: arg === 'on' })
     return { text: (await read($, bandAtom)) ? 'Band shown above the prompt.' : 'Band hidden.' }
   }
   if (sub === 'cache') {
     const t = sanitizeTtl(words[1] ?? '')
-    if (t === null) return { text: 'Give the cache TTL in minutes, such as /where cache 60 or /where cache 5.' }
+    if (t === null) return { text: 'Give the cache TTL in minutes, such as /lk-where cache 60 or /lk-where cache 5.' }
     await saveSetting($, { cacheTtlMin: t })
     const ttlNow = await read($, ttlAtom)
     return { text: `Prompt-cache TTL set to ${ttlNow} minutes.` }
@@ -341,7 +341,7 @@ export function register(on: On) {
     }
     try {
       await $.command.register({
-        name: 'where',
+        name: 'lk-where',
         description: 'Where am I: repo, branch, worktree, usage windows, prompt cache. text, refresh, band on|off, cache <min>',
         argumentHint: '[text | refresh | band on|off | cache <min>]',
         immediate: true,
@@ -428,7 +428,7 @@ export function register(on: On) {
     return next(e)
   })
 
-  on('command.run', { command: 'where' }, async ($, e) => {
+  on('command.run', { command: 'lk-where' }, async ($, e) => {
     try {
       return await runCommand($, typeof e.args === 'string' ? e.args : '')
     } catch (err) {
@@ -467,7 +467,7 @@ export function register(on: On) {
     return Box({ flexDirection: 'column', children: [line, theirs] })
   })
 
-  // The /where pane, drawn with the kit: where you are, the band's numbers as tiles,
+  // The /lk-where pane, drawn with the kit: where you are, the band's numbers as tiles,
   // then location, usage windows, prompt cache and worktrees under headers with counts;
   // the worktree marks are pills. A page: one row between blocks, each section's rows tight.
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {

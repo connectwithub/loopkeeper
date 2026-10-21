@@ -1,6 +1,6 @@
 # lk-attention
 
-A Claude Code plugin, an add-on of the loopkeeper set (its command stays `/attention`), that tells you when Claude needs you or has finished something long, so you can look away while it works. It is built for Linux with GNOME, and it keeps an inbox of those moments. You stop checking back every few minutes for a permission prompt that has been sitting there all along.
+A Claude Code plugin, an add-on of the loopkeeper set (its command stays `/lk-attention`), that tells you when Claude needs you or has finished something long, so you can look away while it works. It is built for Linux with GNOME, and it keeps an inbox of those moments. You stop checking back every few minutes for a permission prompt that has been sitting there all along.
 
 **Use it when**
 
@@ -10,9 +10,9 @@ A Claude Code plugin, an add-on of the loopkeeper set (its command stays `/atten
 
 **Install:** `/plugin install lk-attention@loopkeeper`, after `/plugin marketplace add connectwithub/loopkeeper`; it needs Linux with GNOME (more under [Install](#install) and [Linux notes](#linux-notes)). Requires Claude Code 2.1.294 or later.
 
-**Data handling:** it keeps the settings you change with `/attention` in its own plugin store, and the inbox (its last 50 events) in session state only, so a new session starts empty. It reads `~/.claude/attention.json` and `<project>/.claude/attention.json` and writes no file. It runs `notify-send` (only when Claude Code's own notification call is missing) and `paplay` or `pw-play` for the sound, all on your machine; it makes no model calls and sends nothing over the network. Notifications carry Bash commands and questions clipped to one line, and your desktop's notification history keeps them. The bundled `assets/ding.wav` is a short tone generated for this plugin, not a recording, covered by its MIT license (see [Assets](#assets)). It collects no personal data; the saved settings stay until you delete them. Details under [Footprint](#footprint).
+**Data handling:** it keeps the settings you change with `/lk-attention` in its own plugin store, and the inbox (its last 50 events) in session state only, so a new session starts empty. It reads `~/.claude/attention.json` and `<project>/.claude/attention.json` and writes no file. It runs `notify-send` (only when Claude Code's own notification call is missing) and `paplay` or `pw-play` for the sound, all on your machine; it makes no model calls and sends nothing over the network. Notifications carry Bash commands and questions clipped to one line, and your desktop's notification history keeps them. The bundled `assets/ding.wav` is a short tone generated for this plugin, not a recording, covered by its MIT license (see [Assets](#assets)). It collects no personal data; the saved settings stay until you delete them. Details under [Footprint](#footprint).
 
-**Commands:** `/attention` and its options are listed under [Commands](#commands).
+**Commands:** `/lk-attention` and its options are listed under [Commands](#commands).
 
 It raises an event when:
 
@@ -53,29 +53,29 @@ Turn it off or on again with `/plugin disable lk-attention@loopkeeper` and `/plu
 try it from a clone without installing it: `claude --plugin-dir /path/to/loopkeeper/plugins/lk-attention`. Check and
 test it from its folder with `claude plugin validate --strict .` and `claude plugin test .`.
 
-Then run `/attention test` in a session to check that the banner and the sound reach you.
+Then run `/lk-attention test` in a session to check that the banner and the sound reach you.
 
 ## Commands
 
 | Command | What it does |
 | :- | :- |
-| `/attention` | Opens the inbox pane (see [Pane](#pane)), with **Mark all seen** (`m`) and **Close** (`c`) |
-| `/attention text` | Prints the settings and the inbox |
-| `/attention on` / `off` | Turns the whole mod on or off |
-| `/attention sound on` / `off` | Turns the sound on or off |
-| `/attention native on` / `off` | Turns the desktop notification on or off |
-| `/attention band on` / `off` | Shows or hides the line above the prompt |
-| `/attention subagents on` / `off` | Includes or ignores permission asks from subagents (default off) |
-| `/attention signal dialog` / `grace` | What raises a permission wait: only a shown dialog (default), or an ask left unanswered past the grace |
-| `/attention grace <ms>` | In grace mode, sets how long an ask must stay unanswered before it notifies: `4000`, `4s` |
-| `/attention long <ms>` | Sets how long a turn must run before it notifies: `20000`, `20s`, `2m` |
-| `/attention test` | Sends a test event through every channel, skipping the rate limit and quiet period, and reports which method worked for each |
+| `/lk-attention` | Opens the inbox pane (see [Pane](#pane)), with **Mark all seen** (`m`) and **Close** (`c`) |
+| `/lk-attention text` | Prints the settings and the inbox |
+| `/lk-attention on` / `off` | Turns the whole mod on or off |
+| `/lk-attention sound on` / `off` | Turns the sound on or off |
+| `/lk-attention native on` / `off` | Turns the desktop notification on or off |
+| `/lk-attention band on` / `off` | Shows or hides the line above the prompt |
+| `/lk-attention subagents on` / `off` | Includes or ignores permission asks from subagents (default off) |
+| `/lk-attention signal dialog` / `grace` | What raises a permission wait: only a shown dialog (default), or an ask left unanswered past the grace |
+| `/lk-attention grace <ms>` | In grace mode, sets how long an ask must stay unanswered before it notifies: `4000`, `4s` |
+| `/lk-attention long <ms>` | Sets how long a turn must run before it notifies: `20000`, `20s`, `2m` |
+| `/lk-attention test` | Sends a test event through every channel, skipping the rate limit and quiet period, and reports which method worked for each |
 
 Settings changed with these commands are kept in the mod's `$.store`, so they carry over to every session.
 
 ## Pane
 
-`/attention` opens the inbox pane, drawn with the kit (`hooks/kit.ts`, a verbatim copy of the loopkeeper core's kit v3): bordered, unfilled cards on every surface, with `● text` badges in the terminal and fully rounded Svg pills in the Desktop app. At the top, a hero card (kicker ATTENTION) shows the newest unseen event: its title, then its kind, its age and its one-line body, colored by kind. With nothing unseen it says **Nothing waiting** in green. Below it, tiles count **Unseen** (orange, red with an unseen failure), **Asks** (permission and question waits, orange while one is unseen), **Done** (long turns and subagents, green) and, once there is one, **Failed** (red). A row shows the switches (an on/off badge in green or red, then native, sound, band and the long-turn threshold in the quiet colour). The **INBOX · n** section lists every event, newest first: a ● in the kind's colour while unseen or a quiet ○ once seen, a kind badge (asks in the accent orange, failures red, finished work green, a test in the info colour), the title (bold while unseen, quiet once seen), the body in the quiet colour, and the clock time and age on the right. The **Mark all seen** and **Close** buttons sit at the bottom. The band above the prompt is the one kit line described above.
+`/lk-attention` opens the inbox pane, drawn with the kit (`hooks/kit.ts`, a verbatim copy of the loopkeeper core's kit v3): bordered, unfilled cards on every surface, with `● text` badges in the terminal and fully rounded Svg pills in the Desktop app. At the top, a hero card (kicker ATTENTION) shows the newest unseen event: its title, then its kind, its age and its one-line body, colored by kind. With nothing unseen it says **Nothing waiting** in green. Below it, tiles count **Unseen** (orange, red with an unseen failure), **Asks** (permission and question waits, orange while one is unseen), **Done** (long turns and subagents, green) and, once there is one, **Failed** (red). A row shows the switches (an on/off badge in green or red, then native, sound, band and the long-turn threshold in the quiet colour). The **INBOX · n** section lists every event, newest first: a ● in the kind's colour while unseen or a quiet ○ once seen, a kind badge (asks in the accent orange, failures red, finished work green, a test in the info colour), the title (bold while unseen, quiet once seen), the body in the quiet colour, and the clock time and age on the right. The **Mark all seen** and **Close** buttons sit at the bottom. The band above the prompt is the one kit line described above.
 
 ## Configuration
 
@@ -84,7 +84,7 @@ Two optional JSON files, merged in this order (later wins, field by field):
 1. Defaults
 2. `~/.claude/attention.json`
 3. `<project>/.claude/attention.json`
-4. Settings you changed with `/attention`
+4. Settings you changed with `/lk-attention`
 
 ```json
 {
@@ -128,7 +128,7 @@ A `tool.check` verdict of `ask` doesn't mean you will be asked. It means "let th
 - `paplay` comes with `pulseaudio-utils`, and works on PipeWire through `pipewire-pulse`. `pw-play` comes with PipeWire itself. Either one is enough.
 - The freedesktop sound theme (`sound-theme-freedesktop`) supplies `complete.oga`. Without it, the bundled `assets/ding.wav` plays.
 - `$.audio.play` names only the macOS player in its typings, so on Linux the mod runs `paplay` or `pw-play` itself first.
-- `/attention test` prints which method worked for each channel, such as `native via notify-send; sound via paplay /usr/share/sounds/freedesktop/stereo/complete.oga`.
+- `/lk-attention test` prints which method worked for each channel, such as `native via notify-send; sound via paplay /usr/share/sounds/freedesktop/stereo/complete.oga`.
 
 ## Credits
 
@@ -149,7 +149,7 @@ What `claude plugin validate --strict .` reports for this plugin (Claude Code 2.
 | Refusals | None. Its gating hooks only watch and pass every event on. |
 | Calls (`$.…`) | `audio.play`; `clock` (`after`, `now`); `command.register`; `env.get`; `fs` (`exists`, `read`); `process.run`; `session.cwd`; `state` (`get`, `set`); `store` (`get`, `set`); `tool.check` (grace mode only); `ui` (`close`, `notify`, `open`, `resolve`, `toast`). |
 | State | 6 atoms under `lk-attention`. |
-| Store | The settings saved by `/attention`. |
+| Store | The settings saved by `/lk-attention`. |
 | Env | Reads `HOME`; writes nothing. |
 
 What it runs:
@@ -177,9 +177,9 @@ The directory's validator listed these items for this plugin. Each bullet says w
 - **Icon** (warning `UNREAD_ASSET_REFERENCED`, in this README; earlier `ICON_MISSING`). The icon is `.claude-plugin/icon.png` (512 × 512); its source is `docs/assets/icons/lk-attention.svg` in the repo. This README names the two files only to say where the icon is. They are images; no hook, script or setting loads or runs them. The README also names the sound files `assets/ding.wav` and the freedesktop `complete.oga`; the code hands them to `$.audio.play`, `paplay` or `pw-play` as audio data and never runs them (see the `BINARIES_NOT_INSPECTED` bullet).
 - **Calls named in text** (note `MOD_CALL_NAMED_IN_TEXT`). `agent.spawn`, `command.run`, `prompt.submit`, `tool.call`, `tool.check` and `classic.PreToolUse` are named in the header comment (lines 4–18), which lists the hooks and says why `classic.PreToolUse` is not used.
 - **A call the directory does not know** (note `MOD_UNKNOWN_CALL`, line 191). `$.ui.notify({ title, body })` is Claude Code's own desktop-notification call, newer than the 2.1.294 typings the plugin is checked against (the comment above it notes 2.1.295); no other plugin provides it. On a build without it the call throws and the plugin uses `notify-send` instead.
-- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/attention`, at session start (line 550). It registers no tools or agents.
+- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/lk-attention`, at session start (line 550). It registers no tools or agents.
 - **Classic hooks** (note `MOD_HOOKS_POLICY_EVENT`). `classic.SessionStart` with source `clear`, `resume` or `fork` (line 563) loads the config again, because those resets clear `$.state`; `classic.PermissionRequest` (line 648) is described above. Both return `next(e)` unchanged and alter nothing that passes through them. The third mention is `classic.PreToolUse` in the header comment (line 12).
-- **Hooks on events that are also calls** (note `MOD_HOOKS_OPERATION`). `prompt.submit` (line 572) is described above. `command.run` (line 670) has the matcher `{ command: 'attention' }`, so it runs only for `/attention`. `agent.spawn` (line 588) and `tool.call` (line 603) return what `next(e)` gave back, unchanged; they only note a subagent's label and which loop a call runs in. None of them makes the call it hooks.
+- **Hooks on events that are also calls** (note `MOD_HOOKS_OPERATION`). `prompt.submit` (line 572) is described above. `command.run` (line 670) has the matcher `{ command: 'lk-attention' }`, so it runs only for `/lk-attention`. `agent.spawn` (line 588) and `tool.call` (line 603) return what `next(e)` gave back, unchanged; they only note a subagent's label and which loop a call runs in. None of them makes the call it hooks.
 
 ## Limits
 

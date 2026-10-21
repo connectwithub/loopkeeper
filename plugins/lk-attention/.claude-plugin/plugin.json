@@ -2,7 +2,7 @@
   "name": "lk-attention",
   "displayName": "loopkeeper Attention",
   "version": "0.3.1",
-  "description": "Look away while Claude works: a GNOME notification, a sound, a toast and a band when it needs you or finishes something long, plus an /attention inbox.",
+  "description": "Look away while Claude works: a GNOME notification, a sound, a toast and a band when it needs you or finishes something long, plus an /lk-attention inbox.",
   "author": {
     "name": "connectwithub"
   },

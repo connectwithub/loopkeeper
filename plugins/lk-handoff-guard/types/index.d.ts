@@ -1,6 +1,6 @@
 export type Mode = 'ask' | 'auto' | 'off'
 
-/** The merged settings: defaults, ~/.claude/handoff-guard.json, <cwd>/.claude/handoff-guard.json, then /handoff changes in $.store. */
+/** The merged settings: defaults, ~/.claude/handoff-guard.json, <cwd>/.claude/handoff-guard.json, then /lk-handoff changes in $.store. */
 export type Config = {
   /** Context fraction where the band turns yellow and one toast shows, in (0, 1]. */
   warnAt: number
@@ -15,7 +15,7 @@ export type Config = {
   model: string
   /** maxTokens for the $.model.complete fallback; also caps the words asked for. */
   maxBriefTokens: number
-  /** Draw the band above the prompt (/handoff band on|off). */
+  /** Draw the band above the prompt (/lk-handoff band on|off). */
   band: boolean
 }
 

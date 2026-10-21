@@ -45,7 +45,7 @@ const filesAtom = atom({ plugin: 'lk-secret-guard', key: 'configFiles' } as cons
 const errorsAtom = atom({ plugin: 'lk-secret-guard', key: 'configErrors' } as const, [] as string[])
 
 const USAGE =
-  'usage: /secret-guard (open the pane) · on · off · reload · test <text> · band on|off'
+  'usage: /lk-secrets (open the pane) · on · off · reload · test <text> · band on|off'
 
 export function register(on: On) {
   on('session.start', async ($, e, next) => {
@@ -61,7 +61,7 @@ export function register(on: On) {
     }
     try {
       await $.command.register({
-        name: 'secret-guard',
+        name: 'lk-secrets',
         description: 'Secret guard: status pane, on/off, reload config, test a string, band on/off',
         argumentHint: '[on|off|reload|test <text>|band on|off]',
         immediate: true,
@@ -130,11 +130,11 @@ export function register(on: On) {
     const kind = next.error?.kind ?? 'throw'
     const message = String(next.error?.message ?? '').replace(/\s+/g, ' ').slice(0, 120)
     return {
-      deny: `secret-guard failed (${kind}: ${message}), so this call was not run. Retry, or run /secret-guard off if the guard is broken.`,
+      deny: `secret-guard failed (${kind}: ${message}), so this call was not run. Retry, or run /lk-secrets off if the guard is broken.`,
     }
   })
 
-  on('command.run', { command: 'secret-guard' }, async ($, e) => {
+  on('command.run', { command: 'lk-secrets' }, async ($, e) => {
     const args = typeof e.args === 'string' ? e.args.trim() : ''
     const [sub = '', ...rest] = args.split(/\s+/)
     const verb = sub.toLowerCase()
@@ -145,7 +145,7 @@ export function register(on: On) {
     }
     if (verb === 'off') {
       await update($, enabledAtom, () => false)
-      return { text: 'off for this session. Writes and commands are not checked. Run /secret-guard on to resume.' }
+      return { text: 'off for this session. Writes and commands are not checked. Run /lk-secrets on to resume.' }
     }
     if (verb === 'on') {
       await update($, enabledAtom, () => true)
@@ -159,14 +159,14 @@ export function register(on: On) {
     }
     if (verb === 'band') {
       const value = (rest[0] ?? '').toLowerCase()
-      if (value !== 'on' && value !== 'off') return { text: 'usage: /secret-guard band on|off' }
+      if (value !== 'on' && value !== 'off') return { text: 'usage: /lk-secrets band on|off' }
       await $.store.set('band', value === 'on')
       await update($, bandAtom, () => value === 'on')
       return { text: `band ${value} (saved for future sessions).` }
     }
     if (verb === 'test') {
       const text = args.replace(/^test\s*/i, '')
-      if (text === '') return { text: 'usage: /secret-guard test <text>' }
+      if (text === '') return { text: 'usage: /lk-secrets test <text>' }
       const config = await ensureConfig($)
       return { text: describeTest(scan(text, { config, wordsApply: true }), await read($, enabledAtom)) }
     }
@@ -232,7 +232,7 @@ export function register(on: On) {
           title: 'Nothing blocked yet',
           sub: isOn
             ? 'Checking the new text of Write, Edit, MultiEdit, NotebookEdit and Bash calls'
-            : 'The guard is off for this session · /secret-guard on to resume',
+            : 'The guard is off for this session · /lk-secrets on to resume',
           tone: isOn ? 'ok' : 'danger',
         })
 
@@ -272,7 +272,7 @@ export function register(on: On) {
     const off = rulesList.filter(r => !r.on).length
     const rules =
       config === null
-        ? kit.stack([kit.section('Rules'), dim('Not loaded yet: /secret-guard reload reads the config files')])
+        ? kit.stack([kit.section('Rules'), dim('Not loaded yet: /lk-secrets reload reads the config files')])
         : kit.stack([
             kit.section(`Rules · ${activeRules(config)}`, off > 0 ? `${off} off` : undefined),
             ...rulesList.map(r =>

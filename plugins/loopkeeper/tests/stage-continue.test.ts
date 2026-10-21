@@ -567,7 +567,7 @@ async function stuck($: Engine): Promise<void> {
   for (let i = 0; i < 2; i++) await tool($, 'review_cycle', { subject: 'sf', kind: 'plan', items: i === 0 ? [{ text: 'a', priority: 'p1' }] : [] })
 }
 const reviews = async ($: Engine, args: string, origin?: unknown) =>
-  (await $.command.run({ command: 'reviews', args, ...(origin ? { origin } : {}) } as never)) as { text?: string }
+  (await $.command.run({ command: 'lk-reviews', args, ...(origin ? { origin } : {}) } as never)) as { text?: string }
 // a review answer's prompt is the review's own text (it ends with no "Carry on" sentence), so look for it
 const carried = async (w: World) => {
   await w.clock.advance(5_000)
@@ -588,7 +588,7 @@ test('the Review pane press more:<name> submits one prompt', { timeoutMs: 20_000
   expect(await carried(w)).toEqual([GRANT])
 })
 
-test('/reviews more submits one prompt after the timer; a plugin origin and a loop with passes left send none', { timeoutMs: 20_000 }, async ($, on) => {
+test('/lk-reviews more submits one prompt after the timer; a plugin origin and a loop with passes left send none', { timeoutMs: 20_000 }, async ($, on) => {
   const w = desk(on)
   await stuck($)
   await tool($, 'review_cycle', { subject: 'fresh', score: 5 })
@@ -606,7 +606,7 @@ test('review-stop:<name> submits one prompt with the stop text', { timeoutMs: 20
   expect(await carried(w)).toEqual([STOP])
 })
 
-test('/reviews stop from the user answers a loop at its limit like Stop here; from a plugin it closes without a prompt', { timeoutMs: 20_000 }, async ($, on) => {
+test('/lk-reviews stop from the user answers a loop at its limit like Stop here; from a plugin it closes without a prompt', { timeoutMs: 20_000 }, async ($, on) => {
   const w = desk(on)
   await stuck($)
   expect((await reviews($, 'stop sf', { kind: 'plugin', name: 'x' })).text).toBe('Closed: sf.')

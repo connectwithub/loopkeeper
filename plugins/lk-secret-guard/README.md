@@ -12,7 +12,7 @@ A loopkeeper add-on for Claude Code: a seatbelt that stops credential-shaped str
 
 **Data handling:** it keeps one setting (the band on or off) in its own plugin store, and its log and counts, masked, in session state. It reads `~/.claude/secret-guard.json` and `<project>/.claude/secret-guard.json` and writes no file. It runs no process, makes no model calls and sends nothing over the network. A matched value is only ever shown masked and is never stored. It collects no personal data; the saved setting stays until you delete it. Details under [What it runs and touches](#what-it-runs-and-touches).
 
-**Commands:** `/secret-guard` and its options are listed under [Commands](#commands).
+**Commands:** `/lk-secrets` and its options are listed under [Commands](#commands).
 
 Needs Claude Code 2.1.294 or later.
 
@@ -62,7 +62,7 @@ From the loopkeeper marketplace, inside a Claude Code session:
 /plugin install lk-secret-guard@loopkeeper
 ```
 
-Turn it off and on again with `/plugin disable lk-secret-guard@loopkeeper` and `/plugin enable lk-secret-guard@loopkeeper`; `/secret-guard off` pauses it for one session only. It works with or without the loopkeeper core; with the core on, its hub links here.
+Turn it off and on again with `/plugin disable lk-secret-guard@loopkeeper` and `/plugin enable lk-secret-guard@loopkeeper`; `/lk-secrets off` pauses it for one session only. It works with or without the loopkeeper core; with the core on, its hub links here.
 
 To try a checkout without installing: `claude --plugin-dir /path/to/loopkeeper/plugins/lk-secret-guard`.
 
@@ -98,24 +98,24 @@ A file that is not valid JSON is ignored, with a toast and a line in the error c
 
 | Command | What it does |
 | :- | :- |
-| `/secret-guard` | Opens the **Secret guard** pane (see [Pane](#pane)): the last block, blocked and allowed counts, on/off, the last 20 decisions (masked), the rules (never the words), the config files found, and a Close button |
-| `/secret-guard off` / `on` | Turns the guard off or on for this session only. While off, an urgent band sits above the prompt. |
-| `/secret-guard reload` | Re-reads both config files |
-| `/secret-guard test <text>` | Runs the matcher on the text and prints what would be blocked or asked, masked. The word lists are applied as if the path were public. |
-| `/secret-guard band on\|off` | Shows or hides the one-line band above the prompt. Saved across sessions. |
+| `/lk-secrets` | Opens the **Secret guard** pane (see [Pane](#pane)): the last block, blocked and allowed counts, on/off, the last 20 decisions (masked), the rules (never the words), the config files found, and a Close button |
+| `/lk-secrets off` / `on` | Turns the guard off or on for this session only. While off, an urgent band sits above the prompt. |
+| `/lk-secrets reload` | Re-reads both config files |
+| `/lk-secrets test <text>` | Runs the matcher on the text and prints what would be blocked or asked, masked. The word lists are applied as if the path were public. |
+| `/lk-secrets band on\|off` | Shows or hides the one-line band above the prompt. Saved across sessions. |
 
-The band is one kit line that appears only after the first block or warning in a session: `secret-guard  ● 2 blocked  ● 1 allowed`, the label in bold, the blocked count in the error color and the allowed count in the ok color once they are nonzero (quiet at zero). While the guard is off it reads `secret-guard  ● off for this session      /secret-guard on to resume`: the chip in the error color and the hint in the default text color, whatever the band setting.
+The band is one kit line that appears only after the first block or warning in a session: `secret-guard  ● 2 blocked  ● 1 allowed`, the label in bold, the blocked count in the error color and the allowed count in the ok color once they are nonzero (quiet at zero). While the guard is off it reads `secret-guard  ● off for this session      /lk-secrets on to resume`: the chip in the error color and the hint in the default text color, whatever the band setting.
 
 ## Pane
 
-`/secret-guard` draws one pane with the kit (`hooks/kit.ts`, a copy of the loopkeeper core's UI kit): bordered, unfilled cards on every surface, with `● text` chips in the terminal and rounded pill chips in the Desktop app. Colors are theme keys, so it follows the light or dark theme. At the top a card (kicker `secret guard`) with the last block (`Blocked AWS access key in src/x.ts`, then the time, the masked value and the agent, if any), or `Nothing blocked yet`. Then three tiles: **Blocked**, **Allowed** and **Rules** (the rules in force), and the on/off status with the band setting. Then sections with counts: **Recent** (the last 20 decisions, newest first: time, an outcome pill `blocked` (error), `allowed` (ok) or `asked → allowed` (warning), the kind, and where with the masked value), **Rules** (each built-in kind with a `built-in` pill and block, warn or off; the deny and warn lists as counts with a `config` pill, never the words), and **Config** (the files loaded, any ignored file, the allowPaths count and where the word lists apply). Button: **c** Close.
+`/lk-secrets` draws one pane with the kit (`hooks/kit.ts`, a copy of the loopkeeper core's UI kit): bordered, unfilled cards on every surface, with `● text` chips in the terminal and rounded pill chips in the Desktop app. Colors are theme keys, so it follows the light or dark theme. At the top a card (kicker `secret guard`) with the last block (`Blocked AWS access key in src/x.ts`, then the time, the masked value and the agent, if any), or `Nothing blocked yet`. Then three tiles: **Blocked**, **Allowed** and **Rules** (the rules in force), and the on/off status with the band setting. Then sections with counts: **Recent** (the last 20 decisions, newest first: time, an outcome pill `blocked` (error), `allowed` (ok) or `asked → allowed` (warning), the kind, and where with the masked value), **Rules** (each built-in kind with a `built-in` pill and block, warn or off; the deny and warn lists as counts with a `config` pill, never the words), and **Config** (the files loaded, any ignored file, the allowPaths count and where the word lists apply). Button: **c** Close.
 
 ## Limits
 
 - **Pattern-based.** It catches credential *shapes*, not every secret. A password with no `password=` around it, a key split across two writes, or a value that is base64-encoded or built at run time in a Bash command (`echo $VAR`, `printf '%s' …`) is not seen.
 - **Bash is never path-exempt.** `allowPaths` exempts files written by the file tools. A `Bash` command that writes a key into `.env` is still blocked; write it with the Write tool instead, or turn the guard off for the session.
 - **False positives.** The generic rule can flag test fixtures, sample configs and type annotations such as `token: SomeLongTypeName`; `sk-` followed by 20 letters (for example a CSS class or slug) looks like an OpenAI key; the JWT rule flags any real-looking JWT, including harmless test tokens; plain path entries like `README` match any segment that starts with them. Use `allowPaths`, `disabledKinds`, or **Allow once**.
-- **Fail closed.** If the guard itself crashes or times out on a call, the call is refused with `secret-guard failed (…)`. Run `/secret-guard off` if the guard is broken.
+- **Fail closed.** If the guard itself crashes or times out on a call, the call is refused with `secret-guard failed (…)`. Run `/lk-secrets off` if the guard is broken.
 - **Order.** Settings `PreToolUse` hooks from managed settings run before every plugin's hooks module; other `PreToolUse` hooks run after the guard lets a call through. Another plugin loaded ahead of this one can answer a call before the guard sees it.
 - **State.** The log, counts and on/off switch live in `$.state` and last for the session; `/clear`, `/resume` and `/branch` reset them. Only the band setting is saved in the plugin's store.
 - It does not inspect what tools *read*, what MCP tools send, or what Claude says in chat.
@@ -124,7 +124,7 @@ The band is one kit line that appears only after the first block or warning in a
 
 | File | What it holds |
 | :- | :- |
-| `hooks/register.ts` | The hooks: session start, the guarded tool calls, `/secret-guard`, band and pane |
+| `hooks/register.ts` | The hooks: session start, the guarded tool calls, `/lk-secrets`, band and pane |
 | `hooks/patterns.ts` | Pure parts: the pattern table, matching, masking, config merging, the messages and the band's parts |
 | `hooks/pane.ts` | The pane's view model: outcomes, rule rows, counts |
 | `hooks/kit.ts` | The UI kit the band and pane are drawn with: a verbatim copy of the loopkeeper core's `hooks/lib/kit.ts` (CI checks that the copies match) |
@@ -137,7 +137,7 @@ From `claude plugin validate --strict .` and the code:
 
 - **Processes**: none. **Network**: none. **Model calls**: none.
 - **Files**: reads `~/.claude/secret-guard.json` and `<project>/.claude/secret-guard.json`; writes none.
-- **Stored data**: one key, `band` (the `/secret-guard band on|off` choice), in the plugin's store. The log and counts stay in session state, masked.
+- **Stored data**: one key, `band` (the `/lk-secrets band on|off` choice), in the plugin's store. The log and counts stay in session state, masked.
 - **Environment**: reads `HOME`.
 - **Other**: a question (`Allow once` / `Block`) on a warn, toasts, the pane.
 
@@ -149,6 +149,6 @@ The directory's validator listed these items for this plugin. Each bullet says w
 - **Fields in `plugin.json`** (warnings `UNKNOWN_KEY`). `documentationUrl` and `supportUrl` are listing fields the directory reads. `types` points at `types/index.d.ts`, the `$.state` contract that `claude plugin validate` checks. Claude Code ignores all three at load time.
 - **Icon** (warning `UNREAD_ASSET_REFERENCED`, in this README; earlier `ICON_MISSING`). The icon is `.claude-plugin/icon.png` (512 × 512); its source is `docs/assets/icons/lk-secret-guard.svg` in the repo. This README names the two files only to say where the icon is. They are images; no hook, script or setting loads or runs them.
 - **A call named in text** (note `MOD_CALL_NAMED_IN_TEXT`). `tool.call` is named in the header comment of `hooks/register.ts` (line 4), which describes the guard's `tool.call` hook (line 86). That hook scans the new text of `Write`, `Edit`, `MultiEdit`, `NotebookEdit` and `Bash` calls: it returns `next(e)` unchanged when nothing matches, refuses the call (`{ deny: … }`) on a block finding, and asks the user `Allow once` / `Block` on a warn finding.
-- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/secret-guard`, at session start (line 63). It registers no tools or agents.
+- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/lk-secrets`, at session start (line 63). It registers no tools or agents.
 - **Classic hook** (note `MOD_HOOKS_POLICY_EVENT`). `classic.SessionStart` with source `clear`, `resume` or `fork` (line 76) reloads the config files and the band setting, because those resets clear `$.state`. It returns `next(e)` unchanged and alters nothing that passes through it.
-- **The `command.run` hook** (note `MOD_HOOKS_OPERATION`). The hook at line 137 has the matcher `{ command: 'secret-guard' }`, so it runs only for `/secret-guard`: it opens the pane, turns the guard off or on for the session, reloads the config, saves the band setting, or runs the matcher on test text. It does not see or change any other command.
+- **The `command.run` hook** (note `MOD_HOOKS_OPERATION`). The hook at line 137 has the matcher `{ command: 'lk-secrets' }`, so it runs only for `/lk-secrets`: it opens the pane, turns the guard off or on for the session, reloads the config, saves the band setting, or runs the matcher on test text. It does not see or change any other command.

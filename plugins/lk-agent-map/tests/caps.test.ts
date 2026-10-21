@@ -1,11 +1,11 @@
 // 0.6.2: the caps in the plugin's settings (/config), their order against the files and
-// /agent-map cap, /agent-map cap reset, the config.set guard, and the pane's Caps block.
+// /lk-agents cap, /lk-agents cap reset, the config.set guard, and the pane's Caps block.
 import { expect, test } from 'claude-code/testing'
 
 import { CAPS_HINT } from '../hooks/pane'
 import { PANE, setup, spawn, start } from './fixtures'
 
-const cmd = async ($: any, args: string) => (await $.command.run({ command: 'agent-map', args })).text as string
+const cmd = async ($: any, args: string) => (await $.command.run({ command: 'lk-agents', args })).text as string
 const capsLine = (c: { concurrent: string; turn: string; session: string; returned: string; warn: number }) =>
   'agent-map caps: concurrent ' + c.concurrent + ' (now 0) · turn ' + c.turn + ' (now 0) · session ' + c.session + ' (now 0) · returned ' + c.returned +
   ' (now 0) · warn at ' + c.warn + '% · waiting grace 4000 ms'
@@ -68,11 +68,11 @@ test('the user file, the project file and a saved override still win over the se
   expect(await cmd($, 'cap concurrent 6')).toBe('agent-map: concurrent cap set to 6')
   expect(await cmd($, 'cap')).toBe(capsLine({ concurrent: '6', turn: '12', session: '20', returned: '150k', warn: 75 }))
   const { rows, texts } = await capsBlock($)
-  expect(rows.maxConcurrent).toContain('saved (/agent-map cap)')
+  expect(rows.maxConcurrent).toContain('saved (/lk-agents cap)')
   expect(rows.maxPerTurn).toContain('project file')
   expect(rows.maxPerSession).toContain('user file')
   expect(rows.warnAt).toContain('default')
-  expect(texts).toContain('FROM SAVED (/AGENT-MAP CAP), PROJECT FILE, USER FILE')
+  expect(texts).toContain('FROM SAVED (/LK-AGENTS CAP), PROJECT FILE, USER FILE')
 })
 
 test('invalid settings are ignored and the defaults stand', { options: { maxConcurrent: -1, maxPerTurn: 2.5, warnAtPercent: 0, maxReturnedTokens: -5 } }, async ($, on) => {
@@ -102,9 +102,9 @@ test('cap reset clears one saved override or all of them, and the settings value
   expect(await cmd($, 'cap reset')).toBe('agent-map: saved caps cleared. ' + capsLine({ concurrent: '3', turn: '6', session: '40', returned: '150k', warn: 75 }))
   expect(world.store.get('caps')).toEqual({})
   expect(await cmd($, 'cap reset session')).toBe('agent-map: session cap reset to 40 (default)')
-  expect(await cmd($, 'cap reset bogus')).toContain('Usage: /agent-map cap')
-  expect(await cmd($, 'cap reset toString')).toContain('Usage: /agent-map cap')
-  expect(await cmd($, 'cap toString 3')).toContain('Usage: /agent-map cap')
+  expect(await cmd($, 'cap reset bogus')).toContain('Usage: /lk-agents cap')
+  expect(await cmd($, 'cap reset toString')).toContain('Usage: /lk-agents cap')
+  expect(await cmd($, 'cap toString 3')).toContain('Usage: /lk-agents cap')
 })
 
 test('the config.set guard refuses an out-of-range cap, and the caps follow a value that is written', async ($, on) => {

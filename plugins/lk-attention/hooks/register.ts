@@ -13,9 +13,9 @@
 // tool.call       remembers which loop a call runs in; clears its wait once it settles
 // agent.spawn     the subagent's label and start time
 // ui.render       AskUserQuestion: question wait (first render per tool call id);
-//                 AbovePrompt: the one-line band; Pane: the /attention inbox
+//                 AbovePrompt: the one-line band; Pane: the /lk-attention inbox
 // prompt.submit   the user is back: marks the inbox seen and starts the quiet period
-// command.run     /attention and its subcommands
+// command.run     /lk-attention and its subcommands
 //
 // Delivery (toast, native, sound) runs from $.clock.after(0) so no hook waits on
 // notify-send or a player. Helpers that take $ are top-level functions so static
@@ -148,7 +148,7 @@ async function readSaved($: Api): Promise<unknown> {
   }
 }
 
-/** Merges defaults, ~/.claude/attention.json, <cwd>/.claude/attention.json and /attention settings. */
+/** Merges defaults, ~/.claude/attention.json, <cwd>/.claude/attention.json and /lk-attention settings. */
 async function loadConfig($: Api): Promise<Config> {
   let home = ''
   try {
@@ -483,22 +483,22 @@ async function runCommand($: Api, args: string): Promise<{ text?: string }> {
   if (sub === 'text') return { text: inboxText(await read($, inboxAtom), await read($, configAtom)) }
   if (sub === 'on' || sub === 'off') {
     const cfg = await saveSetting($, { enabled: sub === 'on' })
-    return { text: cfg.enabled ? 'attention on.' : 'attention off: nothing is raised until /attention on.' }
+    return { text: cfg.enabled ? 'attention on.' : 'attention off: nothing is raised until /lk-attention on.' }
   }
   if (sub === 'sound' || sub === 'native' || sub === 'band') {
     const v = onOff(arg)
-    if (v === null) return { text: `Use /attention ${sub} on or /attention ${sub} off.` }
+    if (v === null) return { text: `Use /lk-attention ${sub} on or /lk-attention ${sub} off.` }
     const cfg = await saveSetting($, { [sub]: v } as Partial<Config>)
     return { text: `${sub[0].toUpperCase()}${sub.slice(1)} ${cfg[sub] ? 'on' : 'off'}.` }
   }
   if (sub === 'subagents') {
     const v = onOff(arg)
-    if (v === null) return { text: 'Use /attention subagents on or /attention subagents off.' }
+    if (v === null) return { text: 'Use /lk-attention subagents on or /lk-attention subagents off.' }
     const cfg = await saveSetting($, { includeSubagents: v })
     return { text: cfg.includeSubagents ? 'Permission waits from subagents notify too.' : 'Permission waits from subagents are ignored.' }
   }
   if (sub === 'signal') {
-    if (arg !== 'dialog' && arg !== 'grace') return { text: 'Use /attention signal dialog or /attention signal grace.' }
+    if (arg !== 'dialog' && arg !== 'grace') return { text: 'Use /lk-attention signal dialog or /lk-attention signal grace.' }
     const cfg = await saveSetting($, { permissionSignal: arg })
     return {
       text:
@@ -509,13 +509,13 @@ async function runCommand($: Api, args: string): Promise<{ text?: string }> {
   }
   if (sub === 'grace') {
     const ms = parseMs(words.slice(1).join(' '))
-    if (ms === null) return { text: 'Use /attention grace <ms>, such as 4000 or 4s.' }
+    if (ms === null) return { text: 'Use /lk-attention grace <ms>, such as 4000 or 4s.' }
     const cfg = await saveSetting($, { permissionGraceMs: ms })
     return { text: `A permission ask notifies after ${fmtDuration(cfg.permissionGraceMs)} unanswered.` }
   }
   if (sub === 'long') {
     const ms = parseMs(words.slice(1).join(' '))
-    if (ms === null) return { text: 'Use /attention long <ms>, such as 20000, 20s or 2m.' }
+    if (ms === null) return { text: 'Use /lk-attention long <ms>, such as 20000, 20s or 2m.' }
     const cfg = await saveSetting($, { longTurnMs: ms })
     return { text: `Turns of ${fmtDuration(cfg.longTurnMs)} or more notify when they finish.` }
   }
@@ -548,7 +548,7 @@ export function register(on: On) {
     }
     try {
       await $.command.register({
-        name: 'attention',
+        name: 'lk-attention',
         description: 'Attention inbox: open the pane, or text, on, off, sound, native, band, subagents, signal, grace, long, test',
         argumentHint: '[text | on | off | sound on|off | native on|off | band on|off | subagents on|off | signal dialog|grace | grace <ms> | long <ms> | test]',
         immediate: true,
@@ -667,7 +667,7 @@ export function register(on: On) {
     return result
   })
 
-  on('command.run', { command: 'attention' }, async ($, e) => {
+  on('command.run', { command: 'lk-attention' }, async ($, e) => {
     try {
       return await runCommand($, typeof e.args === 'string' ? e.args : '')
     } catch (err) {
@@ -798,7 +798,7 @@ export function register(on: On) {
             right: [clockTime(ev.at), ago(ev)],
           })
         })
-      : [kit.text('Nothing yet. /attention test checks notify-send and the sound.', { color: QUIET })]
+      : [kit.text('Nothing yet. /lk-attention test checks notify-send and the sound.', { color: QUIET })]
 
     return kit.page([
       hero,

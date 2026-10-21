@@ -70,7 +70,7 @@ test('when TaskStop cannot stop an agent, it is muted and its next tool calls ar
   expect(await mapText($)).toContain('● build-x')
 })
 
-test('/agent-map merges $.agent.list(): missed forks and teammates appear, a parent loop is cut', async ($, on) => {
+test('/lk-agents merges $.agent.list(): missed forks and teammates appear, a parent loop is cut', async ($, on) => {
   const world = setup(on)
   await oneAgent($)
   world.list = [

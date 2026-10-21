@@ -68,7 +68,7 @@ export type TodoProgress = { done: number; total: number; current: string }
 /** USD per million tokens: [family, input, output, cacheRead, cacheWrite (1 h)]. */
 export type PriceRow = [string, number, number, number, number]
 
-/** The spawn caps and warning thresholds, merged from defaults, the plugin's settings, files and /agent-map cap. */
+/** The spawn caps and warning thresholds, merged from defaults, the plugin's settings, files and /lk-agents cap. */
 export type CapConfig = {
   /** Running subagents at once (forks and teammates included); 0 turns it off. */
   maxConcurrent: number
@@ -85,8 +85,8 @@ export type CapConfig = {
 }
 
 /** Where a cap's value came from, last layer first: the defaults, the plugin's settings (/config), ~/.claude/agent-map.json,
- *  <cwd>/.claude/agent-map.json, or what /agent-map cap saved. */
-export type CapSource = 'default' | 'settings' | 'user file' | 'project file' | 'saved (/agent-map cap)'
+ *  <cwd>/.claude/agent-map.json, or what /lk-agents cap saved. */
+export type CapSource = 'default' | 'settings' | 'user file' | 'project file' | 'saved (/lk-agents cap)'
 
 /** The source of each cap's value. */
 export type CapSources = Record<keyof CapConfig, CapSource>
@@ -161,7 +161,7 @@ declare module 'claude-code' {
       capSources: CapSources
       counters: CapCounters
       log: LogEntry[]
-      /** The view the person chose; null until they choose one (the pane then draws cards, /agent-map text the tree). */
+      /** The view the person chose; null until they choose one (the pane then draws cards, /lk-agents text the tree). */
       view: PaneView | null
       showLog: boolean
       /** The cards view draws one line per agent. */

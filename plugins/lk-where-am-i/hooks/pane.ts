@@ -1,5 +1,5 @@
-// lk-where-am-i: the /where pane's view model. Pure: it reads the same snapshot the band
-// and /where text read and returns strings and tones; register.ts draws them with the kit.
+// lk-where-am-i: the /lk-where pane's view model. Pure: it reads the same snapshot the band
+// and /lk-where text read and returns strings and tones; register.ts draws them with the kit.
 // Nothing here takes `$`.
 
 import type { Location } from '../types'

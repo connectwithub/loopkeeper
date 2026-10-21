@@ -306,19 +306,19 @@ const pane = (requestId: string, title: string, surface: string) =>
   }) as never
 const HINT = 'ctrl+x tab to focus the panel'
 
-// A world for the hub: /agent-map and /where listed from lk-agent-map and lk-where-am-i; agent-map a known command
+// A world for the hub: /lk-agents and /lk-where listed from lk-agent-map and lk-where-am-i; agent-map a known command
 // (its runs recorded), where not; the composer empty; every opened pane without the focus
 function modWorld(on: any, opts: WorldOptions = {}) {
   const ran: unknown[] = []
-  on('command.run', { command: 'agent-map' }, ($: unknown, e: any) => {
+  on('command.run', { command: 'lk-agents' }, ($: unknown, e: any) => {
     ran.push({ command: e.command, args: e.args })
     return { text: '' }
   })
   const w = world(on, { now: 1_000_000, ...opts })
   on('command.list', () => ({
     value: [
-      { name: 'agent-map', description: 'Agents', source: 'plugin', plugin: 'lk-agent-map' },
-      { name: 'where', description: 'Where', source: 'plugin', plugin: 'lk-where-am-i' },
+      { name: 'lk-agents', description: 'Agents', source: 'plugin', plugin: 'lk-agent-map' },
+      { name: 'lk-where', description: 'Where', source: 'plugin', plugin: 'lk-where-am-i' },
     ],
   }))
   on('prompt.read', () => ({ value: { text: '', cursor: 0 } }))
@@ -353,15 +353,15 @@ for (const surface of SURFACES) {
     expect(w.panes.slice(-1)).toEqual(['closed:loopkeeper-hub'])
     if (surface === 'terminal') {
       expect(ran).toEqual([])
-      expect(w.filled).toEqual(['/agent-map cards'])
+      expect(w.filled).toEqual(['/lk-agents cards'])
       expect(w.toasts).toEqual(['Press Enter to open Agents'])
     } else {
-      expect(ran).toEqual([{ command: 'agent-map', args: 'cards' }])
+      expect(ran).toEqual([{ command: 'lk-agents', args: 'cards' }])
       expect(w.filled).toEqual([])
       expect(w.toasts).toEqual([])
-      // /where is not a known command: the run is refused, so the composer gets it
+      // /lk-where is not a known command: the run is refused, so the composer gets it
       await ui.press({ key: 'mod-where' })
-      expect(w.filled).toEqual(['/where'])
+      expect(w.filled).toEqual(['/lk-where'])
       expect(w.toasts).toEqual(['Press Enter to open Where'])
     }
     await ui.unmount()

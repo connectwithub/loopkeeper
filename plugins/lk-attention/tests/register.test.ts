@@ -113,7 +113,7 @@ async function turn($: Engine, durationMs: number, extra: Record<string, unknown
 }
 
 async function text($: Engine): Promise<string> {
-  return String((await $.command.run({ command: 'attention', args: 'text' })).text ?? '')
+  return String((await $.command.run({ command: 'lk-attention', args: 'text' })).text ?? '')
 }
 
 async function band($: Engine) {
@@ -271,7 +271,7 @@ test('sound falls back from paplay to pw-play, then to the bundled ding', async 
 test('with no system sound the bundled asset plays through $.audio.play, then paplay', async ($, on) => {
   const { w, clock } = world(on, { systemSound: false, audioFails: true })
   await start($)
-  const r = await $.command.run({ command: 'attention', args: 'test' })
+  const r = await $.command.run({ command: 'lk-attention', args: 'test' })
   await clock.settle()
   expect(w.audio).toEqual([{ clip: { asset: 'assets/ding.wav' }, shouldLoop: false }])
   const players = w.runs.filter(x => x[0] === 'paplay')
@@ -280,17 +280,17 @@ test('with no system sound the bundled asset plays through $.audio.play, then pa
   expect(String(r.text)).toContain('sound via paplay')
 })
 
-test('/attention test sends through every channel and reports each', async ($, on) => {
+test('/lk-attention test sends through every channel and reports each', async ($, on) => {
   const { w } = world(on)
   await start($)
-  const r = await $.command.run({ command: 'attention', args: 'test' })
+  const r = await $.command.run({ command: 'lk-attention', args: 'test' })
   expect(r.text).toBe(`Test sent: toast; native via notify-send; sound via paplay ${SYSTEM}.`)
   expect(w.toasts).toEqual(['attention test'])
   expect(notifySends(w)[0]).toEqual([
     'notify-send', '-a', 'Claude Code', '-i', 'dialog-information', 'attention test', 'If you can see and hear this, notifications work.',
   ])
   // A second test right away is not rate-limited.
-  await $.command.run({ command: 'attention', args: 'test' })
+  await $.command.run({ command: 'lk-attention', args: 'test' })
   expect(notifySends(w).length).toBe(2)
 })
 
@@ -317,7 +317,7 @@ test('quiet period after the user prompt suppresses native and sound, not the to
   expect(w.runs).toEqual([])
 })
 
-test('config: user and project files merge, and /attention settings win', async ($, on) => {
+test('config: user and project files merge, and /lk-attention settings win', async ($, on) => {
   const { w, clock } = world(on, {
     files: {
       '/home/tester/.claude/attention.json': { longTurnMs: 60_000, sound: false, subagentMs: 120_000 },
@@ -329,7 +329,7 @@ test('config: user and project files merge, and /attention settings win', async 
   await turn($, 25_000)
   await clock.settle()
   expect(w.toasts).toEqual([])
-  const r = await $.command.run({ command: 'attention', args: 'long 20s' })
+  const r = await $.command.run({ command: 'lk-attention', args: 'long 20s' })
   expect(r.text).toBe('Turns of 20s or more notify when they finish.')
   expect(w.saved.get('settings')).toEqual({ longTurnMs: 20_000 })
   await turn($, 25_000)
@@ -341,28 +341,28 @@ test('config: user and project files merge, and /attention settings win', async 
 test('switches: off raises nothing, native off and sound off skip their channel, band off hides the band', async ($, on) => {
   const { w, clock } = world(on)
   await start($)
-  await $.command.run({ command: 'attention', args: 'off' })
+  await $.command.run({ command: 'lk-attention', args: 'off' })
   await turn($, 25_000)
   await clock.settle()
   expect(w.toasts).toEqual([])
-  await $.command.run({ command: 'attention', args: 'on' })
-  await $.command.run({ command: 'attention', args: 'native off' })
-  await $.command.run({ command: 'attention', args: 'sound off' })
+  await $.command.run({ command: 'lk-attention', args: 'on' })
+  await $.command.run({ command: 'lk-attention', args: 'native off' })
+  await $.command.run({ command: 'lk-attention', args: 'sound off' })
   await turn($, 26_000)
   await clock.settle()
   expect(w.toasts).toEqual(['Claude finished (26s)'])
   expect(w.runs).toEqual([])
   expect((await band($)).text).toBe('attention ● 1 new: done')
-  const r = await $.command.run({ command: 'attention', args: 'band off' })
+  const r = await $.command.run({ command: 'lk-attention', args: 'band off' })
   expect(r.text).toBe('Band off.')
   expect((await band($)).text).toBe(null)
-  expect((await $.command.run({ command: 'attention', args: 'sound maybe' })).text).toBe('Use /attention sound on or /attention sound off.')
+  expect((await $.command.run({ command: 'lk-attention', args: 'sound maybe' })).text).toBe('Use /lk-attention sound on or /lk-attention sound off.')
 })
 
 test('the pane lists the inbox newest first and Mark all seen clears the band', async ($, on) => {
   const { w, clock } = world(on, { settings: { permissionSignal: 'grace' } })
   await start($)
-  expect((await $.command.run({ command: 'attention', args: '' })).text).toBeUndefined()
+  expect((await $.command.run({ command: 'lk-attention', args: '' })).text).toBeUndefined()
   expect(w.opened).toEqual(['attention'])
   await turn($, 25_000)
   await $.tool.check({ tool: 'Bash', input: { command: 'make' }, tool_use_id: 'tu5' } as never)
@@ -423,7 +423,7 @@ test('the turn ending or an interrupt cancels a held ask', async ($, on) => {
   expect(w.toasts).toEqual(['Turn interrupted after 1s'])
 })
 
-test('a subagent ask is ignored by default, and raised with /attention subagents on', async ($, on) => {
+test('a subagent ask is ignored by default, and raised with /lk-attention subagents on', async ($, on) => {
   // The subagent's tool.call is in flight while its tool.check runs, as in the engine.
   let release = () => {}
   const hold = new Promise<void>(r => {
@@ -442,7 +442,7 @@ test('a subagent ask is ignored by default, and raised with /attention subagents
   await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'ls' }, agent_id: 'ag1' } as never)
   await clock.advance(10_000)
   expect(w.toasts).toEqual([])
-  const r = await $.command.run({ command: 'attention', args: 'subagents on' })
+  const r = await $.command.run({ command: 'lk-attention', args: 'subagents on' })
   expect(r.text).toBe('Permission waits from subagents notify too.')
   await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'ls' }, agent_id: 'ag1' } as never)
   await clock.settle()
@@ -469,11 +469,11 @@ test('classic.PermissionRequest raises at once and dedupes with the held tool.ch
   expect(w.toasts.length).toBe(1)
 })
 
-test('/attention grace and the config files set the grace and subagent switch', async ($, on) => {
+test('/lk-attention grace and the config files set the grace and subagent switch', async ($, on) => {
   const { w, clock } = world(on, { files: { '/home/tester/.claude/attention.json': { permissionGraceMs: 1000, includeSubagents: true, permissionSignal: 'grace' } } })
   await start($)
   expect(await text($)).toContain('signal grace · grace 1s · subagent asks on')
-  const r = await $.command.run({ command: 'attention', args: 'grace 8s' })
+  const r = await $.command.run({ command: 'lk-attention', args: 'grace 8s' })
   expect(r.text).toBe('A permission ask notifies after 8s unanswered.')
   expect(w.saved.get('settings')).toEqual({ permissionGraceMs: 8000 })
   await $.tool.check({ tool: 'Bash', input: { command: 'x' }, tool_use_id: 'g1' } as never)
@@ -481,7 +481,7 @@ test('/attention grace and the config files set the grace and subagent switch', 
   expect(w.toasts).toEqual([])
   await clock.advance(1_000)
   expect(w.toasts).toEqual(['Claude needs your OK: Bash'])
-  expect((await $.command.run({ command: 'attention', args: 'grace soon' })).text).toBe('Use /attention grace <ms>, such as 4000 or 4s.')
+  expect((await $.command.run({ command: 'lk-attention', args: 'grace soon' })).text).toBe('Use /lk-attention grace <ms>, such as 4000 or 4s.')
 })
 
 test('an approved long-running tool (progress drawn within the grace) raises no wait though its call stays open', async ($, on) => {
@@ -532,12 +532,12 @@ test('default dialog mode: a bare ask raises nothing; a shown dialog raises at o
   expect((await band($)).text).toBe(null)
 })
 
-test('/attention signal switches modes and the config files can set it', async ($, on) => {
+test('/lk-attention signal switches modes and the config files can set it', async ($, on) => {
   const { w, clock } = world(on, { files: { '/work/.claude/attention.json': { permissionSignal: 'grace' } } })
   await start($)
   expect(await text($)).toContain('signal grace')
-  expect((await $.command.run({ command: 'attention', args: 'signal maybe' })).text).toBe('Use /attention signal dialog or /attention signal grace.')
-  const r = await $.command.run({ command: 'attention', args: 'signal dialog' })
+  expect((await $.command.run({ command: 'lk-attention', args: 'signal maybe' })).text).toBe('Use /lk-attention signal dialog or /lk-attention signal grace.')
+  const r = await $.command.run({ command: 'lk-attention', args: 'signal dialog' })
   expect(r.text).toBe('Permission waits notify only when a dialog is shown.')
   expect(w.saved.get('settings')).toEqual({ permissionSignal: 'dialog' })
   await $.tool.check({ tool: 'Bash', input: { command: 'x' }, tool_use_id: 's1' } as never)

@@ -1,5 +1,5 @@
 // Pure text layout for agent-map: the tree rows the pane draws and the
-// /agent-map text command prints, the band's one line, and the cards' critter avatar.
+// /lk-agents text command prints, the band's one line, and the cards' critter avatar.
 //
 // Colors are theme keys (suggestion, success, error, claude, permission, inactive) that the host
 // tunes for light and dark; Svg markup cannot read them, so the critter uses fixed hexes.
@@ -10,7 +10,7 @@ import type { Agents, Counts } from './model'
 
 export const LABEL_MAX = 24
 export const PROMPT_EXCERPT = 200
-/** The width /agent-map text lays out to. */
+/** The width /lk-agents text lays out to. */
 export const TEXT_COLUMNS = 120
 
 export type RowKind = 'header' | 'agent' | 'activity' | 'msg' | 'detail' | 'empty' | 'lane' | 'log'
@@ -445,7 +445,7 @@ export function cardsOf(agents: Agents, order: readonly string[], now: number, c
   return cardOrder(agents, order).map(id => cardOf(agents, agents[id], now, columns - 4, stuckAfterMs))
 }
 
-/** The cards as text, each in a rounded border, for /agent-map text and tests. */
+/** The cards as text, each in a rounded border, for /lk-agents text and tests. */
 export function cardsText(agents: Agents, order: readonly string[], now: number, columns = TEXT_COLUMNS, stuckAfterMs = DEFAULT_STUCK_MS): string {
   const cards = cardsOf(agents, order, now, columns, stuckAfterMs)
   if (cards.length === 0) return 'no subagents yet'

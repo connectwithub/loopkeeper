@@ -15,7 +15,7 @@ For people who hand Claude Code real, multi-file work and want it to plan first,
 
 loopkeeper is a set of Claude Code plugins in one repository, which is also their marketplace. The core plugin, `loopkeeper`, runs a task loop (plan, validate the plan, execute, verify, QA, ship) and enforces it with hooks that share state: approval gates, a file budget per turn tied to the approved plan, protected paths, a ship gate, merge and amend guards, model routing by role, bounded review loops and a decision log. A call the rules refuse does not run. The seven `lk-` add-ons are optional: each works with or without the core, and each turns on or off on its own.
 
-**Contents:** [Why loopkeeper](#why-loopkeeper) · [Mods with a real UI](#mods-with-a-real-ui) · [Install](#install) · [A 60-second tour](#a-60-second-tour) · [The plugins](#the-plugins) · [/lk](#lk-the-hub-and-every-command) · [Decisions](#decisions-a-log-that-keeps-itself) · [/agent-map](#agent-map-parts-and-commands) · [Use cases](#use-cases) · [Requirements](#requirements) · [Data handling](#data-handling-and-footprint) · [Turning things off](#turning-things-off) · [FAQ](#faq) · [Contributing](#contributing) · [Credits](#credits) · [License](#license)
+**Contents:** [Why loopkeeper](#why-loopkeeper) · [Mods with a real UI](#mods-with-a-real-ui) · [Install](#install) · [A 60-second tour](#a-60-second-tour) · [The plugins](#the-plugins) · [/lk](#lk-the-hub-and-every-command) · [Decisions](#decisions-a-log-that-keeps-itself) · [/lk-agents](#lk-agents-parts-and-commands) · [Use cases](#use-cases) · [Requirements](#requirements) · [Data handling](#data-handling-and-footprint) · [Turning things off](#turning-things-off) · [FAQ](#faq) · [Contributing](#contributing) · [Credits](#credits) · [License](#license)
 
 ## Why loopkeeper
 
@@ -48,7 +48,7 @@ Type `/lk` with no words to open the hub. It shows:
 
 Every loopkeeper pane starts with a nav row, `0 Hub 1 Stage 2 Gates 3 Files 4 Routes 5 Reviews 6 Decisions`. Press `0` in any pane to go back to the hub, or a digit to switch panel. Claude Code lets a plugin bind keys only inside its own panes and band, so the keys work while a loopkeeper pane has the focus. From the prompt box, `ctrl+x` then `tab` moves the focus to the band or to a pane that opened without it.
 
-An add-on key opens that add-on's pane (for Handoff, `/handoff show`; it never writes a handoff by itself). On the desktop app a press runs the command. On the terminal it fills an empty prompt box with the command for you to send with Enter.
+An add-on key opens that add-on's pane (for Handoff, `/lk-handoff show`; it never writes a handoff by itself). On the desktop app a press runs the command. On the terminal it fills an empty prompt box with the command for you to send with Enter.
 
 ### Every pane in the set
 
@@ -57,22 +57,22 @@ An add-on key opens that add-on's pane (for Handoff, `/handoff show`; it never w
 | Hub | `/lk` | The stage hero with the next step, the panel rows, the add-on keys and the actions. |
 | Stage (`1`) | `/lk stage` | The stage stepper, where the task is, and what waits for you. |
 | Gates (`2`) | `/lk gates` | The plan, file budget and ship gates, and the session switches. |
-| Files (`3`) | `/files`, or `/lk gates files` | What Claude read and edited this session, and the project tree. |
+| Files (`3`) | `/lk-files`, or `/lk gates files` | What Claude read and edited this session, and the project tree. |
 | Routes (`4`) | `/lk routes` | The model each role's subagents get. |
-| Reviews (`5`) | `/reviews` | Each review loop's cycle, score and open items. |
-| Decisions (`6`) | `/decisions` | Today's count, the log in use, major decisions waiting for Record or Skip, recent decisions and learned preferences. |
-| Agents (`m`) | `/agent-map cards` | A card per subagent with cost, tokens, context, model, effort and progress. Tree and team views too. |
-| Budget (`u`) | `/budget` | Tiles for context, cache, cold resend and session cost. |
-| Handoff (`h`) | `/handoff show` | The handoff state, the last 10 readings, the last brief and a Write button. |
-| Attention (`t`) | `/attention` | The inbox of moments when Claude needed you or finished a long turn, with Mark all seen. |
-| Where (`w`) | `/where` | Where you are: repo, branch and worktree, with changed, unpushed, cache and cost tiles. |
-| PRs (`p`) | `/pr` | The branch's pull request as a hero, a tile per watched PR, and a card per PR with its checks bar and a link to each check's run. |
-| Secrets (`s`) | `/secret-guard` | The last block, blocked and allowed counts, the on or off switch, the last 20 decisions (masked) and the rules. |
+| Reviews (`5`) | `/lk-reviews` | Each review loop's cycle, score and open items. |
+| Decisions (`6`) | `/lk-decisions` | Today's count, the log in use, major decisions waiting for Record or Skip, recent decisions and learned preferences. |
+| Agents (`m`) | `/lk-agents cards` | A card per subagent with cost, tokens, context, model, effort and progress. Tree and team views too. |
+| Budget (`u`) | `/lk-budget` | Tiles for context, cache, cold resend and session cost. |
+| Handoff (`h`) | `/lk-handoff show` | The handoff state, the last 10 readings, the last brief and a Write button. |
+| Attention (`t`) | `/lk-attention` | The inbox of moments when Claude needed you or finished a long turn, with Mark all seen. |
+| Where (`w`) | `/lk-where` | Where you are: repo, branch and worktree, with changed, unpushed, cache and cost tiles. |
+| PRs (`p`) | `/lk-prs` | The branch's pull request as a hero, a tile per watched PR, and a card per PR with its checks bar and a link to each check's run. |
+| Secrets (`s`) | `/lk-secrets` | The last block, blocked and allowed counts, the on or off switch, the last 20 decisions (masked) and the rules. |
 
 ### Bands on and off
 
 - The core's bands: `/lk band [stage|gates|files|routing|review|decisions] on|off`. With no name, every core band.
-- Each add-on has its own: `/agent-map band on|off`, `/budget band on|off`, `/handoff band on|off`, `/attention band on|off`, `/where band on|off`, `/pr band on|off`, `/secret-guard band on|off`.
+- Each add-on has its own: `/lk-agents band on|off`, `/lk-budget band on|off`, `/lk-handoff band on|off`, `/lk-attention band on|off`, `/lk-where band on|off`, `/lk-prs band on|off`, `/lk-secrets band on|off`.
 
 ## Install
 
@@ -157,7 +157,7 @@ Screenshots from the Claude Code desktop app, taken while this repository was be
 </tr>
 </table>
 
-**The agent map** (`/agent-map`, add-on). Tiles over all subagents, then one card per agent: what it is doing, its effort and model, its tool count and progress bar, and a Stop button while it runs.
+**The agent map** (`/lk-agents`, add-on). Tiles over all subagents, then one card per agent: what it is doing, its effort and model, its tool count and progress bar, and a Stop button while it runs.
 
 <img src="docs/assets/screens/agent-map.png" alt="lk-agent-map's cards: one per subagent with an avatar, effort, model, tool count and a progress bar; costs and tokens blurred." width="300">
 
@@ -167,20 +167,20 @@ Text renderings of every pane, for the terminal, are in [docs/renderings.md](doc
 
 | Plugin | What it does | Command(s) | Use it when |
 | --- | --- | --- | --- |
-| [`loopkeeper`](plugins/loopkeeper/README.md) (the core) | The stage loop and its approval gates, the plan-scoped file budget, protected paths, ship, merge and amend guards, model routing by role, bounded review loops and a decision log. | `/lk` (`/loopkeeper`), `/files`, `/reviews`, `/decide`, `/decisions` | A change spans many files and you want it planned, checked and approved before Claude edits or ships. |
-| [`lk-agent-map`](plugins/lk-agent-map/README.md) | A deck of the session's subagents: cards with cost, tokens, context, model, effort and progress; tree and team views; spawn caps; permission waits; idle alerts; a Stop button per agent. | `/agent-map` | You fan work out to many subagents and want to see them, cap them and stop a runaway one. |
-| [`lk-token-budget`](plugins/lk-token-budget/README.md) | A token budget for the session and for each subagent that warns, refuses new subagents or stops tool calls; a prompt-cache timer with Keep warm. | `/budget` | A long multi-agent run must not quietly use up your plan, or you pause long enough for the cache to go cold. |
-| [`lk-handoff-guard`](plugins/lk-handoff-guard/README.md) | Watches context fill, writes a session handoff into `.claude/brain/` before the limit, then clears and resumes from it. | `/handoff` | Your sessions run long enough to reach the context limit. |
-| [`lk-attention`](plugins/lk-attention/README.md) | A desktop notification, a sound, a toast and an inbox when Claude needs you or finished something long. | `/attention` | You switch windows while Claude works. Linux with GNOME. |
-| [`lk-where-am-i`](plugins/lk-where-am-i/README.md) | One line with the repo, branch and worktree, how dirty it is, and the account's usage windows and prompt cache. | `/where` | You run several repos or worktrees at once and want to know which one this session is in. |
-| [`lk-pr-watch`](plugins/lk-pr-watch/README.md) | The pull request and CI state of the current branch, toasts on transitions, and a note to Claude when a check fails. | `/pr` | You wait on CI and want Claude to see a red check without you pasting it. |
-| [`lk-secret-guard`](plugins/lk-secret-guard/README.md) | Refuses credential-shaped strings, and words on your private deny-list, before they are written into a file or a shell command. | `/secret-guard` | You paste logs, configs or tokens into a session and want them kept out of files and commands. |
+| [`loopkeeper`](plugins/loopkeeper/README.md) (the core) | The stage loop and its approval gates, the plan-scoped file budget, protected paths, ship, merge and amend guards, model routing by role, bounded review loops and a decision log. | `/lk` (`/loopkeeper`), `/lk-files`, `/lk-reviews`, `/lk-decide`, `/lk-decisions` | A change spans many files and you want it planned, checked and approved before Claude edits or ships. |
+| [`lk-agent-map`](plugins/lk-agent-map/README.md) | A deck of the session's subagents: cards with cost, tokens, context, model, effort and progress; tree and team views; spawn caps; permission waits; idle alerts; a Stop button per agent. | `/lk-agents` | You fan work out to many subagents and want to see them, cap them and stop a runaway one. |
+| [`lk-token-budget`](plugins/lk-token-budget/README.md) | A token budget for the session and for each subagent that warns, refuses new subagents or stops tool calls; a prompt-cache timer with Keep warm. | `/lk-budget` | A long multi-agent run must not quietly use up your plan, or you pause long enough for the cache to go cold. |
+| [`lk-handoff-guard`](plugins/lk-handoff-guard/README.md) | Watches context fill, writes a session handoff into `.claude/brain/` before the limit, then clears and resumes from it. | `/lk-handoff` | Your sessions run long enough to reach the context limit. |
+| [`lk-attention`](plugins/lk-attention/README.md) | A desktop notification, a sound, a toast and an inbox when Claude needs you or finished something long. | `/lk-attention` | You switch windows while Claude works. Linux with GNOME. |
+| [`lk-where-am-i`](plugins/lk-where-am-i/README.md) | One line with the repo, branch and worktree, how dirty it is, and the account's usage windows and prompt cache. | `/lk-where` | You run several repos or worktrees at once and want to know which one this session is in. |
+| [`lk-pr-watch`](plugins/lk-pr-watch/README.md) | The pull request and CI state of the current branch, toasts on transitions, and a note to Claude when a check fails. | `/lk-prs` | You wait on CI and want Claude to see a red check without you pasting it. |
+| [`lk-secret-guard`](plugins/lk-secret-guard/README.md) | Refuses credential-shaped strings, and words on your private deny-list, before they are written into a file or a shell command. | `/lk-secrets` | You paste logs, configs or tokens into a session and want them kept out of files and commands. |
 
 Every add-on draws with the core's UI kit, so its band and pane look like the core's. With the core on, the hub's **Other mods** row has one key for each add-on that is installed and on: `m` Agents, `u` Budget, `h` Handoff, `t` Attention, `w` Where, `p` PRs, `s` Secrets. In the desktop app a press runs the add-on's command, which opens its pane. In the terminal it puts the command in an empty prompt box for you to send with Enter, and never replaces a draft. Each plugin's README has its full command list, settings and footprint.
 
 ## /lk: the hub and every command
 
-`/lk` (long form `/loopkeeper`) is the way in. With no words it opens the hub. Everything else is a word after it, except `/files`, `/reviews`, `/decide` and `/decisions`. The full reference, with every setting, is in the [core README](plugins/loopkeeper/README.md).
+`/lk` (long form `/loopkeeper`) is the way in. With no words it opens the hub. Everything else is a word after it, except `/lk-files`, `/lk-reviews`, `/lk-decide` and `/lk-decisions`. The full reference, with every setting, is in the [core README](plugins/loopkeeper/README.md).
 
 ### Hub keys
 
@@ -225,7 +225,7 @@ Claude Code 2.1.294 lets a plugin bind keys only inside its own panes and band, 
 | Command | What it does |
 | --- | --- |
 | `/lk gates`, `/lk gates text` | Opens the gates pane, or prints the same as text. |
-| `/lk gates files`, `/files` | Opens the Files pane: what Claude read and edited this session, and the project tree. |
+| `/lk gates files`, `/lk-files` | Opens the Files pane: what Claude read and edited this session, and the project tree. |
 | `/lk gates max <1-1000>` | Sets a per-turn file limit for this session. |
 | `/lk gates plan ok` | Allows edits before a plan, for this session. |
 | `/lk gates plan required on\|off` | Turns the plan requirement on or off. |
@@ -250,21 +250,21 @@ Claude Code 2.1.294 lets a plugin bind keys only inside its own panes and band, 
 
 | Command | What it does |
 | --- | --- |
-| `/reviews` | Opens the review pane: each subject's cycle, score and open items. |
-| `/reviews text`, `/reviews status [subject]` | Prints every loop, or one subject's. |
-| `/reviews kinds`, `/reviews kind <subject> <critic\|review\|plan\|qa\|copy\|design>` | Lists the loop kinds, or sets a subject's kind. |
-| `/reviews target <n> [subject]`, `/reviews max <n> [subject]` | Sets the target score or the most passes, by default or for one subject. |
-| `/reviews ship\|reopen\|stop <subject>`, `/reviews clear <subject>` | Marks a loop shipped, reopens it or stops it; `clear` removes it. |
-| `/reviews band on\|off`, `/reviews context on\|off` | Shows or hides the review band, or the review-loop rules in Claude's context. |
+| `/lk-reviews` | Opens the review pane: each subject's cycle, score and open items. |
+| `/lk-reviews text`, `/lk-reviews status [subject]` | Prints every loop, or one subject's. |
+| `/lk-reviews kinds`, `/lk-reviews kind <subject> <critic\|review\|plan\|qa\|copy\|design>` | Lists the loop kinds, or sets a subject's kind. |
+| `/lk-reviews target <n> [subject]`, `/lk-reviews max <n> [subject]` | Sets the target score or the most passes, by default or for one subject. |
+| `/lk-reviews ship\|reopen\|stop <subject>`, `/lk-reviews clear <subject>` | Marks a loop shipped, reopens it or stops it; `clear` removes it. |
+| `/lk-reviews band on\|off`, `/lk-reviews context on\|off` | Shows or hides the review band, or the review-loop rules in Claude's context. |
 
 **Decisions**
 
 | Command | What it does |
 | --- | --- |
-| `/decide <decision> -- <why> #tag` | Records a decision in the project's log. |
-| `/decide prefs [clear]` | Lists or clears the learned preferences. |
-| `/decide watch on\|off\|status`, `/decide watch model <id>` | The decision watch, off by default. When on, it makes model calls on your session. |
-| `/decisions`, `/decisions text`, `/decisions reload`, `/decisions band on\|off` | Opens the decision pane, prints it, re-reads the log, or shows or hides its band. |
+| `/lk-decide <decision> -- <why> #tag` | Records a decision in the project's log. |
+| `/lk-decide prefs [clear]` | Lists or clears the learned preferences. |
+| `/lk-decide watch on\|off\|status`, `/lk-decide watch model <id>` | The decision watch, off by default. When on, it makes model calls on your session. |
+| `/lk-decisions`, `/lk-decisions text`, `/lk-decisions reload`, `/lk-decisions band on\|off` | Opens the decision pane, prints it, re-reads the log, or shows or hides its band. |
 
 **Bands and settings**
 
@@ -319,20 +319,20 @@ Both are read from the project file only. Each write appends one entry. A write 
 ### How entries get there
 
 - **Claude records them.** `record_decision` is a tool every session has. With GSD mode on, Claude's rules tell it to record each settled decision with that tool, right after the choice is made. Each entry keeps the decision, the why, the tags, the date and the session.
-- **You record them.** `/decide <decision> -- <why> #tag #tag`. The `-- <why>` and the tags are optional.
+- **You record them.** `/lk-decide <decision> -- <why> #tag #tag`. The `-- <why>` and the tags are optional.
 - **The watch** (optional, off by default) reads your turns and proposes entries. See below.
 
 ### The Decisions pane and band
 
-The band above the prompt shows `decisions  N this session`, with a `watch on` chip while the watch runs. Key `6` in the hub, or `/decisions`, opens the pane: decisions today, the log in use, major decisions waiting for Record or Skip, the last 20 decisions, the learned preferences and the watch button. `/decisions text` prints the list in the chat. `/decisions band on|off` hides or shows the band.
+The band above the prompt shows `decisions  N this session`, with a `watch on` chip while the watch runs. Key `6` in the hub, or `/lk-decisions`, opens the pane: decisions today, the log in use, major decisions waiting for Record or Skip, the last 20 decisions, the learned preferences and the watch button. `/lk-decisions text` prints the list in the chat. `/lk-decisions band on|off` hides or shows the band.
 
 ### Learned preferences
 
-`/decide prefs` lists the preferences the watch has learned for this project, newest last. `/decide prefs clear` forgets them. Only the watch adds them, and only from things you showed or said, such as "Prefer small commits".
+`/lk-decide prefs` lists the preferences the watch has learned for this project, newest last. `/lk-decide prefs clear` forgets them. Only the watch adds them, and only from things you showed or said, such as "Prefer small commits".
 
 ### The decision watch
 
-The watch is off by default. Turn it on with `/decide watch on`, or set `decisions.watch` to `true` in the config. `/decide watch status` shows its state, and `/decide watch model <haiku|sonnet|model id>` picks its model (`haiku` by default).
+The watch is off by default. Turn it on with `/lk-decide watch on`, or set `decisions.watch` to `true` in the config. `/lk-decide watch status` shows its state, and `/lk-decide watch model <haiku|sonnet|model id>` picks its model (`haiku` by default).
 
 When it is on, a turn is read only if it has at least 200 characters and a cue word such as "decide", "use", "prefer", "switch" or "convention". The last prompt and answer of that turn, the recent logged decisions and the learned preferences go to the model on your own session, through Claude Code. The watch makes at most 20 calls an hour across sessions.
 
@@ -343,9 +343,9 @@ When it is on, a turn is read only if it has at least 200 characters and a cue w
 
 Say a session settles on a SQLite cache because the app runs on one machine. The choice and its reason go into the log, and the band reads `decisions  1 this session`. Months later a new session suggests a network cache. The entry is there with its reason, so the answer is a short look at the file, not a new debate. If the reason no longer holds, the team changes the decision on purpose, and the log shows what was decided and why.
 
-## /agent-map: parts and commands
+## /lk-agents: parts and commands
 
-`/agent-map` comes with [lk-agent-map](plugins/lk-agent-map/README.md). It opens a pane and keeps a band line above the prompt. The parts:
+`/lk-agents` comes with [lk-agent-map](plugins/lk-agent-map/README.md). It opens a pane and keeps a band line above the prompt. The parts:
 
 - **Tiles row.** Cost (the sum of the agents' estimates), Tokens and Time (wall-clock time while at least one subagent ran) over the session's subagents, then the **Collapse**, **Cards**, **Tree** and **Team** buttons.
 - **Cards.** One per agent, running first. Each card has:
@@ -369,17 +369,17 @@ It also marks an agent that waits on your permission answer and alerts on one th
 
 | Command | What it does |
 | --- | --- |
-| `/agent-map`, `/agent-map open` | Opens the pane and focuses it. |
-| `/agent-map cards`, `tree`, `team` | Switches the view and opens it; `/agent-map view <cards\|tree\|team>` does the same. Saved between sessions. |
-| `/agent-map log` | Prints the last 40 lifecycle events. |
-| `/agent-map text` | Prints the chosen view as plain text, for the mobile app or anywhere panes don't draw. |
-| `/agent-map clear` | Removes finished agents; running ones stay. |
-| `/agent-map band on\|off` | Shows or hides the band. |
-| `/agent-map cap concurrent <n>`, `turn <n>`, `session <n>` | Sets a spawn cap; `0` turns it off. |
-| `/agent-map cap returned <k>` | Sets the budget for subagent results that reach the main context, in thousands of tokens. |
-| `/agent-map cap warn <0.1-1>` | Sets the share of a cap at which it warns. |
-| `/agent-map cap grace <ms>` | Sets how long a permission ask stays open before the card shows it waiting. |
-| `/agent-map cap reset [kind]` | Clears what `/agent-map cap` saved, for one kind or all; the settings or defaults come back. |
+| `/lk-agents`, `/lk-agents open` | Opens the pane and focuses it. |
+| `/lk-agents cards`, `tree`, `team` | Switches the view and opens it; `/lk-agents view <cards\|tree\|team>` does the same. Saved between sessions. |
+| `/lk-agents log` | Prints the last 40 lifecycle events. |
+| `/lk-agents text` | Prints the chosen view as plain text, for the mobile app or anywhere panes don't draw. |
+| `/lk-agents clear` | Removes finished agents; running ones stay. |
+| `/lk-agents band on\|off` | Shows or hides the band. |
+| `/lk-agents cap concurrent <n>`, `turn <n>`, `session <n>` | Sets a spawn cap; `0` turns it off. |
+| `/lk-agents cap returned <k>` | Sets the budget for subagent results that reach the main context, in thousands of tokens. |
+| `/lk-agents cap warn <0.1-1>` | Sets the share of a cap at which it warns. |
+| `/lk-agents cap grace <ms>` | Sets how long a permission ask stays open before the card shows it waiting. |
+| `/lk-agents cap reset [kind]` | Clears what `/lk-agents cap` saved, for one kind or all; the settings or defaults come back. |
 
 Its six rows in `/config` (the `lk-agent-map` rows; `/plugin configure lk-agent-map@loopkeeper` works too):
 
@@ -400,15 +400,15 @@ A spawn past a cap is refused with a message that tells Claude to wait or batch 
 
 **Protect folders that need a human.** By default an edit under `docs/decisions/**` or `**/migrations/**` needs your yes first (the terminal asks; in the desktop app you run `/lk gates allow <path>`) and a write to `.env*` is refused. Add your own globs to `changeControl.protected` in `loopkeeper.json`. The merge gate holds `gh pr merge` while checks fail, and a push or merge to the default branch until you say yes: approving Ship (`/lk approve`) or `/lk gates merge ok` covers the next one, and otherwise the terminal asks. `git commit --amend` on a pushed branch is refused. Uses: loopkeeper (`/lk gates`).
 
-**Fan work out to many subagents.** The loop's Execute stage runs through subagents, and spawn routing picks each one's model by role (`/lk routes`, `/lk route verify sonnet`). `/agent-map` shows every agent's progress, cost and context, caps how many run at once, and stops a runaway agent. `/budget agent <n>` limits each one's tokens. Uses: loopkeeper, lk-agent-map, lk-token-budget.
+**Fan work out to many subagents.** The loop's Execute stage runs through subagents, and spawn routing picks each one's model by role (`/lk routes`, `/lk route verify sonnet`). `/lk-agents` shows every agent's progress, cost and context, caps how many run at once, and stops a runaway agent. `/lk-budget agent <n>` limits each one's tokens. Uses: loopkeeper, lk-agent-map, lk-token-budget.
 
-**Work past the context limit.** lk-handoff-guard watches context fill. At 85% by default it asks to write a handoff into `.claude/brain/`, then clears the session and resumes from the handoff. `/handoff mode auto` does it without asking, and `/handoff` writes one now. Pair it with `/budget` to see what a cold prompt cache would cost after a long pause. Uses: lk-handoff-guard, lk-token-budget.
+**Work past the context limit.** lk-handoff-guard watches context fill. At 85% by default it asks to write a handoff into `.claude/brain/`, then clears the session and resumes from the handoff. `/lk-handoff mode auto` does it without asking, and `/lk-handoff` writes one now. Pair it with `/lk-budget` to see what a cold prompt cache would cost after a long pause. Uses: lk-handoff-guard, lk-token-budget.
 
-**Wait on CI without watching it.** `/pr` shows the branch's pull request and its checks; when a check fails, it adds a note naming the check and its run, which Claude reads on its next turn. `/pr add <number>` watches another PR. lk-attention notifies you when Claude then needs you. Uses: lk-pr-watch, lk-attention, and the core's merge gate.
+**Wait on CI without watching it.** `/lk-prs` shows the branch's pull request and its checks; when a check fails, it adds a note naming the check and its run, which Claude reads on its next turn. `/lk-prs add <number>` watches another PR. lk-attention notifies you when Claude then needs you. Uses: lk-pr-watch, lk-attention, and the core's merge gate.
 
-**Keep secrets out of files and commands.** lk-secret-guard scans the new text of every write, edit and shell command, from Claude or a subagent. A credential-shaped string is refused; a weaker match asks you; values are shown masked and never stored. `/secret-guard test <text>` shows what it would do. Uses: lk-secret-guard.
+**Keep secrets out of files and commands.** lk-secret-guard scans the new text of every write, edit and shell command, from Claude or a subagent. A credential-shaped string is refused; a weaker match asks you; values are shown masked and never stored. `/lk-secrets test <text>` shows what it would do. Uses: lk-secret-guard.
 
-**Step away while Claude works.** lk-attention sends a desktop notification and a sound when a permission prompt or a question waits, or when a turn longer than 20 seconds finishes, and keeps them in the `/attention` inbox. lk-where-am-i's line tells you which repo, branch and worktree a session is in when you come back to several. Uses: lk-attention, lk-where-am-i.
+**Step away while Claude works.** lk-attention sends a desktop notification and a sound when a permission prompt or a question waits, or when a turn longer than 20 seconds finishes, and keeps them in the `/lk-attention` inbox. lk-where-am-i's line tells you which repo, branch and worktree a session is in when you come back to several. Uses: lk-attention, lk-where-am-i.
 
 ## Requirements
 
@@ -416,7 +416,7 @@ A spawn past a cap is refused with a message that tells Claude to wait or batch 
 - **lk-attention**: Linux with GNOME, `notify-send`, and `paplay` or `pw-play` for the sound.
 - **lk-pr-watch**: the GitHub CLI, `gh`, signed in.
 - **lk-where-am-i**: the usage-window chips need a Claude subscription; the rest of its line works without one.
-- **Any surface.** No pane is desktop-only. The desktop app, VS Code and mobile draw Svg chips, avatars and bars; the terminal draws the same panes as text. Commands such as `/lk text` and `/agent-map text` print into the transcript where panes don't draw.
+- **Any surface.** No pane is desktop-only. The desktop app, VS Code and mobile draw Svg chips, avatars and bars; the terminal draws the same panes as text. Commands such as `/lk text` and `/lk-agents text` print into the transcript where panes don't draw.
 
 ## Data handling and footprint
 
@@ -439,8 +439,8 @@ Model calls run on your own Claude Code session and spend tokens from your accou
 
 - **The core's kill switch.** `CLAUDE_MODS_DISABLE=loopkeeper` (or `all`) in the environment turns off the core's enforcing hooks: the gates, the growth guard, spawn routing and the Files pane's tracking. The commands still register, so `/lk` can explain the state. It applies to the core only.
 - **An add-on.** The add-ons don't read that variable. Turn one off with `/plugin disable lk-<name>@loopkeeper`, and back on with `/plugin enable lk-<name>@loopkeeper`.
-- **For one session.** `/lk gates off` turns off every gate; `/lk off` turns off GSD mode, which is a different switch. Several add-ons have their own: `/budget off`, `/attention off`, `/secret-guard off`, `/handoff mode off`.
-- **Just the band.** `/lk band off`, `/agent-map band off`, and `band off` after any add-on's command.
+- **For one session.** `/lk gates off` turns off every gate; `/lk off` turns off GSD mode, which is a different switch. Several add-ons have their own: `/lk-budget off`, `/lk-attention off`, `/lk-secrets off`, `/lk-handoff mode off`.
+- **Just the band.** `/lk band off`, `/lk-agents band off`, and `band off` after any add-on's command.
 - **Failing closed.** If a gate hook errors, the call is refused with a message that names both switches above. Spawn routing fails open: on an error the subagent starts with the model it was given.
 
 ## FAQ

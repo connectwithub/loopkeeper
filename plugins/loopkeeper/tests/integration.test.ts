@@ -1,7 +1,7 @@
 // integration.test.ts: every concern live at once (stage, gates, files, routing, review, decisions) through the shared
 // fixture. One long session walks the GSD loop end to end: /lk on, a small task's growth guard, a large task with a
 // file budget, the plan gate and plan material, a plan review that opens the gate, the budget and its Raise, the
-// verifier at Validate, routing by role, a bounded review loop, the ship and merge gates, /files, the decision log and
+// verifier at Validate, routing by role, a bounded review loop, the ship and merge gates, /lk-files, the decision log and
 // the watch. A second session holds the plan gate for the user (a prompt that asks to wait, then approval mode ask).
 // Every step asserts on state or text.
 import { expect, test } from 'claude-code/testing'
@@ -209,8 +209,8 @@ test('one GSD session end to end: every concern live, each step asserted', { tim
   expect((await check($, bash('git push origin main'))).decision).toBe('allow')
   expect(w.asked.slice(asked)).toEqual([MERGE_Q])
 
-  // 12. /files opens the Files pane
-  expect(await $.command.run({ command: 'files', args: '' } as never)).toEqual({})
+  // 12. /lk-files opens the Files pane
+  expect(await $.command.run({ command: 'lk-files', args: '' } as never)).toEqual({})
   expect(w.panes).toEqual(['files'])
 
   // 13. record_decision writes one entry to the decision log
@@ -221,7 +221,7 @@ test('one GSD session end to end: every concern live, each step asserted', { tim
   expect(JSON.parse(entries[0]?.text.trim() ?? '{}')).toMatchObject({ decision: 'Cache in SQLite', why: 'one file, no server', tags: ['storage'], by: 'claude' })
 
   // 14. the decision watch is off by default: a turn that names a decision makes no model.complete call
-  expect(await lk($, 'watch status', 'decide')).toContain('Decision watch off')
+  expect(await lk($, 'watch status', 'lk-decide')).toContain('Decision watch off')
   const prompt = 'Which store should the cache sit on? We talked about Redis and SQLite, and I would rather not run another server.'
   const answer = 'Then we go with SQLite for the cache: one file, no server. I named the table kv_cache and set the default TTL to 60 seconds.'
   w.chat.messages = [

@@ -10,9 +10,9 @@ A loopkeeper add-on for Claude Code that puts a token budget on the session, so 
 
 **Install:** `/plugin install lk-token-budget@loopkeeper`, after `/plugin marketplace add connectwithub/loopkeeper` (more under [Install](#install)). Requires Claude Code 2.1.294 or later.
 
-**Data handling:** it keeps the settings you save with `/budget` and a lifetime token total per project folder in its own plugin store, and the session's counts in session state. It reads `~/.claude/token-budget.json` and `<project>/.claude/token-budget.json`, runs no process and writes no file. Its only model requests are for Keep warm: one small request per press of **Keep warm** or `/budget keepwarm`, and, only after `/budget autowarm on`, a capped number of automatic ones while the session is idle. Each one spends tokens on your account. Nothing else is sent anywhere. It collects no personal data; the saved settings and totals stay until you delete them. Details under [What it runs](#what-it-runs).
+**Data handling:** it keeps the settings you save with `/lk-budget` and a lifetime token total per project folder in its own plugin store, and the session's counts in session state. It reads `~/.claude/token-budget.json` and `<project>/.claude/token-budget.json`, runs no process and writes no file. Its only model requests are for Keep warm: one small request per press of **Keep warm** or `/lk-budget keepwarm`, and, only after `/lk-budget autowarm on`, a capped number of automatic ones while the session is idle. Each one spends tokens on your account. Nothing else is sent anywhere. It collects no personal data; the saved settings and totals stay until you delete them. Details under [What it runs](#what-it-runs).
 
-**Commands:** `/budget` and its options are listed under [Commands](#commands).
+**Commands:** `/lk-budget` and its options are listed under [Commands](#commands).
 
 It counts the tokens in every model request, from the main loop and from each subagent. It shows the running total in a one-line band above the prompt. At a threshold you set, it warns you. Once the budget is spent, it warns, refuses new subagents, or stops tool calls, depending on the action you choose. Each subagent also has its own limit.
 
@@ -56,20 +56,20 @@ claude plugin test .
 
 | Command | What it does |
 | :- | :- |
-| `/budget` | Opens the **Token budget** pane: tiles for **Context** (tokens and fill), **Cache** (warm with time left, cold, or no request yet), **Cold resend** (≈ cost) and **Session cost** (what Claude Code reports); then the budget and action, used and remaining with a bar, the prompt-cache settings and last request, tokens by model, the top 10 subagents, the average per turn and projected turns left, and the lifetime total for this project. **Keep warm** (`w`), **Reset** (`r`) and **Close** (`c`) buttons. |
-| `/budget set <n>` | Sets the session budget. Accepts `500k`, `2m`, `1.5m`, or `1500000`. `0` removes the session limit. |
-| `/budget agent <n>` | Sets the per-subagent budget. `0` turns the per-agent limit off. |
-| `/budget action warn\|deny-agents\|stop` | Sets what happens once the session budget is spent |
-| `/budget warn <0-1>` | Sets the warn level as a fraction of the budget, such as `0.8` (or `80%`) |
-| `/budget reset` | Sets this session's counts back to zero. The lifetime total stays. |
-| `/budget off` / `/budget on` | `off` keeps counting and drawing but never refuses anything or shows the over-budget reminders |
-| `/budget band on\|off` | Shows or hides the band above the prompt |
-| `/budget keepwarm` | Sends one tiny request to refresh the prompt cache (see [Keep warm](#keep-warm)) |
-| `/budget autowarm on\|off` | Turns the [automatic keep-warm](#auto-keep-warm) on or off for every session on this machine. `/budget autowarm` alone prints its state. Off by default. |
-| `/budget pings on\|off` | Turns the cache toasts on or off. The band keeps showing the cache either way. |
-| `/budget text` | Prints a plain-text summary in the transcript, which Claude also reads, with the cache state on its first line |
+| `/lk-budget` | Opens the **Token budget** pane: tiles for **Context** (tokens and fill), **Cache** (warm with time left, cold, or no request yet), **Cold resend** (≈ cost) and **Session cost** (what Claude Code reports); then the budget and action, used and remaining with a bar, the prompt-cache settings and last request, tokens by model, the top 10 subagents, the average per turn and projected turns left, and the lifetime total for this project. **Keep warm** (`w`), **Reset** (`r`) and **Close** (`c`) buttons. |
+| `/lk-budget set <n>` | Sets the session budget. Accepts `500k`, `2m`, `1.5m`, or `1500000`. `0` removes the session limit. |
+| `/lk-budget agent <n>` | Sets the per-subagent budget. `0` turns the per-agent limit off. |
+| `/lk-budget action warn\|deny-agents\|stop` | Sets what happens once the session budget is spent |
+| `/lk-budget warn <0-1>` | Sets the warn level as a fraction of the budget, such as `0.8` (or `80%`) |
+| `/lk-budget reset` | Sets this session's counts back to zero. The lifetime total stays. |
+| `/lk-budget off` / `/lk-budget on` | `off` keeps counting and drawing but never refuses anything or shows the over-budget reminders |
+| `/lk-budget band on\|off` | Shows or hides the band above the prompt |
+| `/lk-budget keepwarm` | Sends one tiny request to refresh the prompt cache (see [Keep warm](#keep-warm)) |
+| `/lk-budget autowarm on\|off` | Turns the [automatic keep-warm](#auto-keep-warm) on or off for every session on this machine. `/lk-budget autowarm` alone prints its state. Off by default. |
+| `/lk-budget pings on\|off` | Turns the cache toasts on or off. The band keeps showing the cache either way. |
+| `/lk-budget text` | Prints a plain-text summary in the transcript, which Claude also reads, with the cache state on its first line |
 
-`/budget` is registered as `immediate`, so you can raise the budget or change the action while Claude is working, including while `stop` is refusing tool calls.
+`/lk-budget` is registered as `immediate`, so you can raise the budget or change the action while Claude is working, including while `stop` is refusing tool calls.
 
 ## Actions
 
@@ -79,9 +79,9 @@ When counted tokens reach `warnAt × session`, the band's budget chip turns to t
 | :- | :- |
 | `warn` (default) | A toast at the end of each turn, the main loop's and each subagent's. Nothing is refused. |
 | `deny-agents` | New subagents are refused (`agent.spawn` returns `deny`), so Claude finishes with what it has. Tool calls still run. |
-| `stop` | Every tool call is refused, and Claude is told to stop and report. Exempt: the plugin's own tools (`mcp__lk-token-budget__*`; it registers none today) and calls raised by your own press in the interface. Slash commands such as `/budget` are commands, not tool calls, so they always run. |
+| `stop` | Every tool call is refused, and Claude is told to stop and report. Exempt: the plugin's own tools (`mcp__lk-token-budget__*`; it registers none today) and calls raised by your own press in the interface. Slash commands such as `/lk-budget` are commands, not tool calls, so they always run. |
 
-The per-agent limit applies whatever the action is. Once a subagent's counted tokens reach `perAgent`, its further tool calls are refused with a message telling it to wrap up and return its result. Other subagents and the main loop aren't affected. `/budget off` and `perAgent: 0` both turn it off.
+The per-agent limit applies whatever the action is. Once a subagent's counted tokens reach `perAgent`, its further tool calls are refused with a message telling it to wrap up and return its result. Other subagents and the main loop aren't affected. `/lk-budget off` and `perAgent: 0` both turn it off.
 
 ## Configuration
 
@@ -89,7 +89,7 @@ Settings merge in this order, later wins:
 
 1. Defaults: `{ "session": 2000000, "perAgent": 400000, "warnAt": 0.8, "action": "warn", "countCacheReads": false, "cacheTtlMinutes": 60, "cacheWarnMinutes": [15, 5, 1], "cachePings": true, "autoKeepWarm": false, "autoKeepWarmMinutes": 3, "autoKeepWarmMax": 6 }`
 2. `~/.claude/token-budget.json`, the same fields for every project (the natural home for `prices` and the cache settings)
-3. What you saved with `/budget` commands, kept in the plugin's `$.store` and shared by every session on the machine
+3. What you saved with `/lk-budget` commands, kept in the plugin's `$.store` and shared by every session on the machine
 4. `<project>/.claude/token-budget.json`, a project override:
 
 ```json
@@ -102,9 +102,9 @@ Settings merge in this order, later wins:
 }
 ```
 
-Token fields take a number or the same `500k` / `2m` strings the commands take. `prices` merges by model family across the files rather than replacing the whole table. Malformed fields are ignored. Because the project file wins, a `/budget set` in a project that has the file says so and shows the value in force.
+Token fields take a number or the same `500k` / `2m` strings the commands take. `prices` merges by model family across the files rather than replacing the whole table. Malformed fields are ignored. Because the project file wins, a `/lk-budget set` in a project that has the file says so and shows the value in force.
 
-The one exception is auto keep-warm, which spends money on its own: a project file can turn it off (`"autoKeepWarm": false`) but not on, and its `autoKeepWarmMinutes` and `autoKeepWarmMax` are ignored, so a repository you clone can't start background requests. Set those keys in `~/.claude/token-budget.json` or with `/budget autowarm`.
+The one exception is auto keep-warm, which spends money on its own: a project file can turn it off (`"autoKeepWarm": false`) but not on, and its `autoKeepWarmMinutes` and `autoKeepWarmMax` are ignored, so a repository you clone can't start background requests. Set those keys in `~/.claude/token-budget.json` or with `/lk-budget autowarm`.
 
 ## Prompt cache
 
@@ -126,26 +126,26 @@ What you see:
 | Band | warm | the chip `● cache warm 54:30 left` in the ok tone, the warn tone under 5 minutes, and `cold resend ≈ $1.60` on the quiet right side. The countdown moves in 30-second steps. |
 | Band | cold | the chip `● cache cold` in the danger tone (a chip, never a fill), and `resend ≈ $1.60` on the right side in the default text color |
 | Band | before the first request, or after a compaction | a muted chip, `● cache: no request yet` or `● cache compacted` with `next request starts fresh` on the right |
-| Toast | at each of `cacheWarnMinutes` (15, 5 and 1 by default), once per warm window | `Prompt cache goes cold in 5 min; a resend after that costs ≈ $1.60 (200k tokens at $8/MTok). Keep warm: /budget keepwarm, or w on the band.` |
+| Toast | at each of `cacheWarnMinutes` (15, 5 and 1 by default), once per warm window | `Prompt cache goes cold in 5 min; a resend after that costs ≈ $1.60 (200k tokens at $8/MTok). Keep warm: /lk-budget keepwarm, or w on the band.` |
 | Toast | once, when the timer sees it go cold | `Prompt cache went cold. The next send re-writes the context, ≈ $1.60 (200k tokens at $8/MTok).` |
 | Transcript line and toast | you send a prompt while it's cold | `Cache cold: this prompt re-writes 200k tokens of context at the cache-write price, ≈ $1.60.` The prompt is never held back. Slash commands don't count. |
 | Transcript line (dim) | each automatic keep-warm, when it's on | `auto keep-warm 1/6: cache refreshed for 60 min · read 200k · wrote 30 · ≈ $0.04` |
 
-A toast lasts 4 seconds, so the band carries the same state for as long as it holds. `/budget pings off` turns the toasts off. While auto keep-warm is on and can still act in the current window, the pings are skipped, because it will refresh the cache itself; they come back when it can't (see below).
+A toast lasts 4 seconds, so the band carries the same state for as long as it holds. `/lk-budget pings off` turns the toasts off. While auto keep-warm is on and can still act in the current window, the pings are skipped, because it will refresh the cache itself; they come back when it can't (see below).
 
 ### Keep warm
 
-**Keep warm** on the band (focus it and press `w`), on the pane (`w`), or `/budget keepwarm` sends one `$.model.fork` of the conversation with the prompt `Reply with the single word ok.`; the fork takes only a prompt, so the short prompt is what keeps the reply tiny. The fork repeats the main conversation's last request, so the API reads the cached prefix and its lifetime starts over. It costs one tiny request: the prefix at the cache-read price plus a few tokens, logged as a dim transcript line such as `keep-warm: cache refreshed for 60 min · read 200k · wrote 30 · ≈ $0.04`.
+**Keep warm** on the band (focus it and press `w`), on the pane (`w`), or `/lk-budget keepwarm` sends one `$.model.fork` of the conversation with the prompt `Reply with the single word ok.`; the fork takes only a prompt, so the short prompt is what keeps the reply tiny. The fork repeats the main conversation's last request, so the API reads the cached prefix and its lifetime starts over. It costs one tiny request: the prefix at the cache-read price plus a few tokens, logged as a dim transcript line such as `keep-warm: cache refreshed for 60 min · read 200k · wrote 30 · ≈ $0.04`.
 
 Unless you turn on [auto keep-warm](#auto-keep-warm), the plugin sends nothing on a timer. A keep-warm pressed after the cache has already gone cold pays the full cold write itself (the logged cost shows it). If the fork has nothing to fork yet, fails, or is refused, a toast says `keep-warm got no reply` with the reason, and the timer is left alone.
 
 ### Auto keep-warm
 
-Off by default. `/budget autowarm on` (or `"autoKeepWarm": true` in `~/.claude/token-budget.json`) lets the 30-second cache timer send the same keep-warm fork on its own when `autoKeepWarmMinutes` (3) are left, so the cache stays warm while you're away. Each refresh starts a new warm window, so with the 60-minute lifetime it fires every 57 minutes.
+Off by default. `/lk-budget autowarm on` (or `"autoKeepWarm": true` in `~/.claude/token-budget.json`) lets the 30-second cache timer send the same keep-warm fork on its own when `autoKeepWarmMinutes` (3) are left, so the cache stays warm while you're away. Each refresh starts a new warm window, so with the 60-minute lifetime it fires every 57 minutes.
 
 **Caps.** At most `autoKeepWarmMax` (6) automatic refreshes per idle stretch. An idle stretch runs from the start of one turn to the start of the next, so an abandoned session stops refreshing: with the defaults, 6 refreshes keep the cache warm for about 6.7 hours after your last turn (6 × 57 minutes, plus the last 60), then it goes cold as usual. Your next turn starts a new stretch with a fresh count. A manual Keep warm doesn't reset the count. With a 5-minute lifetime, `autoKeepWarmMinutes` must be under it (such as `1`, which refreshes every 4 minutes); raise `autoKeepWarmMax` to cover a longer wait.
 
-**Cost.** One refresh is one tiny request: the context at the cache-read price plus a few tokens, such as 200k tokens on `opus-5-5` at $0.20/MTok ≈ $0.04. Six refreshes cost ≈ $0.24, against ≈ $1.60 for one cold resend of the same context. Each refresh logs a dim transcript line with what it read, wrote and cost, and the 6th says the cap is reached. `/budget autowarm on` prints the estimate per refresh at your current context. These requests go through `$.model.fork`, not the main loop, so they aren't counted against the token budget; the logged costs are the record.
+**Cost.** One refresh is one tiny request: the context at the cache-read price plus a few tokens, such as 200k tokens on `opus-5-5` at $0.20/MTok ≈ $0.04. Six refreshes cost ≈ $0.24, against ≈ $1.60 for one cold resend of the same context. Each refresh logs a dim transcript line with what it read, wrote and cost, and the 6th says the cap is reached. `/lk-budget autowarm on` prints the estimate per refresh at your current context. These requests go through `$.model.fork`, not the main loop, so they aren't counted against the token budget; the logged costs are the record.
 
 **Worst case.** The lifetime is only assumed. If the real cache lapsed sooner, or `/model` changed the model, an automatic fork pays the full cache write, the same as a cold resend. When a fork writes more than it reads, the plugin logs and toasts `auto keep-warm 1/6: the fork re-wrote the cache instead of reading it (…); auto keep-warm stops until the next turn.` So it pays at most one such write per idle stretch.
 
@@ -154,14 +154,14 @@ Off by default. `/budget autowarm on` (or `"autoKeepWarm": true` in `~/.claude/t
 - while a turn is running, from `turn.start` until its `turn.complete`. A turn waiting on a long tool call or a permission prompt counts as running, so the cache can go cold during that wait.
 - after a compaction, until the next request, because there is nothing to re-warm
 - once the cache is already cold, because that would pay the full write
-- once enforcement is on and the session budget is spent (`/budget` shows `paused: session budget spent`)
+- once enforcement is on and the session budget is spent (`/lk-budget` shows `paused: session budget spent`)
 - after an automatic fork that got no reply or failed. It toasts and logs `auto keep-warm got no reply (…); no retry before the cache goes cold` (or `auto keep-warm failed: …`) and tries once per warm window.
 - while a keep-warm fork is still running. A fork that is still running when a turn starts counts toward the stretch that ended, not the new one, and its line reads like a manual `keep-warm:` line.
-- when `autoKeepWarmMinutes` isn't under `cacheTtlMinutes`. `/budget autowarm` says so.
+- when `autoKeepWarmMinutes` isn't under `cacheTtlMinutes`. `/lk-budget autowarm` says so.
 
 When it can't act in the current window (any of the cases above, or the cap reached), the 15/5/1-minute pings come back, so you still hear before the cache goes cold.
 
-**Machine-wide.** `/budget autowarm on` is saved in the plugin's `$.store`, so every idle session on this machine refreshes, each up to its own cap. The pane's **Prompt cache** section shows `auto keep-warm on|off` and a line like `on · at 3 min left · 1 of 6 this idle stretch`. `/budget text` and `/budget autowarm` print the same line.
+**Machine-wide.** `/lk-budget autowarm on` is saved in the plugin's `$.store`, so every idle session on this machine refreshes, each up to its own cap. The pane's **Prompt cache** section shows `auto keep-warm on|off` and a line like `on · at 3 min left · 1 of 6 this idle stretch`. `/lk-budget text` and `/lk-budget autowarm` print the same line.
 
 ### Prices
 
@@ -197,7 +197,7 @@ On `/resume` and `/branch`, the `SessionStart` payload can carry `seconds_since_
 - **What counts**: `input_tokens + output_tokens + cache_creation_input_tokens`, plus `cache_read_input_tokens` only when `countCacheReads` is `true`. Cache reads are tracked and shown either way.
 - **Breakdowns**: by model (from `usage.model`, falling back to the request's model) and by agent (`agentId`, or `main`). Requests are counted, and so are main-loop turns. A main-loop turn's tokens go into a history of the last 50 turns, which gives the average per turn and the projected turns left.
 - **Context**: `ctx` in the band is the context window fill from `$.session.usage()`, read after each main-loop turn. It's left out when Claude Code doesn't report it.
-- **Lifetime**: counted tokens are also added to a lifetime total for each project directory, kept in `$.store` under `lifetime:<cwd>`. It's shown for information only, never enforced, and `/budget reset` leaves it alone.
+- **Lifetime**: counted tokens are also added to a lifetime total for each project directory, kept in `$.store` under `lifetime:<cwd>`. It's shown for information only, never enforced, and `/lk-budget reset` leaves it alone.
 - **Where counts live**: in `$.state`, so they survive a hot reload of the plugin. A new session (a different session id at `session.start`) starts from zero, and so do `/clear`, `/resume`, and `/branch`, because Claude Code resets `$.state` for those.
 
 ## Limits
@@ -217,11 +217,11 @@ On `/resume` and `/branch`, the `SessionStart` payload can carry `seconds_since_
 
 `claude plugin validate --strict .` lists the footprint:
 
-- **Hooks**: `session.start`, `classic.SessionStart` (`/clear`, `/resume`, `/branch`), `session.compact`, `prompt.submit`, `session.end`, `turn.step`, `turn.start`, `turn.complete`, `agent.spawn`, `tool.call`, `command.run` (`/budget`), and `ui.render` for the band and the pane.
+- **Hooks**: `session.start`, `classic.SessionStart` (`/clear`, `/resume`, `/branch`), `session.compact`, `prompt.submit`, `session.end`, `turn.step`, `turn.start`, `turn.complete`, `agent.spawn`, `tool.call`, `command.run` (`/lk-budget`), and `ui.render` for the band and the pane.
 - **Processes**: none. It runs no shell command and starts no program.
 - **Files**: reads `~/.claude/token-budget.json` (found through `HOME`, the only environment variable it reads) and `<project>/.claude/token-budget.json`. It writes no file.
-- **Stored data**: settings saved with `/budget` and the lifetime totals per project, in the plugin's `$.store`; the session's counts in `$.state`.
-- **Model calls**: `$.model.fork` for Keep warm only: one tiny request per press of Keep warm or `/budget keepwarm`, and, only after `/budget autowarm on`, up to `autoKeepWarmMax` automatic ones per idle stretch. **Each one spends tokens** (the context at the cache-read price, or the full cache write if the cache already lapsed) and is logged with its cost. Nothing else is sent anywhere.
+- **Stored data**: settings saved with `/lk-budget` and the lifetime totals per project, in the plugin's `$.store`; the session's counts in `$.state`.
+- **Model calls**: `$.model.fork` for Keep warm only: one tiny request per press of Keep warm or `/lk-budget keepwarm`, and, only after `/lk-budget autowarm on`, up to `autoKeepWarmMax` automatic ones per idle stretch. **Each one spends tokens** (the context at the cache-read price, or the full cache write if the cache already lapsed) and is logged with its cost. Nothing else is sent anywhere.
 - **Timers**: one 30-second `$.clock.every` for the cache countdown.
 
 ## Notes for directory reviewers
@@ -229,13 +229,13 @@ On `/resume` and `/branch`, the `SessionStart` payload can carry `seconds_since_
 The directory's validator listed these items for this plugin. Each bullet says what the code does and where.
 
 - **The `agent.spawn` hook** (policy hold `MOD_ANSWERS_PERMISSION`). The hook in `hooks/register.ts` (line 692) refuses a new subagent only when the user has turned enforcement on with the action `deny-agents` and the session budget is spent: it then returns `{ deny: … }` with a message that says how to raise the budget. In every other case it returns `next(e)` unchanged. It never allows a spawn on the user's behalf, never changes the agent, and never sets a permission mode. The `tool.call` hook (line 707) works the same way for the action `stop`, and for a subagent past the per-agent limit; calls of the plugin's own tools and calls that carry a `consent` value (a call the user started with a press) are never refused. The declaration the finding describes is `const next` in `flushLifetime()` (line 194): a local number holding the new lifetime total, unrelated to the hook's `next`.
-- **"Uses a credential from the user's machine"** (policy hold `MCP_FORWARDS_CREDENTIAL_ENV`). No credential is read or sent; the two names the check paired are not one. `tokensText` in `hooks/cache.ts` (line 175) formats a token count for display (`240k`, `1.2M`). `http://www.w3.org/2000/svg` in `hooks/kit.ts` is the SVG namespace inside the markup the UI kit draws, not a request. The plugin starts no programs and opens no connection. The one request it makes is Keep warm, `$.model.fork({ prompt: KEEP_WARM_PROMPT })` (line 397), whose prompt is `Reply with the single word ok.` (line 92): a fork of the user's own conversation through Claude Code, sent when the user presses Keep warm or runs `/budget keepwarm`, and on the 30-second timer only after the user runs `/budget autowarm on`.
+- **"Uses a credential from the user's machine"** (policy hold `MCP_FORWARDS_CREDENTIAL_ENV`). No credential is read or sent; the two names the check paired are not one. `tokensText` in `hooks/cache.ts` (line 175) formats a token count for display (`240k`, `1.2M`). `http://www.w3.org/2000/svg` in `hooks/kit.ts` is the SVG namespace inside the markup the UI kit draws, not a request. The plugin starts no programs and opens no connection. The one request it makes is Keep warm, `$.model.fork({ prompt: KEEP_WARM_PROMPT })` (line 397), whose prompt is `Reply with the single word ok.` (line 92): a fork of the user's own conversation through Claude Code, sent when the user presses Keep warm or runs `/lk-budget keepwarm`, and on the 30-second timer only after the user runs `/lk-budget autowarm on`.
 - **Fields in `plugin.json`** (warnings `UNKNOWN_KEY`). `documentationUrl` and `supportUrl` are listing fields the directory reads. `types` points at `types/index.d.ts`, the `$.state` contract that `claude plugin validate` checks. Claude Code ignores all three at load time.
 - **Icon** (warning `UNREAD_ASSET_REFERENCED`, in this README; earlier `ICON_MISSING`). The icon is `.claude-plugin/icon.png` (512 × 512); its source is `docs/assets/icons/lk-token-budget.svg` in the repo. This README names the two files only to say where the icon is. They are images; no hook, script or setting loads or runs them.
 - **Calls named in text** (note `MOD_CALL_NAMED_IN_TEXT`). `agent.spawn`, `tool.call`, `command.run` and `prompt.submit` are named in the header comment of `hooks/register.ts` (lines 7–15), which lists the hooks, and `tool.call` again in a comment at line 712.
-- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/budget`, at session start (line 575). It registers no tools or agents.
+- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/lk-budget`, at session start (line 575). It registers no tools or agents.
 - **Classic hook** (note `MOD_HOOKS_POLICY_EVENT`). `classic.SessionStart` with source `clear`, `resume` or `fork` (line 590) loads the config again, takes the time since the last response, the model and the context size from a resumed session's event for the cache clock, and restarts the timer. It returns `next(e)` unchanged and alters nothing that passes through it. The other mention is the comment at line 105.
-- **Hooks on events that are also calls** (note `MOD_HOOKS_OPERATION`). `session.compact` (line 608) returns what `next(e)` gave back unchanged, then marks the cache as rewritten so no keep-warm is offered. `prompt.submit` (line 622) passes every prompt on unchanged; when the cache is cold by its clock it writes a transcript line (`$.ui.log`, not sent to the model) and a toast with the cost of the re-write. `command.run` (line 731) has the matcher `{ command: 'budget' }` and runs only for `/budget`. None of them makes the call it hooks.
+- **Hooks on events that are also calls** (note `MOD_HOOKS_OPERATION`). `session.compact` (line 608) returns what `next(e)` gave back unchanged, then marks the cache as rewritten so no keep-warm is offered. `prompt.submit` (line 622) passes every prompt on unchanged; when the cache is cold by its clock it writes a transcript line (`$.ui.log`, not sent to the model) and a toast with the cost of the re-write. `command.run` (line 731) has the matcher `{ command: 'lk-budget' }` and runs only for `/lk-budget`. None of them makes the call it hooks.
 
 ## Files
 

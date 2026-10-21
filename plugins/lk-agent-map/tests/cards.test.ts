@@ -14,7 +14,7 @@ import type { Usage, World } from './fixtures'
 const SURFACES = ['terminal', 'desktop'] as const
 /** Equal to a billionth of a dollar (float sums). */
 const near = (x: number | null | undefined, y: number) => typeof x === 'number' && Math.abs(x - y) < 1e-9
-const cmd = async ($: any, args: string) => (await $.command.run({ command: 'agent-map', args })).text as string
+const cmd = async ($: any, args: string) => (await $.command.run({ command: 'lk-agents', args })).text as string
 
 /** fixtures.step with the request's effort on the turn.step input. */
 async function stepWith($: any, world: World, agentId: string, u: Usage, effort?: string) {
@@ -284,7 +284,7 @@ test('the view buttons switch between cards, tree and team, and the choice is sa
   const world = setup(on)
   await start($)
   await spawn($, { toolUseId: 'tu-1', description: 'lead', type: 'general-purpose', model: 'opus' })
-  // Nothing chosen: the pane draws cards, /agent-map text prints the tree
+  // Nothing chosen: the pane draws cards, /lk-agents text prints the tree
   expect((await cmd($, 'text')).split('\n')[0]).toBe('main (orchestrator) · 0 tok · 1 tools')
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ key: 'card-agent-tu-1' })).toBeDefined()
@@ -310,7 +310,7 @@ test('the view buttons switch between cards, tree and team, and the choice is sa
 
   expect(await cmd($, 'view team')).toBe('Agent map: team view')
   expect((await cmd($, 'text')).split('\n')[0]).toBe('team of main: 1 running · 0 done')
-  expect(await cmd($, 'view')).toContain('Usage: /agent-map')
+  expect(await cmd($, 'view')).toContain('Usage: /lk-agents')
 })
 
 for (const [stored, shown] of [[{ view: 'tree' }, 'cards'], [{ view: 'cards', view2: 'team' }, 'team']] as const) {
@@ -436,7 +436,7 @@ test('the team view is a list of top-level lanes one row apart; each lane is a t
   const textOf = (n: N): string =>
     all(n).map(c => (c.type === 'Button' ? String(c.props.label) : c.type === 'Text' ? ((c.children ?? c.props.children ?? []) as unknown[]).join('') : '')).join('')
   // The command picks the team view and merges $.agent.list(), so the teammate appears
-  expect((await $.command.run({ command: 'agent-map', args: 'team' })).text).toBe('Agent map: team view')
+  expect((await $.command.run({ command: 'lk-agents', args: 'team' })).text).toBe('Agent map: team view')
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...PANE, surface })
     const [, body] = kids((await ui.drawn()) as N)

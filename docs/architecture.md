@@ -54,10 +54,10 @@ Hooks of one event run in registration order, the first outermost. That order is
 | --- | --- |
 | `plugins/loopkeeper/hooks/stage.ts` | The stage machine: moves, sizing, approvals, the plan verdict, the growth guard, the `set_stage` tool, the `review_cycle` wrapper, the stage band and pane, the hub's frame and Stage row, continue after approval, the stage's `/lk` words (`/lk` alone, `/lk stage`, `/lk help` among them). |
 | `plugins/loopkeeper/hooks/gates.ts` | The gates: plan gate, files per turn, protected paths, ship gate, merge gate, amend and add-all rules, the Bash write targets, the gates band and pane, `/lk gates`. Fails closed. |
-| `plugins/loopkeeper/hooks/files.ts` | The Files pane and `/files`: what Claude read and edited, the project tree, git status, the Files band line. |
+| `plugins/loopkeeper/hooks/files.ts` | The Files pane and `/lk-files`: what Claude read and edited, the project tree, git status, the Files band line. |
 | `plugins/loopkeeper/hooks/routing.ts` | Subagent routing (`agent.spawn`), GSD mode and the loop, the loop rules block (`prompt.context`), the routing band and pane, `/lk routes`, `/lk route`, `/lk explain`. |
-| `plugins/loopkeeper/hooks/review.ts` | The review loops: `review_cycle`, `review_item`, `review_status`, `/reviews`, the review band and pane, the review log. |
-| `plugins/loopkeeper/hooks/decisions.ts` | The decision log: `record_decision`, `/decide`, `/decisions`, the decision watch, the decisions band and pane. |
+| `plugins/loopkeeper/hooks/review.ts` | The review loops: `review_cycle`, `review_item`, `review_status`, `/lk-reviews`, the review band and pane, the review log. |
+| `plugins/loopkeeper/hooks/decisions.ts` | The decision log: `record_decision`, `/lk-decide`, `/lk-decisions`, the decision watch, the decisions band and pane. |
 
 Each concern also draws its own row of the hub and puts the nav row first in its pane.
 

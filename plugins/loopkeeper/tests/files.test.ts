@@ -260,7 +260,7 @@ test('badges: live first, then Created, Edited, Not committed, Searched, Opened'
 test('outside a git repository the pane draws no branch line; inside one it says clean', async ($, on) => {
   world(on, { dirs: DIRS, run: argv => (argv[1] === 'status' ? { exitCode: 128, stdout: '', stderr: 'fatal: not a git repository' } : undefined) })
   await start($)
-  await $.command.run({ command: 'files', args: '' } as never)
+  await $.command.run({ command: 'lk-files', args: '' } as never)
   const ui = await $.ui.mount(FILES)
   expect(await ui.find({ type: 'Text', text: /clean, nothing changed|changed$/ })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: 'PROJECT' })).toBeDefined()
@@ -271,7 +271,7 @@ test('outside a git repository the pane draws no branch line; inside one it says
 test('the tree: folders first, hidden entries hidden, lazy expand and collapse, sizes, hidden toggle, up and back', { timeoutMs: 20_000 }, async ($, on) => {
   const w = world(on, { dirs: DIRS, stats: { [`${CWD}/src/index.ts`]: OCT_9 } })
   await start($)
-  await $.command.run({ command: 'files', args: '' } as never)
+  await $.command.run({ command: 'lk-files', args: '' } as never)
   expect(w.listed).toEqual([CWD])
   const ui = await $.ui.mount(FILES)
   expect(await ui.find({ type: 'Text', text: 'clean, nothing changed' })).toBeDefined()
@@ -330,7 +330,7 @@ test('Find a file filters touched rows and loaded entries, and opens folders tha
   await start($)
   await $.tool.call({ tool: 'Read', file_path: `${CWD}/src/lib/util.ts` } as never)
   await $.tool.call({ tool: 'Read', file_path: `${CWD}/README.md` } as never)
-  await $.command.run({ command: 'files', args: '' } as never)
+  await $.command.run({ command: 'lk-files', args: '' } as never)
   const ui = await $.ui.mount(FILES)
   await ui.press({ key: dirKey(`${CWD}/src`) })
   await ui.press({ key: dirKey(`${CWD}/src/lib`) })
@@ -362,7 +362,7 @@ test('the pane validates on both surfaces and Refresh lists the folders and read
   const w = world(on, { dirs: DIRS })
   await start($)
   await $.tool.call({ tool: 'Read', file_path: `${CWD}/README.md` } as never)
-  await $.command.run({ command: 'files', args: '' } as never)
+  await $.command.run({ command: 'lk-files', args: '' } as never)
   const gitRuns = () => w.processes.filter(p => p.join(' ') === 'git status --porcelain').length
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...FILES, surface } as never)
@@ -385,7 +385,7 @@ test('the pane validates on both surfaces and Refresh lists the folders and read
 test('a folder that cannot be listed says so', async ($, on) => {
   world(on, { dirs: { [CWD]: [{ name: 'locked', kind: 'dir' }] } })
   await start($)
-  await $.command.run({ command: 'files', args: '' } as never)
+  await $.command.run({ command: 'lk-files', args: '' } as never)
   const ui = await $.ui.mount(FILES)
   await ui.press({ key: dirKey(`${CWD}/locked`) })
   expect(await ui.find({ type: 'Text', text: /^cannot list: / })).toBeDefined()
@@ -445,11 +445,11 @@ test('the files band line draws the same on the terminal and the desktop, in the
   expect(lines[0]).toContain('● 2 touched')
 })
 
-test('/files is registered to run mid-turn; /files and /lk gates files open the pane, titled Files', async ($, on) => {
+test('/lk-files is registered to run mid-turn; /lk-files and /lk gates files open the pane, titled Files', async ($, on) => {
   const { w, opened } = linked(on)
   await start($)
-  expect(w.commands.find(c => c.name === 'files')).toMatchObject({ name: 'files', immediate: true })
-  expect(await $.command.run({ command: 'files', args: '' } as never)).toEqual({})
+  expect(w.commands.find(c => c.name === 'lk-files')).toMatchObject({ name: 'lk-files', immediate: true })
+  expect(await $.command.run({ command: 'lk-files', args: '' } as never)).toEqual({})
   expect(await $.command.run({ command: 'lk', args: 'gates files' } as never)).toEqual({})
   expect(await $.command.run({ command: 'loopkeeper', args: 'gates files' } as never)).toEqual({})
   expect(w.panes).toEqual(['files', 'files', 'files'])
@@ -569,7 +569,7 @@ test("the gates' noteBashWrites records a Bash write as the Files model's noteEd
   expect(viaGates.touched[0]).toMatchObject({ id: 'a.txt', read: true, edited: true, created: false, tool: 'Bash' })
 })
 
-test('CLAUDE_MODS_DISABLE=loopkeeper: nothing is tracked and no band line is drawn, but /files still opens', async ($, on) => {
+test('CLAUDE_MODS_DISABLE=loopkeeper: nothing is tracked and no band line is drawn, but /lk-files still opens', async ($, on) => {
   const w = world(on, { env: { CLAUDE_MODS_DISABLE: 'loopkeeper' } })
   await start($)
   expect(await $.tool.call({ tool: 'Read', file_path: `${CWD}/a.ts` } as never)).toEqual({ result: 'ran' })
@@ -579,7 +579,7 @@ test('CLAUDE_MODS_DISABLE=loopkeeper: nothing is tracked and no band line is dra
   const band = await $.ui.mount(BAND)
   expect(await band.find({ type: 'Text', text: / touched$/ })).toBeUndefined()
   await band.unmount()
-  expect(await $.command.run({ command: 'files', args: '' } as never)).toEqual({})
+  expect(await $.command.run({ command: 'lk-files', args: '' } as never)).toEqual({})
   expect(w.panes).toEqual(['files'])
   const ui = await $.ui.mount(FILES)
   expect(await ui.find({ type: 'Text', text: '0 FILES' })).toBeDefined()
@@ -639,7 +639,7 @@ async function touchSome($: any) {
   await $.tool.call({ tool: 'Read', file_path: `${CWD}/tests/client.test.js` } as never)
   await $.tool.call(editCall(`${CWD}/src/index.ts`) as never)
   await $.tool.call({ tool: 'Grep', pattern: 'TODO', path: `${CWD}/src` } as never)
-  await $.command.run({ command: 'files', args: '' } as never)
+  await $.command.run({ command: 'lk-files', args: '' } as never)
 }
 
 test('kit v3 desktop: RIGHT NOW hero with icons, branch row and legend; type badges; pills that never shrink', async ($, on) => {
@@ -750,7 +750,7 @@ test('kit v3: no Text draws an absolute path from outside the project; a file un
   await start($)
   await $.tool.call({ tool: 'Read', file_path: `${HOME}/notes/todo.md` } as never)
   await $.tool.call({ tool: 'Grep', pattern: 'host', path: '/etc' } as never)
-  await $.command.run({ command: 'files', args: '' } as never)
+  await $.command.run({ command: 'lk-files', args: '' } as never)
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({ ...FILES, surface } as never)
     const texts = nodesOf(await ui.drawn()).filter(n => n.type === 'Text').map(n => textOf(n))
@@ -766,7 +766,7 @@ test(`kit v3 desktop: the tree draws at most ${TREE_SVG_CAP} Svg pictures, then 
   const many = Array.from({ length: TREE_SVG_CAP + 20 }, (_, i) => ({ name: `f${String(i).padStart(3, '0')}.ts`, kind: 'file' as const, size: 1, mtimeMs: OCT_9 }))
   world(on, { dirs: { [CWD]: many } })
   await start($)
-  await $.command.run({ command: 'files', args: '' } as never)
+  await $.command.run({ command: 'lk-files', args: '' } as never)
   const ui = await $.ui.mount({ ...FILES, surface: 'desktop' } as never)
   expect(altsIn(await ui.drawn()).filter(a => a === 'TS')).toHaveLength(TREE_SVG_CAP)
   const last = await ui.find({ key: `files-row:file:${CWD}/f${TREE_SVG_CAP + 19}.ts` })
@@ -871,13 +871,13 @@ test('with CLAUDE_MODS_DISABLE=loopkeeper the hub row says nothing is tracked', 
   await ui.unmount()
 })
 
-test('opening the Files pane preloads it (folders and git): from /files and from a nav bar; another pane does not', async ($, on) => {
+test('opening the Files pane preloads it (folders and git): from /lk-files and from a nav bar; another pane does not', async ($, on) => {
   const w = linked(on).w
   await start($)
   await lk($, 'gates')
   expect(w.listed).toEqual([])
   expect(gitRunsOf(w)).toBe(0)
-  await $.command.run({ command: 'files', args: '' } as never)
+  await $.command.run({ command: 'lk-files', args: '' } as never)
   expect(w.listed).toContain(CWD)
   expect(gitRunsOf(w)).toBe(1)
   const gates = await $.ui.mount({ ...FILES, requestId: 'loopkeeper-gates', props: { ...FILES.props, title: 'Gates' } } as never)

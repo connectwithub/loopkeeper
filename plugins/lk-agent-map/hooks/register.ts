@@ -113,7 +113,7 @@ import { PRICES, mergePrices } from './prices'
 
 const PANE = 'agent-map'
 const TITLE = 'Agent map'
-const COMMAND = 'agent-map'
+const COMMAND = 'lk-agents'
 const BAND_KEY = 'band'
 
 const agentsAtom = atom({ plugin: 'lk-agent-map', key: 'agents' } as const, {} as Record<string, AgentRecord>)
@@ -384,7 +384,7 @@ async function readText($: Api, path: string): Promise<string | undefined> {
 
 /**
  * The caps: defaults, then the plugin's settings (its /config rows, read live), then
- * ~/.claude/agent-map.json, then <cwd>/.claude/agent-map.json, then what /agent-map cap saved.
+ * ~/.claude/agent-map.json, then <cwd>/.claude/agent-map.json, then what /lk-agents cap saved.
  * The same files' `prices` objects lay over the price table by family.
  */
 async function loadCaps($: Api): Promise<void> {
@@ -416,7 +416,7 @@ async function loadCaps($: Api): Promise<void> {
     { source: 'settings', over: settingsCaps(settingValues(rows, regOptions)) },
     { source: 'user file', over: userFile },
     { source: 'project file', over: projectFile },
-    { source: 'saved (/agent-map cap)', over: saved },
+    { source: 'saved (/lk-agents cap)', over: saved },
   ])
   await update($, capsAtom, () => caps)
   await update($, capSourcesAtom, () => sources)
@@ -445,7 +445,7 @@ async function loadView($: Api): Promise<void> {
     const v = await $.store.get(VIEW_KEY)
     if (typeof v === 'string' && (VIEWS as readonly string[]).includes(v)) await update($, viewAtom, () => v as PaneView)
   } catch {
-    // Keep the default: cards in the pane, the tree in /agent-map text
+    // Keep the default: cards in the pane, the tree in /lk-agents text
   }
 }
 
@@ -580,9 +580,9 @@ async function openOnFirstSpawn($: Api): Promise<void> {
   await update($, everAtom, () => true)
   try {
     const placed = await $.ui.open({ id: PANE, title: TITLE })
-    if (!placed || placed.isPlaced !== true) await $.ui.toast('Subagents started: /agent-map shows the map')
+    if (!placed || placed.isPlaced !== true) await $.ui.toast('Subagents started: /lk-agents shows the map')
   } catch {
-    // A pane that can't open leaves the band and /agent-map text
+    // A pane that can't open leaves the band and /lk-agents text
   }
 }
 
@@ -753,7 +753,7 @@ async function noteStop($: Api, e: unknown, r: unknown, caller: string): Promise
   await logEvent($, target, 'stopped', 'by ' + by)
 }
 
-const USAGE = 'Usage: /agent-map [clear | band on | band off | text | cards | tree | team | view <cards|tree|team> | log | cap <kind> <n> | cap reset [kind]]'
+const USAGE = 'Usage: /lk-agents [clear | band on | band off | text | cards | tree | team | view <cards|tree|team> | log | cap <kind> <n> | cap reset [kind]]'
 
 function capsText(c: CapConfig, counters: CapCounters, running: number): string {
   const v = (n: number) => (n > 0 ? String(n) : 'off')
@@ -764,7 +764,7 @@ function capsText(c: CapConfig, counters: CapCounters, running: number): string 
   )
 }
 
-/** One cap's value as /agent-map cap says it: `90%`, `200k tok`, `1500 ms`, `6`; `off` for 0. */
+/** One cap's value as /lk-agents cap says it: `90%`, `200k tok`, `1500 ms`, `6`; `off` for 0. */
 function shownCap(caps: CapConfig, kind: CapCommandKind): string {
   if (kind === 'warn') return Math.round(caps.warnAt * 100) + '%'
   if (kind === 'grace') return caps.waitGraceMs === 0 ? '0 ms (waits show at once)' : caps.waitGraceMs + ' ms'
@@ -783,7 +783,7 @@ async function savedCaps($: Api): Promise<Record<string, unknown>> {
   return {}
 }
 
-/** `/agent-map cap reset [kind]`: drops that kind's saved override (every one without a kind) and loads the caps again. */
+/** `/lk-agents cap reset [kind]`: drops that kind's saved override (every one without a kind) and loads the caps again. */
 async function resetCap($: Api, args: string[]): Promise<string> {
   const r = parseCapReset(args)
   if ('error' in r) return r.error
@@ -815,7 +815,7 @@ async function setCap($: Api, args: string[]): Promise<string> {
     // Kept for this session only
   }
   await update($, capsAtom, (c: CapConfig) => mergeCaps(c, { [key]: cmd.value }))
-  await update($, capSourcesAtom, (s: CapSources) => ({ ...s, [key]: 'saved (/agent-map cap)' }))
+  await update($, capSourcesAtom, (s: CapSources) => ({ ...s, [key]: 'saved (/lk-agents cap)' }))
   return 'agent-map: ' + cmd.kind + ' cap set to ' + shownCap(await read($, capsAtom), cmd.kind)
 }
 
@@ -1130,7 +1130,7 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  on('command.run', { command: 'agent-map' }, async ($, e) => {
+  on('command.run', { command: 'lk-agents' }, async ($, e) => {
     const args = (str(e, 'args') ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean)
     const verb = args[0] ?? ''
     await reconcileList($).catch(() => undefined)

@@ -25,17 +25,17 @@ export const DEFAULTS: Config = {
 
 export const HELP = [
   'attention: tells you when Claude needs you or finished something long.',
-  '  /attention              open the inbox pane',
-  '  /attention text         print the inbox',
-  '  /attention on|off       everything on or off',
-  '  /attention sound on|off the sound',
-  '  /attention native on|off  the desktop notification',
-  '  /attention band on|off  the line above the prompt',
-  '  /attention long <ms>    how long a turn must run to notify (20000, 20s, 2m)',
-  '  /attention subagents on|off  permission waits from subagents too',
-  '  /attention signal dialog|grace  what raises a permission wait (default dialog)',
-  '  /attention grace <ms>   how long an ask must stay unanswered before it notifies (4000, 4s)',
-  '  /attention test         send a test event through every channel',
+  '  /lk-attention                      open the inbox pane',
+  '  /lk-attention text                 print the inbox',
+  '  /lk-attention on|off               everything on or off',
+  '  /lk-attention sound on|off         the sound',
+  '  /lk-attention native on|off        the desktop notification',
+  '  /lk-attention band on|off          the line above the prompt',
+  '  /lk-attention long <ms>            how long a turn must run to notify (20000, 20s, 2m)',
+  '  /lk-attention subagents on|off     permission waits from subagents too',
+  '  /lk-attention signal dialog|grace  what raises a permission wait (default dialog)',
+  '  /lk-attention grace <ms>           how long an ask must stay unanswered before it notifies (4000, 4s)',
+  '  /lk-attention test                 send a test event through every channel',
 ].join('\n')
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -186,7 +186,7 @@ export function rowText(ev: AttentionEvent): string {
   return `${mark} ${clockTime(ev.at)}  ${shortKind(ev.kind).padEnd(10)} ${ev.title}${body}`
 }
 
-/** /attention text: settings, then the inbox newest first. */
+/** /lk-attention text: settings, then the inbox newest first. */
 export function inboxText(inbox: readonly AttentionEvent[], cfg: Config): string {
   const unseen = inbox.filter(ev => !ev.seen).length
   const head =

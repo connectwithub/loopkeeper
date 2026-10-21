@@ -1,6 +1,6 @@
 # lk-agent-map
 
-An add-on plugin of the loopkeeper set (its command stays `/agent-map`). An agent deck for the session's subagents. It caps how many agents a session may spawn, warns before their results eat the main context, and shows each agent as a card with its cost, tokens, context fill, model, effort and task progress, a tree row, or a member of its team's lane. It also shows who spawned whom, what each one is doing right now, how long it has run, the messages between agents, and which ones wait on you. Each running agent has a Stop button. When a run fans out, you see at a glance which agents are working, which are stuck or waiting on you and what each costs, and a runaway spawn loop stops at a cap you set.
+An add-on plugin of the loopkeeper set (its command stays `/lk-agents`). An agent deck for the session's subagents. It caps how many agents a session may spawn, warns before their results eat the main context, and shows each agent as a card with its cost, tokens, context fill, model, effort and task progress, a tree row, or a member of its team's lane. It also shows who spawned whom, what each one is doing right now, how long it has run, the messages between agents, and which ones wait on you. Each running agent has a Stop button. When a run fans out, you see at a glance which agents are working, which are stuck or waiting on you and what each costs, and a runaway spawn loop stops at a cap you set.
 
 **Use it when**
 
@@ -10,9 +10,9 @@ An add-on plugin of the loopkeeper set (its command stays `/agent-map`). An agen
 
 **Install:** `/plugin install lk-agent-map@loopkeeper`, after `/plugin marketplace add connectwithub/loopkeeper` (more under [Install](#install)). Requires Claude Code 2.1.294 or later.
 
-**Data handling:** it keeps the band setting, the caps you save with `/agent-map cap` and the chosen view in its own plugin store, and the agents' state in session state; the cap rows set in `/config` live in Claude Code's own settings. It reads `~/.claude/agent-map.json` and `<project>/.claude/agent-map.json` and writes no file. It runs no process, makes no model calls and sends nothing over the network; the only tool it calls is `TaskStop`, for one agent, after you press that agent's **Stop** twice. It collects no personal data; the saved settings stay until you delete them. Details under [Footprint](#footprint).
+**Data handling:** it keeps the band setting, the caps you save with `/lk-agents cap` and the chosen view in its own plugin store, and the agents' state in session state; the cap rows set in `/config` live in Claude Code's own settings. It reads `~/.claude/agent-map.json` and `<project>/.claude/agent-map.json` and writes no file. It runs no process, makes no model calls and sends nothing over the network; the only tool it calls is `TaskStop`, for one agent, after you press that agent's **Stop** twice. It collects no personal data; the saved settings stay until you delete them. Details under [Footprint](#footprint).
 
-**Commands:** `/agent-map` and its options are listed under [Commands](#commands).
+**Commands:** `/lk-agents` and its options are listed under [Commands](#commands).
 
 The pane opens on the **Agents** cards, drawn with the kit (`hooks/kit.ts`, a verbatim copy of the loopkeeper core's kit v3): round, unfilled cards whose colors are theme keys, so they read in light and dark themes. In the Desktop app each card has a pixel critter avatar and a progress bar drawn as Svg; in the terminal the avatar is the role glyph and the bar is text. An example (the figures are illustrative):
 
@@ -47,7 +47,7 @@ PLANNED · 1
 [ Clear finished ]  [ Log ]  [ Close ]
 ```
 
-The tree view (`/agent-map tree`), with illustrative figures too:
+The tree view (`/lk-agents tree`), with illustrative figures too:
 
 ```
 main (orchestrator) · 1.0M tok · 14 tools
@@ -69,28 +69,28 @@ main (orchestrator) · 1.0M tok · 14 tools
 
 | Command | What it does |
 | :- | :- |
-| `/agent-map` | Open the pane and focus it (Esc closes it) |
-| `/agent-map clear` | Remove finished agents (done, failed, aborted). Running agents stay. |
-| `/agent-map band on` / `off` | Show or hide the band. The setting is saved in `$.store` and kept between sessions. |
-| `/agent-map text` | Print the chosen view (tree, cards or team) as plain text in the transcript; the tree when none was chosen. Use it on the mobile app or anywhere panes don't draw. |
-| `/agent-map cards` / `tree` / `team` | Switch the pane's view and open it. Saved between sessions. `/agent-map view cards\|tree\|team` does the same. |
-| `/agent-map log` | Print the last 40 lifecycle events |
-| `/agent-map cap` | Show the caps and where each stands |
-| `/agent-map cap concurrent <n>` / `turn <n>` / `session <n>` | Set a spawn cap; `0` turns it off |
-| `/agent-map cap returned <k>` | Set the returned-tokens budget in thousands (`200` or `200k`) |
-| `/agent-map cap warn <0.1-1>` / `grace <ms>` | Set `warnAt`, or the waiting grace (`0` marks at once) |
-| `/agent-map cap reset [kind]` | Clear what `/agent-map cap` saved for that kind (`concurrent`, `turn`, `session`, `returned`, `warn`, `grace`), or for every kind; the value from the files, the settings or the defaults comes back |
+| `/lk-agents` | Open the pane and focus it (Esc closes it) |
+| `/lk-agents clear` | Remove finished agents (done, failed, aborted). Running agents stay. |
+| `/lk-agents band on` / `off` | Show or hide the band. The setting is saved in `$.store` and kept between sessions. |
+| `/lk-agents text` | Print the chosen view (tree, cards or team) as plain text in the transcript; the tree when none was chosen. Use it on the mobile app or anywhere panes don't draw. |
+| `/lk-agents cards` / `tree` / `team` | Switch the pane's view and open it. Saved between sessions. `/lk-agents view cards\|tree\|team` does the same. |
+| `/lk-agents log` | Print the last 40 lifecycle events |
+| `/lk-agents cap` | Show the caps and where each stands |
+| `/lk-agents cap concurrent <n>` / `turn <n>` / `session <n>` | Set a spawn cap; `0` turns it off |
+| `/lk-agents cap returned <k>` | Set the returned-tokens budget in thousands (`200` or `200k`) |
+| `/lk-agents cap warn <0.1-1>` / `grace <ms>` | Set `warnAt`, or the waiting grace (`0` marks at once) |
+| `/lk-agents cap reset [kind]` | Clear what `/lk-agents cap` saved for that kind (`concurrent`, `turn`, `session`, `returned`, `warn`, `grace`), or for every kind; the value from the files, the settings or the defaults comes back |
 
 ## What it shows
 
-- **Pane** (`Agent map`): the cards above, or the tree or team view. The first spawn of the session opens it without taking focus, and a toast points to `/agent-map` when the terminal is too narrow for an unasked pane. Each agent's title (a card's first line, a tree row) is a button. Press it to show its full description, the first 200 characters of its prompt, tool counts by name, its last activity, tokens by kind (input, output, cache read, cache write), status, timing, request count, parent and flags (fork, teammate, background, muted, stopped by). Header: the session tiles and the **Collapse**/**Expand**, **Cards**, **Tree** and **Team** buttons (the shown view's is marked as the primary button). Under the body, the **Caps** block: each cap with its value (`no cap` for 0) and where it came from (see [Configuration](#configuration)). Footer buttons: **Clear finished**, **Log** and **Close**. The header, the body, the caps, the log and the footer sit one row apart, and so do the cards; the rows of a tree stay tight. Running agents count up once a second, and the timer stops when nothing runs.
+- **Pane** (`Agent map`): the cards above, or the tree or team view. The first spawn of the session opens it without taking focus, and a toast points to `/lk-agents` when the terminal is too narrow for an unasked pane. Each agent's title (a card's first line, a tree row) is a button. Press it to show its full description, the first 200 characters of its prompt, tool counts by name, its last activity, tokens by kind (input, output, cache read, cache write), status, timing, request count, parent and flags (fork, teammate, background, muted, stopped by). Header: the session tiles and the **Collapse**/**Expand**, **Cards**, **Tree** and **Team** buttons (the shown view's is marked as the primary button). Under the body, the **Caps** block: each cap with its value (`no cap` for 0) and where it came from (see [Configuration](#configuration)). Footer buttons: **Clear finished**, **Log** and **Close**. The header, the body, the caps, the log and the footer sit one row apart, and so do the cards; the rows of a tree stay tight. Running agents count up once a second, and the timer stops when nothing runs.
 - **Stop**: every running row ends with a **Stop** button. The first press arms it (the label turns to **Confirm stop**) and it disarms by itself after 5 seconds. A second press within those 5 seconds calls Claude Code's own `TaskStop` for that agent, with your press as the consent, and the row turns to `■ stopped` with `by you (agent map)`. A `TaskStop` the model makes is recorded the same way, with `by main` or the calling agent.
 - **Mute** (the fallback): when `TaskStop` refuses (a foreground subagent, or an id it doesn't know), you get a toast and the agent is muted instead: each further tool call it makes is refused with a reason that asks it to stop calling tools and return its result now. The row shows `⊘ muted`.
 - **Last activity**: under each running agent, a dim `⋯ Bash: npm test` line with its last tool and the first 40 characters of that call's input. For an agent no tool call was seen from (one that started before a reload, or one only the engine's list names), the line comes from the tail of its own transcript (`$.session.messages({ agentId })`).
 - **Waiting on you**: when Claude Code's permission check answers `ask` for an agent's tool call and the ask is still open after `waitGraceMs` (4 s by default), that agent's row shows `⏸ waiting: Bash` in the 'claude' color (its card ◷) until the call runs or is refused. An ask that auto mode's classifier approves within the grace never shows, so the mark doesn't flicker. When a permission dialog actually opens (`classic.PermissionRequest`), the mark shows at once, and from then on in the session the dialog is the only signal. A pending mark is dropped when the call runs or the agent's turn ends. For the main loop it shows on the header line.
 - **Idle alert**: a running agent with no tool call and no model request for `stuckAfterMs` (5 minutes by default) gets `⚠ idle 5m` in red on its row and one toast per stall. Any activity clears it. An agent waiting on you isn't counted as idle.
 - **Forks and teammates**: `⑂` marks a fork (`agent.spawn`'s `fork`), `◇` a teammate. The model column shows what the agent actually runs on: the model of its latest request (`turn.step`), else the spawn's.
-- **Agents the spawn hook missed**: on each one-second tick while anything runs, on `/agent-map`, and when a loop no spawn announced makes a request, the map merges `$.agent.list()`: new ids (forks, teammates, workflow agents, agents from before a reload) appear under their `parentId`, and agents the list reports finished end. A parent that would close a loop is left at main.
+- **Agents the spawn hook missed**: on each one-second tick while anything runs, on `/lk-agents`, and when a loop no spawn announced makes a request, the map merges `$.agent.list()`: new ids (forks, teammates, workflow agents, agents from before a reload) appear under their `parentId`, and agents the list reports finished end. A parent that would close a loop is left at main.
 - **Band** (one line above the prompt): `agents  ● 3/4 running  ✓ 5 done  ✗ 1  ● ok` with `400k tok · results 100k → main` (example figures) on the right in a quiet color, and `○ n aborted` / `■ n stopped` in front of the tokens when there are any. The `/4` is the concurrency cap; `results … → main` appears once subagent results passed 1k tokens. A count is colored only when it is not zero (running in the suggestion color, done in success, failed in error). The last chip is the cap state: `● ok` (success), `● near cap` ('claude': a cap at `warnAt` of its limit, or the returned-tokens warning) or `● at cap` (error: a cap reached, or a spawn denied this turn). No chip is filled. The band stays hidden until the first subagent of the session spawns; other mods' band content is kept below it.
 - **Message edges**: a dim `→ msg to <label>` line under the sender, for SendMessage traffic between main and a subagent or between subagents.
 - **main**: the orchestrator's own tokens and tool calls are on the header line, so you can compare its share with the agents'.
@@ -141,10 +141,10 @@ Every `agent.spawn` passes a gate first. It counts running agents (plus spawns a
 | `maxPerTurn` | 8 | spawns since the last main-loop `turn.start`; forks and teammates don't count |
 | `maxPerSession` | 40 | every spawn this session |
 
-Change them in `/config` (the `lk-agent-map` rows), in the files, or with `/agent-map cap`; [Configuration](#configuration) has the order.
+Change them in `/config` (the `lk-agent-map` rows), in the files, or with `/lk-agents cap`; [Configuration](#configuration) has the order.
 
 - **Near a cap**: once a spawn brings any cap to `warnAt` (0.75), the band's state chip turns to `● near cap` and one toast goes out per turn, such as `agents 3/4 running, near the concurrency cap`.
-- **At a cap**: the spawn is refused, and the model reads: `agent-map: concurrency cap reached (4/4). Wait for running subagents to return, or batch the work into fewer agents. The user can raise it with /agent-map cap concurrent <n>.` The band turns red for the rest of the turn.
+- **At a cap**: the spawn is refused, and the model reads: `agent-map: concurrency cap reached (4/4). Wait for running subagents to return, or batch the work into fewer agents. The user can raise it with /lk-agents cap concurrent <n>.` The band turns red for the rest of the turn.
 - **Override**: a spawn whose description or prompt carries `[cap-override: <reason>]` asks you instead: `agent-map: <reason>. Allow one more agent beyond the cap?` with **Allow this one**, **Allow the rest of the turn** and **Deny**. When no one can be asked (`-p`, a dismissed dialog), it's refused. The marker is removed from the description and prompt the agent gets.
 - Every decision (spawned with its counts, denied with the cap, override answers) goes to the lifecycle log.
 
@@ -154,11 +154,11 @@ The text each Agent tool call returns to its caller is measured (characters / 4)
 
 ## Views and the log
 
-- **Cards** (`/agent-map cards`, the pane's default): the Agents cards above. As text (`/agent-map text` once cards were chosen), each card is four lines in a rounded border: label, type, model and status glyph; `spawned 10:31 → running 00:57 → ⏸ waiting (Bash) → done 10:38`; `12 tools · last Bash: npm test · 80k tok · → 40k to main`; the parent and `[Stop]`.
-- **Tree** (`/agent-map tree`): the map above.
-- **Team** (`/agent-map team`): lanes by parent. `team of main: 3 running · 2 done` first, then each agent's children in a lane indented under it, and teammates (◇) in a `teammates` lane of their own.
-- The choice is saved in `$.store`. The header's **Cards**, **Tree** and **Team** buttons switch, and **Log** shows the last 12 lifecycle events at the bottom. Until you choose, the pane draws the cards and `/agent-map text` prints the tree.
-- **Lifecycle log**: spawned (with cap counts), denied (with the cap), override answers, first tool, waiting, resumed, idle, stopped or muted, returned (result tokens), and done, failed or aborted with duration and tokens. `/agent-map log` prints the last 40.
+- **Cards** (`/lk-agents cards`, the pane's default): the Agents cards above. As text (`/lk-agents text` once cards were chosen), each card is four lines in a rounded border: label, type, model and status glyph; `spawned 10:31 → running 00:57 → ⏸ waiting (Bash) → done 10:38`; `12 tools · last Bash: npm test · 80k tok · → 40k to main`; the parent and `[Stop]`.
+- **Tree** (`/lk-agents tree`): the map above.
+- **Team** (`/lk-agents team`): lanes by parent. `team of main: 3 running · 2 done` first, then each agent's children in a lane indented under it, and teammates (◇) in a `teammates` lane of their own.
+- The choice is saved in `$.store`. The header's **Cards**, **Tree** and **Team** buttons switch, and **Log** shows the last 12 lifecycle events at the bottom. Until you choose, the pane draws the cards and `/lk-agents text` prints the tree.
+- **Lifecycle log**: spawned (with cap counts), denied (with the cap), override answers, first tool, waiting, resumed, idle, stopped or muted, returned (result tokens), and done, failed or aborted with duration and tokens. `/lk-agents log` prints the last 40.
 
 ## Configuration
 
@@ -173,7 +173,7 @@ The text each Agent tool call returns to its caller is measured (characters / 4)
 
 Set them in `/config` (the `lk-agent-map` rows) or the Desktop app's plugin settings; they are kept under `pluginConfigs` in settings. The caps follow a change at once: `/config` changes go through a `config.set` hook that refuses a value out of range (a negative or fractional count, a percent outside 1-100), and a settings file changed by other means loads them again (`classic.ConfigChange`). `stuckAfterMs` takes effect when the plugin loads. A value the settings file holds out of range is ignored, and the default stands.
 
-The caps are merged in this order, a later layer winning: the defaults, then the settings (a value equal to the default counts as the default), then `~/.claude/agent-map.json`, then `<cwd>/.claude/agent-map.json`, then what `/agent-map cap <kind> <n>` saved in `$.store` (kept between sessions until `/agent-map cap reset [kind]` clears it). The pane's **Caps** block shows each value with its source: `default`, `settings`, `user file`, `project file` or `saved (/agent-map cap)`. The files also take `waitGraceMs`, and the `prices` object described under [The Agents cards](#the-agents-cards):
+The caps are merged in this order, a later layer winning: the defaults, then the settings (a value equal to the default counts as the default), then `~/.claude/agent-map.json`, then `<cwd>/.claude/agent-map.json`, then what `/lk-agents cap <kind> <n>` saved in `$.store` (kept between sessions until `/lk-agents cap reset [kind]` clears it). The pane's **Caps** block shows each value with its source: `default`, `settings`, `user file`, `project file` or `saved (/lk-agents cap)`. The files also take `waitGraceMs`, and the `prices` object described under [The Agents cards](#the-agents-cards):
 
 ```json
 { "maxConcurrent": 4, "maxPerTurn": 8, "maxPerSession": 40, "warnAt": 0.75, "maxReturnedTokens": 150000, "waitGraceMs": 4000 }
@@ -199,7 +199,7 @@ What `claude plugin validate --strict .` reports for this plugin (Claude Code 2.
 | Area | What the plugin has |
 | --- | --- |
 | Hooks module | One: `./register.ts`, in `hooks/hooks.json`. |
-| Hook events | `session.start`, `classic.SessionStart` (clear, resume, fork), `config.set` (this plugin's cap rows), `classic.ConfigChange`, `tool.call`, `tool.check`, `agent.spawn`, `classic.PermissionRequest`, `classic.PreToolUse`, `turn.start`, `turn.step`, `turn.complete`, `session.send`, `session.receive`, `command.run` (`agent-map`), `ui.render` (the band; the `agent-map` pane). |
+| Hook events | `session.start`, `classic.SessionStart` (clear, resume, fork), `config.set` (this plugin's cap rows), `classic.ConfigChange`, `tool.call`, `tool.check`, `agent.spawn`, `classic.PermissionRequest`, `classic.PreToolUse`, `turn.start`, `turn.step`, `turn.complete`, `session.send`, `session.receive`, `command.run` (`lk-agents`), `ui.render` (the band; the `agent-map` pane). |
 | Refusals | `agent.spawn` refuses a spawn past a cap (or asks, with an override marker); `tool.call` refuses a muted agent's calls; `config.set` refuses an out-of-range cap setting. |
 | Calls (`$.…`) | `agent.list`; `clock` (`after`, `every`, `now`); `command.register`; `config.list`; `env.get`; `fs.read`; `session` (`messages`, `usage`); `state` (`get`, `set`); `store` (`get`, `set`); `tool` (`call`, `check`); `ui` (`ask`, `close`, `open`, `resolve`, `toast`). |
 | State | 17 atoms under `lk-agent-map`. |
@@ -225,20 +225,20 @@ The directory's validator listed these items for this plugin. Each bullet says w
 - **The `caller` field** (warning `MOD_REFLECTION`, "Mod uses a form that can hide what its code does"). The flagged read is `p?.caller` in `spawnFacts()` (`hooks/model.ts`, line 164). `p` is the plugin's own `PendingCall` record (`types/index.d.ts`, line 138), and `caller` is a plain string field on it: the id of the agent that made the Agent tool call, copied from the `tool.call` event's `agentId` by `pendingOf()` (`hooks/model.ts`, line 109), or the main loop's id. It becomes the new agent's parent in the tree. It is not `Function.prototype.caller`: nothing reflective runs, and the plugin inspects no functions or call stacks.
 - **Calls named in text** (note `MOD_CALL_NAMED_IN_TEXT`). `agent.spawn` is named in the header comment of `hooks/register.ts` (line 5), which describes the hooks, and again in comments at lines 169 and 463; `tool.check` and `tool.call` are named in a comment at line 162, and `tool.call` again at line 292. They are words in comments; none is a call.
 - **Icon** (warning `UNREAD_ASSET_REFERENCED`, in this README; earlier `ICON_MISSING`). The icon is `.claude-plugin/icon.png` (512 × 512); its source is `docs/assets/icons/lk-agent-map.svg` in the repo. This README names the two files only to say where the icon is. They are images; no hook, script or setting loads or runs them.
-- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/agent-map`, at session start (line 843). It registers no tools or agents.
+- **Its command** (note `MOD_REGISTERS_SURFACES`). It registers one slash command, `/lk-agents`, at session start (line 843). It registers no tools or agents.
 - **Classic hooks** (note `MOD_HOOKS_POLICY_EVENT`). `classic.SessionStart` with source `clear`, `resume` or `fork` (line 856) loads the band switch, the caps and the view again, because those resets clear `$.state`. `classic.ConfigChange` (line 889) loads the caps again after a settings file changed. `classic.PermissionRequest` (line 1023) marks the matching pending ask "waiting" at once. `classic.PreToolUse` (line 1042) clears a "waiting" mark, because the call is about to run. Each passes its event on and returns what `next(e)` gave back, unchanged.
-- **Other hooks on events that are also calls** (note `MOD_HOOKS_OPERATION`). `session.send` (line 1097) and `session.receive` (line 1107) record which agent messaged which and how large a background agent's result was; `turn.step` and `turn.complete` count tokens and record when a loop ends. All of them pass their events on unchanged. `command.run` (line 1133) has the matcher `{ command: 'agent-map' }`, so it runs only for `/agent-map`.
+- **Other hooks on events that are also calls** (note `MOD_HOOKS_OPERATION`). `session.send` (line 1097) and `session.receive` (line 1107) record which agent messaged which and how large a background agent's result was; `turn.step` and `turn.complete` count tokens and record when a loop ends. All of them pass their events on unchanged. `command.run` (line 1133) has the matcher `{ command: 'lk-agents' }`, so it runs only for `/lk-agents`.
 
 ## Layout
 
 - `hooks/register.ts`: the hooks, the `$.state` atoms, the drawings and the command
 - `hooks/model.ts`: pure functions that update agent records from events (tokens, cost, effort, context size, TodoWrite progress), the cap checks and the returned-token estimate
-- `hooks/format.ts`: pure layout for the tree rows, the text cards, team lanes, the log, `/agent-map text`, the band's chips, the effort words and the critter avatar's Svg
+- `hooks/format.ts`: pure layout for the tree rows, the text cards, team lanes, the log, `/lk-agents text`, the band's chips, the effort words and the critter avatar's Svg
 - `hooks/pane.ts`: the Agents cards, the session tiles and the Caps block, built with the kit
 - `hooks/prices.ts`: the price table, `priceOf`, `costUsd` and the `prices` override
 - `hooks/kit.ts`: the UI kit v3, a verbatim copy of the loopkeeper core's `plugins/loopkeeper/hooks/lib/kit.ts`; adapt the callers, not this file
 - `types/index.d.ts`: the record types and the `$.state` declaration
-- `tests/`: `claude plugin test` suites and the stubs they share (`agent-map-v2.test.ts` covers Stop, mute, reconcile, waits, the idle alert and markers; `agent-map-v3.test.ts` covers caps, the override ask, returned tokens, text cards, team lanes, the log, `/agent-map cap` and the waiting grace; `cards.test.ts` covers prices and cost, effort, TodoWrite progress, ctx %, the session tiles, the cards on both surfaces with Collapse, Planned, the view buttons and the band badge; `caps.test.ts` covers the cap settings, their order against the files and `/agent-map cap`, `cap reset`, the `config.set` guard and the Caps block; `kit.test.ts` is the core's kit suite without its render snapshots)
+- `tests/`: `claude plugin test` suites and the stubs they share (`agent-map-v2.test.ts` covers Stop, mute, reconcile, waits, the idle alert and markers; `agent-map-v3.test.ts` covers caps, the override ask, returned tokens, text cards, team lanes, the log, `/lk-agents cap` and the waiting grace; `cards.test.ts` covers prices and cost, effort, TodoWrite progress, ctx %, the session tiles, the cards on both surfaces with Collapse, Planned, the view buttons and the band badge; `caps.test.ts` covers the cap settings, their order against the files and `/lk-agents cap`, `cap reset`, the `config.set` guard and the Caps block; `kit.test.ts` is the core's kit suite without its render snapshots)
 
 ## Limits
 
