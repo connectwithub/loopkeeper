@@ -384,6 +384,36 @@ test('/lk approve at Execute answers a fresh request first, naming it; an older 
   expect(await lk($, 'approve')).toBe('Execute has no gate to approve.')
 })
 
+test('/lk approve at Plan after a refusal answers the request first; the next turn\'s /lk approve opens the plan gate', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = approveWorld(on)
+  await startTurn($)
+  await setStage($, { stage: 'plan', size: 'large', files: 13 })
+  expect((await check($, bash('git commit -m x'))).decision).toBe('deny')
+  await endTurn($)
+  expect(await lk($, 'approve')).toBe('Allowed git commit once. The Validate plan gate is still waiting; /lk approve again to approve it.')
+  expect(w.state.get('stageCurrent')).toBe('plan')
+  expect(await continued(w)).toEqual(['The user allowed git commit once. Run the refused call again. ' + CARRY_ON])
+  await turnOver($, 't2')
+  expect(await lk($, 'approve')).toBe(PLAN_OPENED + ' File budget: 23 files a turn (13 planned + 10).')
+  expect(w.state.get('stageCurrent')).toBe('validate-plan')
+})
+
+test('a grant the stage wrote survives the gates\' turn persistence and goes with /clear', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = deskWorld(on, 'gsd')
+  await startTurn($)
+  await lk($, 'size small')
+  expect((await check($, edit(DOCS))).decision).toBe('deny')
+  await endTurn($)
+  await lk($, 'approve')
+  expect(w.state.get('gateGrants')).toEqual([DOCS.slice(CWD.length + 1)])
+  await endTurn($, 't2')
+  expect(w.state.get('gateGrants')).toEqual([DOCS.slice(CWD.length + 1)])
+  expect((await check($, edit(DOCS))).decision).toBe('allow')
+  await $.classic.SessionStart({ source: 'clear' } as never)
+  expect(w.state.get('gateGrants')).toEqual([])
+  expect((await check($, edit(DOCS))).decision).toBe('deny')
+})
+
 test('requests expire on a stage move and after three main turns', { timeoutMs: 20_000 }, async ($, on) => {
   const w = deskWorld(on)
   await startTurn($)

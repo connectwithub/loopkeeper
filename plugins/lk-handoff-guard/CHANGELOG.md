@@ -2,6 +2,12 @@
 
 All notable changes to lk-handoff-guard are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- The README's notes for directory reviewers cover the icon warning `UNREAD_ASSET_REFERENCED`, and their line numbers match the code again.
+
 ## [0.3.1] - 2026-10-11
 
 ### Changed

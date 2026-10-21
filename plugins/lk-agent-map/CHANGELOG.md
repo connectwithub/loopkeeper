@@ -2,6 +2,13 @@
 
 All notable changes to lk-agent-map are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- The README's notes for directory reviewers name every finding code they explain, add `MOD_CALL_NAMED_IN_TEXT` and the
+  icon warning `UNREAD_ASSET_REFERENCED`, and their line numbers match the code again. No code change.
+
 ## [0.6.3] - 2026-10-14
 
 ### Changed
