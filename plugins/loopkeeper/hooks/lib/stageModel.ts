@@ -57,6 +57,8 @@ export type Saved = {
   planFiles: number | null
   // the approved file budget, 0 for none
   budget: number
+  // a commit or push passed on the Ship approval, so the person's next message ends it
+  shipUsed: boolean
 }
 // The numbers the file budget is made of, from the changeControl section
 export type Limits = { base: number; slack: number; autoMax: number }
@@ -408,6 +410,15 @@ export function gateAhead(stages: readonly Stage[], current: string, approved: r
   return next?.gate === true ? next : undefined
 }
 
+// A move back by Claude loses the approvals of the gates after the stage it lands on: what is left of `approved`
+export function approvedAfterBack(stages: readonly Stage[], target: string, approved: readonly string[]): string[] {
+  const t = indexOf(stages, target)
+  return approved.filter(id => {
+    const i = indexOf(stages, id)
+    return i < 0 || i <= t
+  })
+}
+
 const TEST_RUNNER =
   /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?test\b|\bvitest\b|\bjest\b|\bpytest\b|\bgo\s+test\b|\bcargo\s+test\b|\bplaywright\b|\bclaude\s+plugin\s+(?:test|validate)\b/
 const SHIP = /\bgit\s+commit\b|\bgit\s+push\b|\bgh\s+pr\s+create\b/
@@ -671,6 +682,7 @@ export function savedOf(raw: unknown): Saved | undefined {
     filesTouched?: unknown
     planFiles?: unknown
     budget?: unknown
+    shipUsed?: unknown
   }
   if (typeof r.stage !== 'string') return undefined
   const strings = (v: unknown) => (Array.isArray(v) ? v.filter((a): a is string => typeof a === 'string') : [])
@@ -686,6 +698,7 @@ export function savedOf(raw: unknown): Saved | undefined {
     filesTouched: strings(r.filesTouched).slice(0, FILES_CAP),
     planFiles: files.ok ? files.value : null,
     budget: typeof r.budget === 'number' && Number.isInteger(r.budget) && r.budget > 0 ? r.budget : 0,
+    shipUsed: r.shipUsed === true,
   }
 }
 

@@ -289,6 +289,50 @@ describe('/decisions', () => {
     expect(await watchLabel($)).toBe('Pause watch')
   })
 
+  test('pending majors: Record and Skip on each row without hotkeys, Record all with two or more, the count beside', async ($, on) => {
+    const pending = [
+      { text: 'Use SQLite for the cache', why: '', tags: [] },
+      { text: 'Adopt Zod', why: '', tags: [] },
+    ]
+    const w = sharedWorld(on, { now: NOW, atoms: { decisionPending: pending } })
+    await $.session.start(START)
+    type N = { type?: string; props?: Record<string, any>; children?: unknown[] }
+    const kids = (n: N): N[] => ((n.children ?? n.props?.children ?? []) as N[]).filter(c => c && typeof c === 'object')
+    const all = (n: N): N[] => [n, ...kids(n).flatMap(all)]
+    const textIn = (n: any): string =>
+      typeof n === 'string' ? n : n && typeof n === 'object' ? ((n.children ?? n.props?.children ?? []) as unknown[]).map(textIn).join('') : ''
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const ui = await $.ui.mount(WATCH_PANE(surface))
+      const tree = (await ui.drawn()) as N
+      // the section: its name and the count, no "on the band" hint
+      const section = all(tree).find(n => kids(n).some(c => textIn(c) === 'Major pending')) as N
+      expect(kids(section).map(textIn)).toEqual(['Major pending', '2'])
+      for (const [i, p] of pending.entries()) {
+        const row = (await ui.find({ key: 'pending-' + i })) as N
+        expect(textIn(row)).toContain(p.text)
+        const buttons = all(row).filter(n => n.type === 'Button')
+        expect(buttons.map(b => b.props?.key)).toEqual(['decisions-pending-record-' + i, 'decisions-pending-skip-' + i])
+        expect(buttons.map(b => b.props?.label)).toEqual(['Record', 'Skip'])
+        expect(buttons.every(b => b.props?.hotkey === undefined && b.props?.plain === true)).toBe(true)
+      }
+      expect((await ui.find({ key: 'decisions-pending-record-all' }))?.props).toMatchObject({ label: 'Record all', plain: true })
+      expect((await ui.find({ key: 'decisions-pending-record-all' }))?.props?.hotkey).toBeUndefined()
+      await ui.unmount()
+    }
+    // Skip on the first row: that text is remembered, the other moves up, and Record all goes with one left
+    const pressed = await $.ui.mount(WATCH_PANE('terminal'))
+    await pressed.press({ key: 'decisions-pending-skip-0' })
+    await pressed.unmount()
+    expect(w.store.get('loopkeeper:decisions:skipped:/work/project')).toEqual(['Use SQLite for the cache'])
+    // drawn again (a seeded atom's write does not redraw a mounted pane)
+    const ui = await $.ui.mount(WATCH_PANE('terminal'))
+    expect(textIn(await ui.find({ key: 'pending-0' }))).toContain('Adopt Zod')
+    expect(await ui.find({ key: 'pending-1' })).toBeUndefined()
+    expect(await ui.find({ key: 'decisions-pending-record-all' })).toBeUndefined()
+    expect(w.writes).toEqual([])
+    await ui.unmount()
+  })
+
   test('band on|off is saved in the store', async ($, on) => {
     const w = world(on, {})
     await $.session.start(START)
@@ -365,6 +409,35 @@ describe('the band above the prompt', () => {
     expect(lineOf(await ui.drawn(), 'decisions')).toBeUndefined()
     await $.command.run({ command: 'decisions', args: 'band on' })
     expect(linePlain(lineOf(await ui.drawn(), 'decisions'))).toBe('decisions  ● 1 this session')
+    await ui.unmount()
+  })
+
+  test('the watch-cap card shows with the band off, the same on both surfaces, and only while the hour is full', async ($, on) => {
+    const CAPPED = 'Decision watch paused: 3 calls in the last hour'
+    const w = sharedWorld(on, {
+      now: NOW,
+      files: { [USER_CONFIG]: '{"decisions":{"watch": true,"watchMaxPerHour": 3}}' },
+      atoms: { decisionCapCard: { since: NOW - 1000, hidden: false } },
+    })
+    w.store.set('loopkeeper:decisions:watch-calls', [NOW - 3000, NOW - 2000, NOW - 1000])
+    w.store.set(BAND_KEY, false)
+    await $.session.start(START)
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const ui = await $.ui.mount({ ...BAND, surface })
+      expect(await ui.find({ type: 'Text', text: 'loopkeeper · decision watch' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: CAPPED })).toBeDefined()
+      expect((await ui.find({ key: 'decisions-cap-more' }))?.props).toMatchObject({ label: 'Allow 3 more', plain: true })
+      expect((await ui.find({ key: 'decisions-cap-more' }))?.props?.hotkey).toBeUndefined()
+      expect((await ui.find({ key: 'decisions-cap-keep' }))?.props).toMatchObject({ label: 'Keep paused', plain: true })
+      expect((await ui.find({ key: 'decisions-cap-keep' }))?.props?.hotkey).toBeUndefined()
+      expect(lineOf(await ui.drawn(), 'decisions')).toBeUndefined()
+      await ui.unmount()
+    }
+    // a call aged out (another session cleared it, or the hour moved on): nothing to ask
+    w.store.set('loopkeeper:decisions:watch-calls', [NOW - 2000, NOW - 1000])
+    const ui = await $.ui.mount(BAND)
+    expect(await ui.find({ type: 'Text', text: CAPPED })).toBeUndefined()
+    expect(await ui.find({ key: 'decisions-cap-more' })).toBeUndefined()
     await ui.unmount()
   })
 

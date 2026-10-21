@@ -44,7 +44,7 @@ const SPARKS = '▁▂▃▄▅▆▇█'
 
 export const USAGE = [
   'Usage: /reviews [text | clear <subject> | kinds | kind <subject> <kind> | target <n> [subject] |',
-  '        max <n> [subject] | ship <subject> | reopen <subject> | stop <subject> | band on|off | context on|off]',
+  '        max <n> [subject] | more <subject> [n] | ship <subject> | reopen <subject> | stop <subject> | band on|off | context on|off]',
 ].join('\n')
 
 // ---------- kinds ----------
@@ -324,9 +324,49 @@ export const reached = (s: Subject): boolean => {
   const last = lastCycle(s)
   return !!last && holds(s, last)
 }
+/**
+ * Keys of the buttons that let the person allow more passes or stop a loop at its limit: the band card's
+ * `review-more:<name>` and `review-stop:<name>`, and the pane's `more:<name>` and `stop:<name>`. The stage
+ * concern's ui.press hook matches them to send Claude on after the answer.
+ */
+export const REVIEW_KEY = /^(review-more|review-stop|more|stop):/
+
 export const cyclesLeft = (s: Subject): number => Math.max(0, s.maxCycles - usedCycles(s))
 /** At or past the cycle limit without reaching the target, and not shipped. */
 export const notConverging = (s: Subject): boolean => s.status !== 'ship' && usedCycles(s) >= s.maxCycles && !reached(s)
+
+/** Active, every pass used and not done: the loop waits for the person to allow more or stop. */
+export const atLimit = (s: Subject): boolean => s.status === 'active' && usedCycles(s) >= s.maxCycles && !reached(s)
+
+/** How many passes "Allow more" adds: the kind's default limit (plan 2, review 3, critic 4 ...), config included. */
+export const morePasses = (s: Subject, defaults: Defaults): number => presetFor(s.kind, defaults).maxCycles
+
+/** Why a loop at its limit is not done, in a few words. */
+export function whyNotDone(s: Subject): string {
+  const last = lastCycle(s)
+  if (s.doneBy === 'score') return last?.score === undefined ? 'no score yet' : `${fmt(last.score)} < ${fmt(targetOf(s))}`
+  const n = blocking(s)
+  return n > 0 ? `${n} open p0/p1 item${n === 1 ? '' : 's'}` : `last verdict was ${last?.verdict ?? 'not ship'}`
+}
+
+/** The card's words for a loop at its limit. */
+export const limitText = (s: Subject): string => `${s.name} · ${usedCycles(s)}/${s.maxCycles} ${unitOf(s)}s used, not done (${whyNotDone(s)})`
+
+export type MoreOutcome = { ok: true; subject: Subject; added: number } | { ok: false; reply: string }
+
+/**
+ * Allow n more passes: maxCycles becomes min(cap, max(maxCycles, used) + n). Refused for a subject that is not at its
+ * limit (not active, done, or with passes left) and at the cap. `added` is what the limit actually moved by.
+ */
+export function allowMore(s: Subject, n: number): MoreOutcome {
+  if (s.status !== 'active') return { ok: false, reply: `${s.name} is ${s.status === 'ship' ? 'shipped' : 'stopped'}: reopen it first (/reviews reopen ${s.name}).` }
+  if (reached(s)) return { ok: false, reply: `${s.name} is done: nothing to allow.` }
+  if (!atLimit(s)) return { ok: false, reply: `${s.name} still has ${cyclesLeft(s)} ${unitOf(s)}${cyclesLeft(s) === 1 ? '' : 's'} left (${usedCycles(s)}/${s.maxCycles}): nothing to allow yet.` }
+  const base = Math.max(s.maxCycles, usedCycles(s))
+  if (base >= MAX_CYCLES_CAP) return { ok: false, reply: `${s.name} is at the cap of ${MAX_CYCLES_CAP} ${unitOf(s)}s: it cannot take more.` }
+  const next = Math.min(MAX_CYCLES_CAP, base + Math.max(1, Math.floor(n)))
+  return { ok: true, subject: { ...s, maxCycles: next }, added: next - base }
+}
 
 export function deltaText(s: Subject): string {
   const n = s.cycles.length
@@ -528,9 +568,10 @@ export function applyCycle(subjects: Subjects, input: CycleInput, defaults: Defa
     return {
       ok: false,
       reply:
-        `Not recorded: ${unitOf(s)} ${number} is past the limit of ${s.maxCycles} for ${s.name}. ` +
-        `Do not run another ${wordOf(s)}. Stop and surface to the user: report the ${historyLabel(s)} and open items and ask how to proceed. ` +
-        `The user can raise the limit with /reviews max <n> ${s.name}.\n\n${subjectText(s)}`,
+        `Not recorded: ${s.name} has used its ${s.maxCycles} ${unitOf(s)}s (${unitOf(s)} ${number} is past the limit). ` +
+        `Do not run another ${wordOf(s)}. Stop: tell the user what changed since the last ${unitOf(s)} (the fixes made and what is still open) and ask them to allow more: ` +
+        `"Allow ${morePasses(s, defaults)} more" on the card above the prompt or in the Review pane, or /reviews more ${s.name}. ` +
+        `The user can also set the limit with /reviews max <n> ${s.name}.\n\n${subjectText(s)}`,
     }
   }
   const cycle: Cycle = { cycle: number, at: now }
@@ -672,7 +713,10 @@ export function subjectText(s: Subject): string {
     lines.push(`not done: ${why} · ${leftText}`)
   }
   if (notConverging(s) && s.status === 'active') {
-    lines.push(`not converging: surface to the user. Do not run another ${wordOf(s)}; report the ${s.doneBy === 'score' ? 'scores and ' : ''}open items and ask how to proceed.`)
+    lines.push(
+      `not converging: surface to the user. Do not run another ${wordOf(s)}; tell the user what changed since the last ${unitOf(s)} (the fixes made and what is still open) ` +
+        `and ask them to allow more: "Allow more" on the card above the prompt or in the Review pane, or /reviews more ${s.name}.`,
+    )
   }
   const open = openItems(s)
   if (open.length) {

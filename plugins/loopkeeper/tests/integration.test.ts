@@ -176,7 +176,7 @@ test('one GSD session end to end: every concern live, each step asserted', { tim
   await reviewCycle($, { subject: 'unit tests' })
   await reviewCycle($, { subject: 'unit tests' })
   expect(w.toasts).toContain('review unit tests: not converging after 3/3 rounds (1 open p0/p1)')
-  expect(await reviewCycle($, { subject: 'unit tests' })).toContain('Not recorded: round 4 is past the limit of 3 for unit tests.')
+  expect(await reviewCycle($, { subject: 'unit tests' })).toContain('Not recorded: unit tests has used its 3 rounds')
   expect(w.state.get('stageCurrent')).toBe('qa')
 
   // 11. the ship hold: git commit is refused at QA and at Ship until the user approves Ship
@@ -184,12 +184,19 @@ test('one GSD session end to end: every concern live, each step asserted', { tim
   const atQa = await check($, commit)
   expect(atQa.decision).toBe('deny')
   expect(atQa.reason).toBe(
-    'loopkeeper: shipping is gated (git commit). The pipeline is at QA. Ask the user to review the work and run /lk approve at QA or Ship ' +
-      '(it opens the Ship gate; a waiting file budget comes first), or /lk gates ship ok.',
+    'loopkeeper: shipping is gated (git commit). The pipeline is at QA. The user\'s yes is asked on the card above the prompt; ' +
+      "the user can also type /lk approve. Stop and wait for the user's answer; do not retry it another way.",
   )
   expect((await setStage($, { stage: 'ship' })).result).toContain('Moved from QA to Ship')
   expect((await check($, bash('git commit -m "add the cache"'))).reason).toContain('The pipeline is at Ship.')
   expect(w.state.get('stageShipOpen')).toBe(false)
+  // the request raised in this turn comes first (plan 2.2): /lk approve allows that git commit once and names the
+  // Ship gate still waiting; the commit runs once, and the next /lk approve approves the gate
+  const answered = await lk($, 'approve')
+  expect(answered).toContain('Allowed git commit once.')
+  expect(answered).toContain('The Ship gate is still waiting; /lk approve again to approve it.')
+  expect(w.state.get('stageShipOpen')).toBe(false)
+  expect((await check($, bash('git commit -m "add the cache"'))).decision).toBe('allow')
   expect(await lk($, 'approve')).toContain('Approved the Ship gate; the pipeline may now move past it.')
   expect(w.state.get('stageShipOpen')).toBe(true)
   expect((await check($, bash('git commit -m "add the cache"'))).decision).toBe('allow')

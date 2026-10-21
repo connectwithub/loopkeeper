@@ -6,7 +6,9 @@
 // - /decide and record_decision append one entry, never rewriting what is there
 // - /decisions opens a pane of the last 20; /decisions text prints them
 // - the band above the prompt counts this session's decisions, and holds the watch's major decisions
-//   with Record and Skip (lib/watch.ts)
+//   with Record and Skip (lib/watch.ts); the pane has Record and Skip on each pending row, and Record all
+// - when the hourly cap pauses the watch, a card above the prompt and a line in the pane offer
+//   Allow <watchMaxPerHour> more and Keep paused, once per pause
 // - /decide prefs and /decide watch … steer the watch, which is OFF until a config file or
 //   /decide watch on turns it on
 // - the end of the /lk chain: /lk status adds the decisions line, anything no earlier concern owns
@@ -63,6 +65,8 @@ import {
   WATCH_USAGE,
   buildWatchPrompt,
   byOfJsonl,
+  capCard,
+  capText,
   cut,
   decisionsLayers,
   hasCue,
@@ -100,6 +104,10 @@ const decisionTurnPrompt = atom({ plugin: 'loopkeeper', key: 'decisionTurnPrompt
 const decisionPrefs = atom({ plugin: 'loopkeeper', key: 'decisionPrefs' } as const, [] as string[])
 const decisionKinds = atom({ plugin: 'loopkeeper', key: 'decisionKinds' } as const, [] as [string, Kind][])
 const decisionLogged = atom({ plugin: 'loopkeeper', key: 'decisionLogged' } as const, [] as string[])
+// the watch-cap card: when the current pause began (0 when not paused) and whether Keep paused hid it
+const decisionCapCard = atom({ plugin: 'loopkeeper', key: 'decisionCapCard' } as const, { since: 0, hidden: false })
+
+const CAP_OFF = { since: 0, hidden: false }
 
 const BADGE: Record<Kind, { label: string; tone: Tone }> = {
   major: { label: 'major', tone: 'accent' },
@@ -421,18 +429,69 @@ async function noteRecorded($: EngineInterface, text: string, kind: Kind): Promi
   await markKind($, text, kind)
 }
 
-/** Turns the watch on or off and remembers it; off also drops the waiting majors. False when not saved. */
+/** Turns the watch on or off and remembers it; off also drops the waiting majors and the cap card. False when not saved. */
 async function setWatch($: EngineInterface, isOn: boolean): Promise<boolean> {
   const saved = await storeSet($, KEY_WATCH, isOn)
   await update($, decisionWatch, c => ({ ...c, watch: isOn }))
-  if (!isOn) await update($, decisionPending, () => [])
+  if (!isOn) {
+    await update($, decisionPending, () => [])
+    if ((await read($, decisionCapCard)).since > 0) await update($, decisionCapCard, () => CAP_OFF)
+  }
   return saved
 }
 
-/** turn.start: a new turn has recorded nothing yet. */
+/** turn.start: a new turn has recorded nothing yet; a cap pause whose hour freed up is over. */
 async function startTurn($: EngineInterface, prompt: unknown): Promise<void> {
   await update($, decisionTurnRecorded, () => [])
   await update($, decisionTurnPrompt, () => (typeof prompt === 'string' ? prompt : ''))
+  try {
+    await settleCap($, await nowMs($))
+  } catch {
+    // the card stays until the next turn
+  }
+}
+
+// ---------------------------------------------------------------- the hourly cap
+
+/**
+ * The pause the cap card stands for, while it lasts: a pause was marked, the watch is on and the last hour still
+ * holds `watchMaxPerHour` calls or more. Null otherwise (also once the hour frees up, before any turn resets it).
+ */
+async function capPause($: EngineInterface): Promise<{ calls: number; max: number; hidden: boolean } | null> {
+  const card = await read($, decisionCapCard)
+  if (!(card.since > 0)) return null
+  const cfg = await read($, decisionWatch)
+  if (!cfg.watch) return null
+  const calls = recentCalls(await storeGet($, KEY_CALLS), await nowMs($)).length
+  return calls >= cfg.watchMaxPerHour ? { calls, max: cfg.watchMaxPerHour, hidden: card.hidden } : null
+}
+
+/** The cap paused the watch: the card shows, once per pause (a pause already marked stays as it is). */
+async function markCapped($: EngineInterface, now: number): Promise<void> {
+  if ((await read($, decisionCapCard)).since > 0) return
+  await update($, decisionCapCard, () => ({ since: now, hidden: false }))
+}
+
+/** A marked pause is over once the last hour holds fewer calls than the cap, or the watch is off: the card goes. */
+async function settleCap($: EngineInterface, now: number): Promise<void> {
+  if (!((await read($, decisionCapCard)).since > 0)) return
+  const cfg = await read($, decisionWatch)
+  const calls = recentCalls(await storeGet($, KEY_CALLS), now)
+  if (!cfg.watch || calls.length < cfg.watchMaxPerHour) await update($, decisionCapCard, () => CAP_OFF)
+}
+
+/** Allow <watchMaxPerHour> more: the hour's call list is cleared, so the next calls run, and the card goes. */
+async function allowMoreCalls($: EngineInterface): Promise<void> {
+  if (!(await storeSet($, KEY_CALLS, []))) {
+    toast($, 'loopkeeper: the watch stays paused: the call list could not be cleared')
+    return
+  }
+  await update($, decisionCapCard, () => CAP_OFF)
+}
+
+/** Keep paused: the card hides until the window frees up (the pane keeps its line). */
+async function keepPaused($: EngineInterface): Promise<void> {
+  if ((await read($, decisionCapCard)).since > 0) await update($, decisionCapCard, c => ({ ...c, hidden: true }))
 }
 
 /** The last user message with text, and the last assistant text after it. */
@@ -488,8 +547,11 @@ async function proposeFromTurn($: EngineInterface, answerText: unknown, log: rea
       'cap',
       `loopkeeper: the watch is paused, ${calls.length} calls in the last hour (watchMaxPerHour ${cfg.watchMaxPerHour})`,
     )
+    // the card asks once per pause; a cap of 0 is a setting, not a pause to ask about
+    if (cfg.watchMaxPerHour > 0) await markCapped($, now)
     return null
   }
+  if ((await read($, decisionCapCard)).since > 0) await update($, decisionCapCard, () => CAP_OFF)
   await storeSet($, KEY_CALLS, [...calls, now])
 
   const turn = await read($, decisionTurnRecorded)
@@ -563,9 +625,13 @@ async function watchTurn($: EngineInterface, answer: unknown): Promise<void> {
   await finishTurn($, recorded, proposal)
 }
 
-/** Takes the oldest waiting major off the queue (Record or Skip pressed). */
-async function takeMajor($: EngineInterface): Promise<Proposed | null> {
-  const m = (await read($, decisionPending))[0]
+/**
+ * Takes a waiting major off the queue (Record or Skip pressed): the one with this text (a pane row), or the oldest
+ * (the band card). Null when it no longer waits.
+ */
+async function takeMajor($: EngineInterface, text?: string): Promise<Proposed | null> {
+  const list = await read($, decisionPending)
+  const m = text === undefined ? list[0] : list.find(p => p.text === text)
   if (!m) return null
   await update($, decisionPending, l => l.filter(p => p.text !== m.text))
   return m
@@ -584,23 +650,46 @@ async function skipMajor($: EngineInterface, m: Proposed): Promise<void> {
   await storeSet($, skippedKey(cwd), [...skipped, m.text].slice(-MAX_SKIPPED))
 }
 
-/** Record or Skip on the band's major decision card. */
-async function answerMajor($: EngineInterface, choice: 'record' | 'skip'): Promise<void> {
-  const m = await takeMajor($)
-  if (!m) return
+/**
+ * Records one waiting major (by its text, or the oldest): off the queue and into the log. A failed write puts it
+ * back at the front, so Record can be pressed again (or Skip). Null when it no longer waits.
+ */
+async function recordMajor($: EngineInterface, text?: string): Promise<{ m: Proposed; done: Recorded } | null> {
+  const m = await takeMajor($, text)
+  if (!m) return null
+  const done = await record($, { decision: m.text, why: m.why, tags: m.tags }, 'claude')
+  if (done.ok) await noteRecorded($, m.text, 'major')
+  else await returnMajor($, m)
+  return { m, done }
+}
+
+/** Record or Skip: on the band's card (the oldest, no text) or on a pane row (that row's text). */
+async function answerMajor($: EngineInterface, choice: 'record' | 'skip', text?: string): Promise<void> {
   if (choice === 'skip') {
-    await skipMajor($, m)
+    const m = await takeMajor($, text)
+    if (m) await skipMajor($, m)
     return
   }
-  const done = await record($, { decision: m.text, why: m.why, tags: m.tags }, 'claude')
-  if (done.ok) {
-    await noteRecorded($, m.text, 'major')
-    toast($, 'recorded: ' + cut(m.text, 60))
-  } else {
-    // Back to the front, so Record can be pressed again (or Skip)
-    await returnMajor($, m)
-    toast($, 'loopkeeper: not recorded: ' + done.error)
+  const r = await recordMajor($, text)
+  if (!r) return
+  toast($, r.done.ok ? 'recorded: ' + cut(r.m.text, 60) : 'loopkeeper: not recorded: ' + r.done.error)
+}
+
+/** Record all in the pane: every waiting major, oldest first, with one toast; a failed write stops there. */
+async function recordAllMajors($: EngineInterface): Promise<void> {
+  const recorded: string[] = []
+  for (const p of await read($, decisionPending)) {
+    const r = await recordMajor($, p.text)
+    if (!r) continue
+    if (!r.done.ok) {
+      const before = recorded.length ? `recorded ${recorded.length}, then ` : ''
+      toast($, `loopkeeper: ${before}not recorded: ${r.done.error}`)
+      return
+    }
+    recorded.push(r.m.text)
   }
+  if (recorded.length === 1) toast($, 'recorded: ' + cut(recorded[0] ?? '', 60))
+  else if (recorded.length > 1) toast($, `recorded ${recorded.length} major decisions`)
 }
 
 async function watchStatus($: EngineInterface, now: number): Promise<string> {
@@ -912,8 +1001,10 @@ export function wireDecisions(on: On): void {
     const isOn = await read($, decisionBand)
     const n = await read($, decisionCount)
     const waiting = (await read($, decisionPending)).length
+    const pause = await capPause($)
+    const showCap = pause !== null && !pause.hidden
     const showLine = isOn && n > 0
-    if (!showLine && waiting === 0) return next(e)
+    if (!showLine && waiting === 0 && !showCap) return next(e)
     const ui = $.ui.resolve(e)
     const { Box } = ui
     const k = makeKit(ui as unknown as Elements, e?.surface ?? 'terminal')
@@ -929,6 +1020,8 @@ export function wireDecisions(on: On): void {
         ),
       )
     }
+    // The hourly cap paused the watch: Allow more or Keep paused, whatever the band setting
+    if (pause && showCap) parts.push(capCard(k, pause.calls, pause.max, () => allowMoreCalls($), () => keepPaused($)))
     if (showLine) {
       const watching = (await read($, decisionWatch)).watch === true
       parts.push(k.line('decisions', [{ text: bandText(n), tone: 'info' }], watching ? 'watch on' : undefined))
@@ -970,8 +1063,8 @@ export function wireDecisions(on: On): void {
     }
   })
 
-  // The pane: the nav bar, the hero and tiles, the target and controls, the major decisions pending, the recent
-  // decisions and the learned preferences.
+  // The pane: the nav bar, the hero and tiles, the target and controls, the cap line while the watch is paused, the
+  // major decisions pending (Record and Skip on each), the recent decisions and the learned preferences.
   on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e, next) => {
     if (e?.requestId !== PANE_ID) return next(e)
     const ui = $.ui.resolve(e)
@@ -985,6 +1078,7 @@ export function wireDecisions(on: On): void {
     // config file → Turn on
     const watchLabel = cfg.watch ? 'Pause watch' : (await storeGet($, KEY_WATCH)) === false ? 'Resume watch' : 'Turn watch on'
     const waiting = await read($, decisionPending)
+    const pause = await capPause($)
     const prefs = await read($, decisionPrefs)
     const kinds = new Map(await read($, decisionKinds))
     const head = t
@@ -1074,13 +1168,42 @@ export function wireDecisions(on: On): void {
         ],
       }),
     ]
+    // The hourly cap paused the watch: the line stays after Keep paused hid the band's card, and carries the buttons
+    // on surfaces without the band
+    if (pause) {
+      blocks.push(
+        k.row({
+          key: 'cap',
+          left: [Text({ color: TONES.warn.fg, wrap: 'wrap', children: [capText(pause.calls)] })],
+          right: [
+            k.buttons([
+              { key: 'decisions-pane-cap-more', label: `Allow ${pause.max} more`, plain: true, onPress: () => allowMoreCalls($) },
+              ...(pause.hidden ? [] : [{ key: 'decisions-pane-cap-keep', label: 'Keep paused', plain: true, onPress: () => keepPaused($) }]),
+            ]),
+          ],
+        }),
+      )
+    }
+    // Each pending major has Record and Skip acting on its own text (no hotkeys: the rows shift as they go)
     if (waiting.length) {
       blocks.push(
         k.stack([
-          k.section('Major pending', 'r: Record · s: Skip on the band'),
+          k.section('Major pending', String(waiting.length)),
           ...waiting.map((p, i) =>
-            k.row({ key: 'pending-' + i, left: [k.badge('major', 'accent'), Text({ wrap: 'wrap', children: [p.text] })] }),
+            k.row({
+              key: 'pending-' + i,
+              left: [k.badge('major', 'accent'), Text({ wrap: 'wrap', children: [p.text] })],
+              right: [
+                k.buttons([
+                  { key: 'decisions-pending-record-' + i, label: 'Record', plain: true, onPress: () => answerMajor($, 'record', p.text) },
+                  { key: 'decisions-pending-skip-' + i, label: 'Skip', plain: true, onPress: () => answerMajor($, 'skip', p.text) },
+                ]),
+              ],
+            }),
           ),
+          ...(waiting.length > 1
+            ? [k.buttons([{ key: 'decisions-pending-record-all', label: 'Record all', plain: true, onPress: () => recordAllMajors($) }])]
+            : []),
         ]),
       )
     }

@@ -10,12 +10,14 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
 import { mergeConfig, parseConfigText } from './lib/config.ts'
-import { mergeLayers } from './lib/gateRules.ts'
+import { REQUEST_KEY, answerText, carryText, liveRequests, mergeLayers, parseRequestKey, requestChoices } from './lib/gateRules.ts'
+import type { RequestChoice } from './lib/gateRules.ts'
 import { TONES, makeKit } from './lib/kit.ts'
 import type { Elements, Tone } from './lib/kit.ts'
-import { PLUGIN, TOOL, TOOL_FULL, joinText, projectConfigPath, subOf, userConfigPath } from './lib/names.ts'
+import { PLUGIN, TOOL, TOOL_FULL, joinText, projectConfigPath, storeKey, subOf, userConfigPath } from './lib/names.ts'
 import { HUB_ID, HUB_ROWS, PANES } from './lib/panes.ts'
 import {
+  approvedAfterBack,
   BAND_KEY,
   CONFIG_LABEL,
   DEFAULT_LIMITS,
@@ -89,8 +91,9 @@ import {
   versionNote,
   wantsHold,
 } from './lib/stageModel.ts'
+import { REVIEW_KEY } from './lib/reviewModel.ts'
 import type { Approval, By, Config, Limits, Size, Stage, Transition, Verdict } from './lib/stageModel.ts'
-import type { LkGateConfig, LkNext, LkSubject } from '../types/index.d.ts'
+import type { LkGateConfig, LkGateLogRow, LkGateRequest, LkNext, LkSubject } from '../types/index.d.ts'
 
 // ---- State: everything a drawing reads lives in $.state, so it survives a hot reload ---------------------------
 
@@ -155,9 +158,27 @@ const routeLoop = atom({ plugin: 'loopkeeper', key: 'routeLoop' } as const, true
 // the gates' /lk gates ship ok for this session and their merged config (shipGate), read by the next-step sentence
 const gateShipOk = atom({ plugin: 'loopkeeper', key: 'gateShipOk' } as const, false)
 const gateConfig = atom({ plugin: 'loopkeeper', key: 'gateConfig' } as const, null as LkGateConfig | null)
+// Set by the gates when a commit or push passes on the Ship approval; the person's next message spends the approval
+// (prompt.submit below). Saved with the task, so a resume keeps it.
+const stageShipUsed = atom({ plugin: 'loopkeeper', key: 'stageShipUsed' } as const, false)
 // Written here, spent by the gates: the user's approval at or into the ship stage covers the next push or merge to
 // the default branch; leaving the ship stage (or a reset) takes back one not used
 const gateMergeCredit = atom({ plugin: 'loopkeeper', key: 'gateMergeCredit' } as const, false)
+// The gates' requests and the grants the stage writes when the user answers one (same keys and defaults as gates.ts;
+// every grant is added with update(list => …), never written over the list)
+const gateRequests = atom({ plugin: 'loopkeeper', key: 'gateRequests' } as const, [] as LkGateRequest[])
+const gateTurnSeq = atom({ plugin: 'loopkeeper', key: 'gateTurnSeq' } as const, 0)
+const gateGrants = atom({ plugin: 'loopkeeper', key: 'gateGrants' } as const, [] as string[])
+const gateGlobGrants = atom({ plugin: 'loopkeeper', key: 'gateGlobGrants' } as const, [] as string[])
+const gateMergeSession = atom({ plugin: 'loopkeeper', key: 'gateMergeSession' } as const, false)
+const gateShipOnce = atom({ plugin: 'loopkeeper', key: 'gateShipOnce' } as const, [] as string[])
+const gateSessionRaise = atom({ plugin: 'loopkeeper', key: 'gateSessionRaise' } as const, 0)
+const gateLog = atom({ plugin: 'loopkeeper', key: 'gateLog' } as const, [] as LkGateLogRow[])
+// written by the gates when the person runs /lk gates allow | ship ok | merge ok | plan ok | max: the stage carries on
+const gateAnswered = atom({ plugin: 'loopkeeper', key: 'gateAnswered' } as const, { seq: 0, text: '' } as { seq: number; text: string })
+
+// written by the review concern when the person grants more passes or stops an at-limit subject: the stage carries on
+const reviewAnswered = atom({ plugin: 'loopkeeper', key: 'reviewAnswered' } as const, { seq: 0, text: '' } as { seq: number; text: string })
 
 const PANE_ID = 'loopkeeper-stage'
 const TICK_MS = 30_000
@@ -226,7 +247,12 @@ const USAGE =
 
 // changed: the approval approved something new (a gate or a waiting budget); budgetOnly: only a budget was approved;
 // credit: the approval only gave the merge credit (at a Ship stage with no gate, or with its gate already approved)
-type MoveOutcome = { ok: boolean; text: string; reason?: string; changed?: boolean; budgetOnly?: true; credit?: true }
+// `carry`: the whole continue prompt, when the answer states its own (a request's answer)
+// Added to set_stage's answer when Claude moves back out of QA or Ship
+const NEW_WORK =
+  "If this is new work rather than a fix to the work being shipped, call set_stage {stage:'plan', size, files, note}: a new task starts at Plan."
+
+type MoveOutcome = { ok: boolean; text: string; reason?: string; changed?: boolean; budgetOnly?: true; credit?: true; carry?: string }
 
 // ---- Small helpers that take $ -----------------------------------------------------------------------------------
 
@@ -283,6 +309,10 @@ async function readConfig($: EngineInterface, cwd: string): Promise<{ pipeline: 
   return { pipeline: pipelineFromLayers(user, project), cc: mergeConfig(user, project).config.changeControl }
 }
 
+// The stageShipUsed value the store holds now: the turn's end saves it when a commit or push changed it (the gates
+// cannot call persist)
+let lastPersistedShipUsed = false
+
 // What a project keeps between sessions: the task's state, never the history
 async function persist($: EngineInterface): Promise<void> {
   try {
@@ -299,7 +329,9 @@ async function persist($: EngineInterface): Promise<void> {
       filesTouched: [...(await read($, stageFilesTouched))],
       planFiles: await read($, stagePlanFiles),
       budget: await read($, stageBudget),
+      shipUsed: await read($, stageShipUsed),
     })
+    lastPersistedShipUsed = await read($, stageShipUsed)
   } catch {
     // the store can be unavailable; the session keeps working from $.state
   }
@@ -325,8 +357,9 @@ async function applyStages($: EngineInterface, list: Stage[], name: string, note
   const first = list[0]?.id ?? 'plan'
   if (!ids.includes(await read($, stageCurrent))) {
     await update($, stageCurrent, () => first)
-    // a fallback past moveTo: an unused merge credit goes with the stage it was given at
+    // a fallback past moveTo: an unused merge credit or once-grant goes with the stage it was given at
     await update($, gateMergeCredit, () => false)
+    await update($, gateShipOnce, () => [])
     if (note) {
       const at = await safeNow($)
       await update($, stageHistory, h => capHistory([...h, { stage: first, at, by: 'command' as By, note }]))
@@ -445,12 +478,16 @@ async function init($: EngineInterface): Promise<void> {
     await update($, stageFilesTouched, () => saved.filesTouched)
     await update($, stagePlanFiles, () => saved.planFiles)
     await update($, stageBudget, () => saved.budget)
+    await update($, stageShipUsed, () => saved.shipUsed)
+    lastPersistedShipUsed = saved.shipUsed
     await update($, stageHistory, () => [{ stage: saved.stage, at, by: 'resume' as By, note: 'resumed from the last session' }])
   } else {
     const first = list[0]?.id ?? 'plan'
     await update($, stageCurrent, () => first)
     await update($, stageApproved, () => [])
     await update($, stageVerified, () => [])
+    await update($, stageShipUsed, () => false)
+    lastPersistedShipUsed = false
     await clearTask($)
     await update($, stageHistory, () => [{ stage: first, at, by: 'auto' as By, note: 'session start' }])
   }
@@ -480,6 +517,18 @@ async function moveTo($: EngineInterface, target: string, by: By, note?: string)
   const carried = await read($, stageCarry)
   const carriedBy = await read($, stageCarryBy)
   await update($, stageCurrent, () => id)
+  // Claude moving back re-gates: the approvals of the gates after the target go, and the merge credit with them
+  if (by === 'tool' && indexOf(list, id) < indexOf(list, from)) {
+    await update($, stageApproved, a => approvedAfterBack(list, id, a))
+    await update($, gateMergeCredit, () => false)
+  }
+  // a Ship approval used belongs to the stage it was used in
+  if (id !== from) await update($, stageShipUsed, () => false)
+  // the gates' requests were raised at the stage left, and an unused once-grant goes with them
+  if (id !== from) {
+    await update($, gateRequests, () => [])
+    await update($, gateShipOnce, () => [])
+  }
   // the merge credit is the ship stage's: leaving it takes back one not used
   if (roleOf(check.stage) !== 'ship') await update($, gateMergeCredit, () => false)
   // a verifier counts per visit: entering a stage again needs a fresh one, except a small task's waiver the first time
@@ -494,7 +543,8 @@ async function moveTo($: EngineInterface, target: string, by: By, note?: string)
   }
   await update($, stageCarry, () => '')
   await update($, stageCarryBy, () => '')
-  // back to Plan: a new plan, so the plan's approval and its file budget go
+  // back to Plan: a new plan, so its small-task waiver and file budget go (a move by Claude has dropped the approvals
+  // after Plan above; the user's /lk back keeps them)
   if (roleOf(check.stage) === 'plan') {
     await update($, stageWaived, () => [])
     await update($, stageFilesTouched, () => [])
@@ -743,6 +793,79 @@ async function step($: EngineInterface, dir: 1 | -1): Promise<MoveOutcome> {
   return moveTo($, target.id, 'command')
 }
 
+// ---- Requests: the gates' refusals that wait for the user's yes ---------------------------------------------------
+
+// Answer a request (a card or Gates pane press, or /lk approve) through the gate atoms the gates read at every check,
+// remove it, log it and give the carry-on prompt (the request's label, never a raw command). `via` is the log's words.
+async function answerRequest($: EngineInterface, id: string, choice: RequestChoice, via = 'the card'): Promise<MoveOutcome> {
+  const r = (await read($, gateRequests)).find(x => x.id === id)
+  if (!r || !requestChoices(r).some(c => c.choice === choice)) return { ok: false, text: 'That request is no longer waiting.' }
+  let drop = (x: LkGateRequest): boolean => x.id === r.id
+  if (choice !== 'deny') {
+    if (r.kind === 'protected') {
+      if (choice === 'session' && r.glob) {
+        const glob = r.glob
+        await update($, gateGlobGrants, list => (list.includes(glob) ? list : [...list, glob]))
+        drop = x => x.id === r.id || (x.kind === 'protected' && x.glob === glob)
+      } else {
+        await update($, gateGrants, list => (list.includes(r.target) ? list : [...list, r.target]))
+      }
+    } else if (r.kind === 'merge') {
+      if (choice === 'session') await update($, gateMergeSession, () => true)
+      else await update($, gateMergeCredit, () => true)
+      if (choice === 'session') drop = x => x.kind === 'merge'
+    } else if (r.kind === 'ship') {
+      if (choice === 'session') {
+        // as /lk gates ship ok: shipping opens, the next push or merge to the default branch is covered
+        const sid = await $.session.id().catch(() => '')
+        await $.store.set(storeKey('gates', 'shipOk:' + (typeof sid === 'string' && sid !== '' ? sid : 'unknown')), true).catch(() => undefined)
+        await update($, gateShipOk, () => true)
+        await update($, gateMergeCredit, () => true)
+        drop = x => x.kind === 'ship' || x.kind === 'merge'
+      } else {
+        const names = r.target.split(',').map(n => n.trim()).filter(Boolean)
+        await update($, gateShipOnce, list => [...list, ...names.filter(n => !list.includes(n))])
+      }
+    } else if (r.raise !== undefined && r.raise > 0) {
+      const raise = r.raise
+      await update($, gateSessionRaise, n => Math.max(n, raise))
+    }
+  }
+  await update($, gateRequests, list => list.filter(x => !drop(x)))
+  const outcome: 'allowed' | 'denied' = choice === 'deny' ? 'denied' : 'allowed'
+  const row: LkGateLogRow = { at: Date.now(), rule: r.kind, target: r.target, outcome, detail: outcome + ' on ' + via }
+  await update($, gateLog, rows => [...rows, row].slice(-20))
+  return { ok: true, text: answerText(r, choice), changed: true, carry: carryText(r, choice) }
+}
+
+// What the stage itself has waiting for /lk approve, named: a file budget, its gate, or the gate ahead ('' for none)
+async function ownWaiting($: EngineInterface, list: readonly Stage[], stage: Stage): Promise<string> {
+  if (budgetWaits(await budgetState($))) return 'The file budget'
+  const approved = await read($, stageApproved)
+  if (stage.gate === true && !approved.includes(stage.id)) return 'The ' + stage.label + ' gate'
+  const ahead = gateAhead(list, stage.id, approved)
+  return ahead ? 'The ' + ahead.label + ' gate' : ''
+}
+
+// /lk approve and the Approve buttons answer a waiting request with its first Allow: one raised in the latest main
+// turn comes before the stage's own waiting items (the answer says they still wait); with nothing of its own waiting
+// the newest request is answered whatever its turn. Null when no request is answered (today's order follows).
+async function approveRequest($: EngineInterface): Promise<MoveOutcome | null> {
+  const turn = await read($, gateTurnSeq)
+  const live = liveRequests(await read($, gateRequests), turn)
+  if (live.length === 0) return null
+  const list = await read($, stageStages)
+  const stage = list[indexOf(list, await read($, stageCurrent))]
+  const waiting = stage ? await ownWaiting($, list, stage) : ''
+  const fresh = [...live].reverse().find(r => r.turn === turn)
+  const pick = fresh ?? (waiting === '' ? live[live.length - 1] : undefined)
+  const first = pick ? requestChoices(pick)[0] : undefined
+  if (!pick || !first) return null
+  const outcome = await answerRequest($, pick.id, first.choice, '/lk approve')
+  if (outcome.ok && fresh && waiting !== '') outcome.text += ' ' + waiting + ' is still waiting; /lk approve again to approve it.'
+  return outcome
+}
+
 // /lk approve: the current stage's gate. Approving the plan gate approves the planned file budget with it (any count:
 // the user approves it). With the gate already open, or at another stage's gate, a large budget still waiting is
 // approved first. From the stage before a gate (no gate of its own waiting), it opens the next stage's gate and moves
@@ -752,6 +875,8 @@ async function approveGate($: EngineInterface): Promise<MoveOutcome> {
   const list = await read($, stageStages)
   const stage = list[indexOf(list, await read($, stageCurrent))]
   if (!stage) return { ok: false, text: 'No current stage.' }
+  const asked = await approveRequest($)
+  if (asked) return asked
   const isPlanGate = roleOf(stage) === 'validate-plan'
   const isShip = roleOf(stage) === 'ship'
   if (isPlanGate && stage.gate === true) {
@@ -764,9 +889,11 @@ async function approveGate($: EngineInterface): Promise<MoveOutcome> {
     if (ahead) return openGateAhead($, stage, ahead)
     // nothing new is approved, so no continue prompt goes (no `changed`); the answer says what the approval covers
     if (isShip) {
+      const had = await read($, gateMergeCredit)
       await update($, gateMergeCredit, () => true)
+      await update($, stageShipUsed, () => false)
       const head = stage.gate !== true ? stage.label + ' has no gate to approve' : 'The ' + stage.label + ' gate is already approved'
-      return { ok: true, text: head + '; the next push or merge to the default branch is allowed.', credit: true }
+      return { ok: true, text: head + '; the next push or merge to the default branch is allowed.', credit: true, ...(had ? {} : { changed: true }) }
     }
     if (stage.gate !== true) return { ok: false, text: stage.label + ' has no gate to approve.' }
     return { ok: true, text: 'The ' + stage.label + ' gate is already approved.' }
@@ -775,7 +902,10 @@ async function approveGate($: EngineInterface): Promise<MoveOutcome> {
   // next one the gate's
   if (!isPlanGate && budgetWaits(await budgetState($))) return approveWaitingBudget($)
   await update($, stageApproved, a => [...a, stage.id])
-  if (isShip) await update($, gateMergeCredit, () => true)
+  if (isShip) {
+    await update($, gateMergeCredit, () => true)
+    await update($, stageShipUsed, () => false)
+  }
   // the user's approval vouches for the stage's verifier too
   if (stage.requiresAgent && !(await read($, stageVerified)).includes(stage.id)) {
     await update($, stageVerified, v => [...v, stage.id])
@@ -801,7 +931,10 @@ async function openGateAhead($: EngineInterface, stage: Stage, next: Stage): Pro
     if (vouch) await update($, stageVerified, v => v.filter(id => id !== stage.id))
     return moved
   }
-  if (roleOf(next) === 'ship') await update($, gateMergeCredit, () => true)
+  if (roleOf(next) === 'ship') {
+    await update($, gateMergeCredit, () => true)
+    await update($, stageShipUsed, () => false)
+  }
   if (!already) await update($, stageApproved, a => (a.includes(next.id) ? a : [...a, next.id]))
   if (next.requiresAgent) await update($, stageVerified, v => (v.includes(next.id) ? v : [...v, next.id]))
   const isPlanGate = roleOf(next) === 'validate-plan'
@@ -826,7 +959,10 @@ async function resetPipeline($: EngineInterface): Promise<MoveOutcome> {
   const first = list[0]?.id ?? 'plan'
   const at = await safeNow($)
   await update($, stageCurrent, () => first)
+  await update($, gateRequests, () => [])
+  await update($, gateShipOnce, () => [])
   await update($, gateMergeCredit, () => false)
+  await update($, stageShipUsed, () => false)
   await update($, stageApproved, () => [])
   await update($, stageVerified, () => [])
   await clearTask($)
@@ -1027,7 +1163,7 @@ async function sendIfLive($: EngineInterface, text: string, seq: number, retry: 
 async function continueAfter($: EngineInterface, outcome: MoveOutcome, said: string, fromCommand = false): Promise<void> {
   try {
     if (!outcome.ok || outcome.changed !== true || !(await mayContinue($))) return
-    const text = said + ' ' + outcome.text + ' Carry on with the task from where you stopped.'
+    const text = outcome.carry ?? said + ' ' + outcome.text + ' Carry on with the task from where you stopped.'
     if (!(await read($, stageTurnRunning))) {
       const seq = await claimContinue($)
       if (seq === null) return
@@ -1350,6 +1486,19 @@ async function lk($: EngineInterface, e: { args?: unknown; origin?: unknown }, n
     }
     return { ...(r ?? {}), text: joinText(line, r?.text) }
   }
+  // /lk gates allow | ship ok | merge ok | plan ok | max <n> from the person: the gates answer and note it in
+  // gateAnswered; the stage carries on (ADR 0012)
+  if (sub === 'gates') {
+    const before = (await read($, gateAnswered)).seq
+    const r = await next(e)
+    try {
+      const after = await read($, gateAnswered)
+      if (fromPerson && after.seq > before) await continueAfter($, { ok: true, text: after.text, changed: true, carry: after.text }, '', true)
+    } catch {
+      // the answer stands without the prompt
+    }
+    return r
+  }
   let own: { text?: string } | undefined
   try {
     own = await ownCommand($, args, fromPerson)
@@ -1489,11 +1638,18 @@ export function wireStage(on: On): void {
     }
     const remind = role === 'plan' && stageForRole(list, 'validate-plan')?.gate === true ? ' ' + SIZE_REMINDER : ''
     const from = await read($, stageCurrent)
+    const shipId = stageForRole(list, 'ship')?.id
+    const hadShip = shipId !== undefined && (await read($, stageApproved)).includes(shipId)
     const outcome = await moveTo($, target, 'tool', note)
     if (outcome.ok) {
       lastHeld = ''
       const budget = await budgetOnLeavingPlan($, from)
-      return { result: outcome.text + (budget ? ' ' + budget : '') + ' Stage ids: ' + validIds(list) + '.' + remind + unused }
+      const fromRole = roleOf(findStage(list, from))
+      const back = indexOf(list, target) < indexOf(list, from)
+      const droppedShip = hadShip && shipId !== undefined && !(await read($, stageApproved)).includes(shipId)
+      const regate =
+        (back && (fromRole === 'qa' || fromRole === 'ship') ? ' ' + NEW_WORK : '') + (droppedShip ? ' The Ship approval was dropped.' : '')
+      return { result: outcome.text + (budget ? ' ' + budget : '') + regate + ' Stage ids: ' + validIds(list) + '.' + remind + unused }
     }
     if (outcome.reason === 'same') return { result: outcome.text + remind + unused }
     return { deny: outcome.text }
@@ -1570,6 +1726,18 @@ export function wireStage(on: On): void {
         await update($, stageTurnRunning, () => false)
         await update($, stageContinuePending, () => null)
       }
+      if (fromPerson && !String((e as { text?: unknown }).text ?? '').trim().startsWith('/') && (await read($, stageShipUsed))) {
+        const list = await read($, stageStages)
+        const ship = list[indexOf(list, await read($, stageCurrent))]
+        if (ship && roleOf(ship) === 'ship' && (await read($, stageApproved)).includes(ship.id)) {
+          await update($, stageApproved, a => a.filter(id => id !== ship.id))
+          await update($, gateMergeCredit, () => false)
+          await update($, stageShipUsed, () => false)
+          await derive($)
+          await persist($)
+          logNotice($, 'Ship approval used: the next commit or push needs a fresh OK.')
+        }
+      }
       if (fromPerson && wantsHold((e as { text?: unknown }).text)) {
         await update($, stageHoldPlan, () => true)
         await update($, stageHoldBound, () => false)
@@ -1614,6 +1782,8 @@ export function wireStage(on: On): void {
     }
     try {
       await update($, stageTurnRunning, () => false)
+      // a commit or push under the Ship approval changed the flag in the gates; save it with the task
+      if ((await read($, stageShipUsed)) !== lastPersistedShipUsed) await persist($)
       const pending = await read($, stageContinuePending)
       if (pending) {
         await update($, stageContinuePending, () => null)
@@ -1718,7 +1888,7 @@ export function wireStage(on: On): void {
                 label: button.label,
                 plain: true,
                 onPress: async () => {
-                  const outcome = button.kind === 'plan' ? await approveGate($) : await approveWaitingBudget($)
+                  const outcome = button.kind === 'plan' ? await approveGate($) : ((await approveRequest($)) ?? (await approveWaitingBudget($)))
                   tell($, outcome)
                   await continueAfter($, outcome, 'The user pressed ' + button.label + '.')
                 },
@@ -1907,6 +2077,55 @@ export function wireStage(on: On): void {
     return next(e)
   })
 
+  // A press on a request's button (the card above the prompt, the Gates pane) is the person's answer: apply it and
+  // carry on before the press goes on (the gates' own onPress does nothing)
+  on('ui.press', { plugin: PLUGIN, element: [REQUEST_KEY] }, async ($, e, next) => {
+    try {
+      const asked = parseRequestKey((e as { element?: unknown }).element)
+      if (asked) {
+        const outcome = await answerRequest($, asked.id, asked.choice)
+        toast($, outcome.text)
+        await continueAfter($, outcome, 'The user pressed a button.')
+      }
+    } catch {
+      // the press goes on; the request stays for /lk approve
+    }
+    return next(e)
+  })
+
+  // A press on a review card or pane button (allow more passes, stop here) is the person's answer: the review applies
+  // it in its own onPress (below this hook) and notes it in reviewAnswered; the stage then carries on
+  on('ui.press', { plugin: PLUGIN, element: [REVIEW_KEY] }, async ($, e, next) => {
+    let before = 0
+    try {
+      before = (await read($, reviewAnswered)).seq
+    } catch {
+      // read again below
+    }
+    const out = await next(e)
+    try {
+      const after = await read($, reviewAnswered)
+      if (after.seq > before) await continueAfter($, { ok: true, text: after.text, changed: true, carry: after.text }, '')
+    } catch {
+      // the answer stands without the prompt
+    }
+    return out
+  })
+
+  // /reviews more | stop | max from the person: same carry-on, sent from a timer like /lk gates (the review concern
+  // answers below this hook; a non-person run never moves reviewAnswered)
+  on('command.run', { command: 'reviews' }, async ($, e, next) => {
+    const before = (await read($, reviewAnswered)).seq
+    const r = await next(e)
+    try {
+      const after = await read($, reviewAnswered)
+      if (after.seq > before) await continueAfter($, { ok: true, text: after.text, changed: true, carry: after.text }, '', true)
+    } catch {
+      // the answer stands without the prompt
+    }
+    return r
+  }).catch(($, e, next) => next(e))
+
   // The hub (/lk alone): the frame around the concerns' rows, outermost of the hub chain since the stage is wired
   // first. The hero, the Panels header and the Stage row; then each later concern's row (next); then the other mods
   // and the actions. The rows show with the band off or the kill switch on; a failure draws what the chain drew.
@@ -1983,7 +2202,7 @@ export function wireStage(on: On): void {
           hotkey: 'a',
           // the band button's path, so a changed approval continues the task (ADR 0012)
           onPress: async () => {
-            const outcome = button?.kind === 'budget' ? await approveWaitingBudget($) : await approveGate($)
+            const outcome = button?.kind === 'budget' ? ((await approveRequest($)) ?? (await approveWaitingBudget($))) : await approveGate($)
             tell($, outcome)
             await continueAfter($, outcome, 'The user pressed ' + approveLabel + '.')
           },

@@ -2,6 +2,37 @@
 
 All notable changes to the loopkeeper core plugin are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] - 2026-10-15
+
+### Added
+
+- A gate that needs the user's yes raises a request off the terminal instead of only refusing. It shows as a card above the prompt on the desktop app (also with the gates band off), in the Gates pane on VS Code and mobile, and as the command to run under `-p`. A protected path offers **Allow this file**, **Allow all of `<glob>` for this session** and **Deny**. A push or merge to the default branch offers **Allow this push** (or **Allow this merge**), **Allow pushes for this session** (or **Allow merges for this session**) and **Deny**. Shipping offers **Allow this `<what>` once**, **Open shipping for this session** and **Deny**. Files past the limit offer **Raise to `<n>` files a turn for this session** and **Deny**.
+- Claude carries on after a press on a request's button, and after a `/lk gates allow`, `ship ok`, `merge ok`, `plan ok` or `max` command the user runs that changes something. One prompt per turn, under the ADR 0012 guards. The prompt names the refused path, glob or command label, never the raw Bash command.
+- `/decisions` shows **Record** and **Skip** on each pending major decision, and **Record all** when there are two or more.
+- The decision watch's hourly cap shows a card above the prompt, and a line in the pane: `Decision watch paused: <n> calls in the last hour`, with **Allow <n> more** and **Keep paused**. The card shows once per pause.
+- A review loop that has used every pass and is not done shows a card above the prompt, with **Allow <n> more** (the kind's default) and **Stop here**. The Review pane has **Allow <n> more** beside Reopen and Close, and `/reviews more <subject> [n]` allows `n` more. Each grant or stop sends Claude one carry-on prompt, under the ADR 0012 guards. A limit cannot go past 20 passes.
+
+### Changed
+
+- `/lk approve` answers a waiting gate request first, with its first Allow, names the answer and carries on. A request raised in the latest main turn comes first, and the reply says what else still waits. With no request pending, the answers are as before.
+- Requests are cleared by a stage move and expire after three main turns.
+- `/lk gates plan ok`, `/lk gates max <n>` and the words that loosen a gate (`/lk gates off`, `ship gate off`, `plan required off`) are refused from another plugin ("Only the user can …"), as `allow`, `ship ok` and `merge ok` already were.
+- A raise from a request card replaces a `/lk gates max` value when it is higher.
+- The loop rules (GSD mode) add rule 8: at QA or Ship, a request that does not finish this ship (a commit, push, PR, merge, its deploy, or a fix that unblocks them) is new work, a question included; when unsure, it is new. Claude calls `set_stage` plan with a size before any work, and in a long session offers a handoff first.
+- Refusal texts name only steps that work: `/lk approve`, the surface's card or Gates pane, or with `-p` the command. "run /lk approve at QA or Ship" is gone.
+- The README's reviewer notes are refreshed: the carry-on prompt, the stage's `ui.press` hook, and the line numbers.
+- A review loop's limit is raised only by the person: `/reviews more`, a card's or a pane's **Allow <n> more**, and a `/reviews max` that raises a loop's limit. A model's own call is refused ("Only the user can …"). Lowering `max` works from anyone. The past-limit refusal and the not-converging line now say to report what changed and to ask for more passes, instead of asking how to proceed.
+- A backward move by Claude (`set_stage` to an earlier stage) drops the approvals of the gates after the target and the merge credit. Leaving QA or Ship backwards tells Claude that new work starts at Plan, and says when the Ship approval was dropped. `/lk back` keeps the approvals.
+- The Ship approval is spent by the person's next message after a commit or push used it. Messages that start with `/`, plugin prompts and auto-continuations do not spend it. `/lk approve` at Ship re-approves it, and the flag is saved with the task.
+
+### Fixed
+
+- `git merge <ref>` on a feature branch was held as a merge to the default branch and spent the push credit. It counts only when the default branch is checked out. With an unknown current branch it is still held when the arguments name the default branch.
+- The merge credit and a ship once-grant are spent only by a call every check allows. A call another rule refuses no longer uses them up.
+- After a refusal, `/lk approve` at Execute, Plan or QA answered "has no gate to approve" and left the request pending. It now answers the request.
+- "Ship has no gate to approve; ... allowed" granted the push credit with no carry-on. A new credit now carries on.
+- A backward `set_stage` move kept the approvals of the gates after the target, Ship included. It drops them now (see Changed).
+
 ## [0.1.1] - 2026-10-14
 
 ### Added

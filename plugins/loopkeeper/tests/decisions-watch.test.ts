@@ -44,11 +44,25 @@ function chat(prompt: string, answer: string): Message[] {
  * A fake project, store, model and transcript (the shared fixture, with this suite's clock and transcript).
  * The watch is switched on through the user config unless the test brings its own user config.
  */
-function world(on: On, opts: { files?: Record<string, string>; replies?: Reply[]; store?: Record<string, unknown> } = {}) {
+function world(
+  on: On,
+  opts: { files?: Record<string, string>; replies?: Reply[]; store?: Record<string, unknown>; failWrite?: string } = {},
+) {
   const files: Record<string, string> = { [USER_CONFIG]: WATCH_ON, ...(opts.files ?? {}) }
-  const w = sharedWorld(on, { files, replies: opts.replies, now: NOW, messages: chat(PROMPT, ANSWER) })
+  const w = sharedWorld(on, { files, replies: opts.replies, now: NOW, messages: chat(PROMPT, ANSWER), failWrite: opts.failWrite })
   for (const [k, v] of Object.entries(opts.store ?? {})) w.store.set(k, v)
-  return { files, writes: w.writes, toasts: w.toasts, logs: w.logs, calls: w.calls, store: w.store, clock: w.clock, chat: w.chat }
+  return {
+    files,
+    writes: w.writes,
+    toasts: w.toasts,
+    logs: w.logs,
+    calls: w.calls,
+    store: w.store,
+    clock: w.clock,
+    chat: w.chat,
+    state: w.state,
+    submitted: w.submitted,
+  }
 }
 
 const START = { surface: 'terminal', isInteractive: true, cwd: CWD } as const
@@ -431,7 +445,14 @@ describe('the pane', () => {
       expect(await ui.find({ type: 'Text', text: '3' })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: 'on' })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: '.claude/decisions.jsonl · jsonl' })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: 'r: Record · s: Skip on the band' })).toBeDefined()
+      // the pending major has its own Record and Skip; the old "on the band" subtitle is gone
+      expect(await ui.find({ type: 'Text', text: 'Major pending' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: 'r: Record · s: Skip on the band' })).toBeUndefined()
+      expect((await ui.find({ key: 'decisions-pending-record-0' }))?.props).toMatchObject({ label: 'Record' })
+      expect((await ui.find({ key: 'decisions-pending-record-0' }))?.props?.hotkey).toBeUndefined()
+      expect((await ui.find({ key: 'decisions-pending-skip-0' }))?.props).toMatchObject({ label: 'Skip' })
+      expect((await ui.find({ key: 'decisions-pending-skip-0' }))?.props?.hotkey).toBeUndefined()
+      expect(await ui.find({ key: 'decisions-pending-record-all' })).toBeUndefined()
       expect(await ui.find({ type: 'Text', text: /recent decisions/i })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: badge('minor') })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: badge('you') })).toBeDefined()
@@ -446,7 +467,223 @@ describe('the pane', () => {
     await ui.press({ key: 'watch-toggle' })
     expect(w.store.get('loopkeeper:decisions:watch')).toBe(false)
     expect(await ui.find({ type: 'Text', text: 'off' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: 'r: Record · s: Skip on the band' })).toBeUndefined()
+    // watch off drops the pending majors, and their buttons with them
+    expect(await ui.find({ key: 'decisions-pending-record-0' })).toBeUndefined()
+    await ui.unmount()
+  })
+})
+
+describe("the pane's pending majors", () => {
+  const MAJORS = ['Use SQLite for the cache', 'Adopt Zod for request validation', 'Keep the API versioned'].map(text => ({
+    text,
+    why: 'because',
+    weight: 'major',
+    tags: ['arch'],
+  }))
+  const textIn = (n: any): string =>
+    typeof n === 'string' ? n : n && typeof n === 'object' ? ((n.children ?? n.props?.children ?? []) as unknown[]).map(textIn).join('') : ''
+  /** The texts of the pane's pending rows, top to bottom. */
+  const pendingTexts = async (ui: any): Promise<string[]> => {
+    const out: string[] = []
+    for (let i = 0; i < 5; i++) {
+      const row = await ui.find({ key: 'pending-' + i })
+      if (!row) break
+      out.push(MAJORS.find(p => textIn(row).includes(p.text))?.text ?? textIn(row))
+    }
+    return out
+  }
+
+  test("a row's Record records that row's text and removes only that row", { timeoutMs: 20_000 }, async ($, on) => {
+    const w = world(on, { replies: [{ decisions: MAJORS.slice(0, 2), preferences: [] }] })
+    await $.session.start(START)
+    await turn($)
+    const ui = await $.ui.mount(PANE('desktop'))
+    expect(await pendingTexts(ui)).toEqual(['Use SQLite for the cache', 'Adopt Zod for request validation'])
+    // the second row, not the oldest the band shows
+    await ui.press({ key: 'decisions-pending-record-1' })
+    expect(logLines(w.files).map(x => [x.decision, x.why, x.tags, x.by])).toEqual([
+      ['Adopt Zod for request validation', 'because', ['arch'], 'claude'],
+    ])
+    expect(w.toasts).toEqual(['recorded: Adopt Zod for request validation'])
+    expect(await ui.find({ key: 'decisions-pending-record-1' })).toBeUndefined()
+    expect(await ui.find({ key: 'decisions-pending-record-0' })).toBeDefined()
+    await ui.unmount()
+    // the band card still offers the one left, unchanged
+    const band = await $.ui.mount(BAND('terminal'))
+    expect(await band.find({ type: 'Text', text: 'Use SQLite for the cache' })).toBeDefined()
+    expect(await band.find({ key: 'decisions-record' })).toMatchObject({ props: { label: 'Record', hotkey: 'r' } })
+    expect(await band.find({ type: 'Text', text: '1 of 2' })).toBeUndefined()
+    await band.unmount()
+  })
+
+  test("a row's Skip remembers that row's text for the project and leaves the others", { timeoutMs: 20_000 }, async ($, on) => {
+    const w = world(on, { replies: [{ decisions: MAJORS, preferences: [] }] })
+    await $.session.start(START)
+    await turn($)
+    const ui = await $.ui.mount(PANE('terminal'))
+    await ui.press({ key: 'decisions-pending-skip-1' })
+    expect(w.store.get('loopkeeper:decisions:skipped:/work/project')).toEqual(['Adopt Zod for request validation'])
+    expect(w.writes).toEqual([])
+    expect(await pendingTexts(ui)).toEqual(['Use SQLite for the cache', 'Keep the API versioned'])
+    await ui.unmount()
+  })
+
+  test('Record all, shown with two or more, records each in order with one toast', { timeoutMs: 20_000 }, async ($, on) => {
+    const w = world(on, { replies: [{ decisions: MAJORS, preferences: [] }] })
+    await $.session.start(START)
+    await turn($)
+    const ui = await $.ui.mount(PANE('terminal'))
+    expect((await ui.find({ key: 'decisions-pending-record-all' }))?.props).toMatchObject({ label: 'Record all' })
+    expect((await ui.find({ key: 'decisions-pending-record-all' }))?.props?.hotkey).toBeUndefined()
+    await ui.press({ key: 'decisions-pending-record-all' })
+    expect(logLines(w.files).map(x => [x.decision, x.by])).toEqual(MAJORS.map(m => [m.text, 'claude']))
+    expect(w.toasts).toEqual(['recorded 3 major decisions'])
+    expect(await pendingTexts(ui)).toEqual([])
+    expect(await ui.find({ key: 'decisions-pending-record-all' })).toBeUndefined()
+    await ui.unmount()
+    const band = await $.ui.mount(BAND('terminal'))
+    expect(await band.find({ key: 'decisions-record' })).toBeUndefined()
+    await band.unmount()
+  })
+
+  test('a failed write keeps every row waiting and says why', { timeoutMs: 20_000 }, async ($, on) => {
+    const w = world(on, { replies: [{ decisions: MAJORS.slice(0, 2), preferences: [] }], failWrite: 'read-only file system' })
+    await $.session.start(START)
+    await turn($)
+    const ui = await $.ui.mount(PANE('terminal'))
+    await ui.press({ key: 'decisions-pending-record-1' })
+    expect(w.toasts.length).toBe(1)
+    expect(w.toasts[0]).toMatch(/^loopkeeper: not recorded: .*read-only file system/)
+    await ui.press({ key: 'decisions-pending-record-all' })
+    expect(w.toasts.length).toBe(2)
+    expect(w.toasts[1]).toMatch(/^loopkeeper: not recorded: .*read-only file system/)
+    // the failed row went back to the front, the other stayed
+    expect(await pendingTexts(ui)).toEqual(['Adopt Zod for request validation', 'Use SQLite for the cache'])
+    await ui.unmount()
+  })
+})
+
+describe('the watch-cap card', () => {
+  const CAP_2 = { [USER_CONFIG]: '{"decisions":{"watch": true,"watchMaxPerHour": 2}}' }
+  const CAPPED = 'Decision watch paused: 2 calls in the last hour'
+
+  /** Three turns at a cap of 2: two calls, then the pause. */
+  async function capped($: any, on: On) {
+    const w = world(on, { files: CAP_2 })
+    await $.session.start(START)
+    await turn($)
+    await turn($)
+    await turn($)
+    expect(w.calls.length).toBe(2)
+    return w
+  }
+
+  test('appears once per pause above the prompt, with the band off too, and as a line in the pane', { timeoutMs: 20_000 }, async ($, on) => {
+    const w = await capped($, on)
+    expect(w.state.get('decisionCapCard')).toEqual({ since: NOW, hidden: false })
+    await $.command.run({ command: 'decisions', args: 'band off' })
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const ui = await $.ui.mount(BAND(surface))
+      expect(await ui.find({ type: 'Text', text: 'loopkeeper · decision watch' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: CAPPED })).toBeDefined()
+      expect((await ui.find({ key: 'decisions-cap-more' }))?.props).toMatchObject({ label: 'Allow 2 more' })
+      expect((await ui.find({ key: 'decisions-cap-more' }))?.props?.hotkey).toBeUndefined()
+      expect((await ui.find({ key: 'decisions-cap-keep' }))?.props).toMatchObject({ label: 'Keep paused' })
+      expect((await ui.find({ key: 'decisions-cap-keep' }))?.props?.hotkey).toBeUndefined()
+      await ui.unmount()
+      const pane = await $.ui.mount(PANE(surface))
+      expect(await pane.find({ type: 'Text', text: CAPPED })).toBeDefined()
+      expect((await pane.find({ key: 'decisions-pane-cap-more' }))?.props).toMatchObject({ label: 'Allow 2 more' })
+      expect(await pane.find({ key: 'decisions-pane-cap-keep' })).toBeDefined()
+      await pane.unmount()
+    }
+    // a later capped turn in the same pause changes nothing: the pause keeps its start, the log line stays one
+    await w.clock.advance(60_000)
+    await turn($)
+    expect(w.calls.length).toBe(2)
+    expect(w.state.get('decisionCapCard')).toEqual({ since: NOW, hidden: false })
+    expect(w.logs.filter(line => line.includes('the watch is paused')).length).toBe(1)
+    // nothing is submitted for Claude: no carry-on prompt
+    expect(w.submitted).toEqual([])
+  })
+
+  test('Allow 2 more clears the hour, the card goes, and the next calls run', { timeoutMs: 20_000 }, async ($, on) => {
+    const w = await capped($, on)
+    const ui = await $.ui.mount(BAND('terminal'))
+    await ui.press({ key: 'decisions-cap-more' })
+    expect(w.store.get('loopkeeper:decisions:watch-calls')).toEqual([])
+    expect(w.state.get('decisionCapCard')).toEqual({ since: 0, hidden: false })
+    expect(await ui.find({ type: 'Text', text: CAPPED })).toBeUndefined()
+    await turn($)
+    await turn($)
+    expect(w.calls.length).toBe(4)
+    // the third is paused again: a new pause, a new card
+    await w.clock.advance(60_000)
+    await turn($)
+    expect(w.calls.length).toBe(4)
+    expect(await ui.find({ type: 'Text', text: CAPPED })).toBeDefined()
+    expect(w.state.get('decisionCapCard')).toEqual({ since: NOW + 60_000, hidden: false })
+    await ui.unmount()
+  })
+
+  test("the pane's Allow works where there is no band", { timeoutMs: 20_000 }, async ($, on) => {
+    const w = await capped($, on)
+    const pane = await $.ui.mount(PANE('desktop'))
+    await pane.press({ key: 'decisions-pane-cap-more' })
+    expect(await pane.find({ type: 'Text', text: CAPPED })).toBeUndefined()
+    await turn($)
+    expect(w.calls.length).toBe(3)
+    await pane.unmount()
+  })
+
+  test('Keep paused hides the card until the window frees up; the pane keeps the line', { timeoutMs: 20_000 }, async ($, on) => {
+    const w = await capped($, on)
+    const ui = await $.ui.mount(BAND('terminal'))
+    await ui.press({ key: 'decisions-cap-keep' })
+    expect(w.state.get('decisionCapCard')).toEqual({ since: NOW, hidden: true })
+    expect(await ui.find({ type: 'Text', text: CAPPED })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
+    // still paused: a capped turn brings no card back
+    await turn($)
+    expect(await ui.find({ type: 'Text', text: CAPPED })).toBeUndefined()
+    await ui.unmount()
+    const pane = await $.ui.mount(PANE('terminal'))
+    expect(await pane.find({ type: 'Text', text: CAPPED })).toBeDefined()
+    expect(await pane.find({ key: 'decisions-pane-cap-more' })).toBeDefined()
+    expect(await pane.find({ key: 'decisions-pane-cap-keep' })).toBeUndefined()
+    await pane.unmount()
+    // an hour on, the calls have aged out: the card and the pane line are gone before any turn
+    await w.clock.advance(60 * 60 * 1000)
+    const later = await $.ui.mount(BAND('terminal'))
+    expect(await later.find({ key: 'decisions-cap-more' })).toBeUndefined()
+    const laterPane = await $.ui.mount(PANE('terminal'))
+    expect(await laterPane.find({ type: 'Text', text: CAPPED })).toBeUndefined()
+    await laterPane.unmount()
+    // and the next turn resets the pause and calls the model again
+    await turn($)
+    expect(w.state.get('decisionCapCard')).toEqual({ since: 0, hidden: false })
+    expect(w.calls.length).toBe(3)
+    expect(await later.find({ type: 'Text', text: CAPPED })).toBeUndefined()
+    await later.unmount()
+  })
+
+  test('watch off drops the card', { timeoutMs: 20_000 }, async ($, on) => {
+    const w = await capped($, on)
+    await $.command.run({ command: 'decide', args: 'watch off' })
+    expect(w.state.get('decisionCapCard')).toEqual({ since: 0, hidden: false })
+    const ui = await $.ui.mount(BAND('terminal'))
+    expect(await ui.find({ key: 'decisions-cap-more' })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('a cap of 0 is a setting: no card', async ($, on) => {
+    const w = world(on, { files: { [USER_CONFIG]: '{"decisions":{"watch": true,"watchMaxPerHour": 0}}' } })
+    await $.session.start(START)
+    await turn($)
+    expect(w.calls.length).toBe(0)
+    expect(w.state.has('decisionCapCard')).toBe(false)
+    const ui = await $.ui.mount(BAND('terminal'))
+    expect(await ui.find({ key: 'decisions-cap-more' })).toBeUndefined()
     await ui.unmount()
   })
 })

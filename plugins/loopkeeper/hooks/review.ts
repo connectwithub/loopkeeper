@@ -25,7 +25,9 @@ import {
   USAGE,
   absOf,
   activeSubjects,
+  allowMore,
   applyCycle,
+  atLimit,
   applyItem,
   bandOf,
   blocking,
@@ -44,6 +46,8 @@ import {
   kindOf,
   kindsText,
   lastCycle,
+  limitText,
+  morePasses,
   nameOf,
   notConverging,
   notConvergingToast,
@@ -65,6 +69,7 @@ import {
   validMax,
   validTarget,
   withKind,
+  wordOf,
 } from './lib/reviewModel.ts'
 import type { Defaults, Item, KindDefaults, Subject, Subjects } from './lib/reviewModel.ts'
 
@@ -79,6 +84,9 @@ const reviewCwd = atom({ plugin: 'loopkeeper', key: 'reviewCwd' } as const, '')
 const reviewBand = atom({ plugin: 'loopkeeper', key: 'reviewBand' } as const, true)
 const reviewContext = atom({ plugin: 'loopkeeper', key: 'reviewContext' } as const, true)
 // only what the user set with /reviews target and /reviews max; the rest comes from the config file or the kind
+// The person's answer to a loop at its limit: seq moves on each grant or stop, text is what Claude is told. Stage reads
+// it (by key) and sends Claude on after the press or the command.
+const reviewAnswered = atom({ plugin: 'loopkeeper', key: 'reviewAnswered' } as const, { seq: 0, text: '' })
 const reviewDefaults = atom({ plugin: 'loopkeeper', key: 'reviewDefaults' } as const, {} as Defaults)
 // The config file's review.kinds, sanitised: per kind target and maxCycles. Plain module state, re-read at
 // every session start, /clear, /resume and /lk reload, so it needs no atom in the state contract.
@@ -337,7 +345,10 @@ export function wireReview(on: On): void {
 
   on('command.run', { command: 'reviews' }, async ($, e) => {
     try {
-      return await onCommand($, e?.args)
+      // The person's own: no origin, or the composer, the bridge or the sdk (as the stage concern's /lk tests it).
+      const origin = (e as { origin?: { kind?: unknown } } | undefined)?.origin
+      const fromPerson = !origin || origin.kind === 'composer' || origin.kind === 'bridge' || origin.kind === 'sdk'
+      return await onCommand($, e?.args, fromPerson)
     } catch (err) {
       return { text: 'loopkeeper: ' + messageOf(err) }
     }
@@ -359,17 +370,41 @@ export function wireReview(on: On): void {
 
   // The band: one kit line, `review  ● login_page cycle 3/4  ● 2 open   8.4 → 9.0` (bandOf names the tones).
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e?.props?.hasSurvey) return next(e)
     const isOn = await read($, reviewBand)
-    const band = isOn && !e?.props?.hasSurvey ? bandOf(await read($, reviewSubjects)) : null
-    if (!band) return next(e)
+    const subjects = await read($, reviewSubjects)
+    const band = isOn ? bandOf(subjects) : null
+    // A loop at its limit waits for the person: the most recent one gets a card with Allow more and Stop here,
+    // whatever the band setting (as the decisions cap card does).
+    const stuck = Object.values(subjects).filter(atLimit).sort((a, b) => b.updatedAt - a.updatedAt)[0]
+    if (!band && !stuck) return next(e)
     const ui = $.ui.resolve(e)
     const { Box } = ui
     const kit = makeKit(ui as unknown as Elements, e.surface)
-    const line = kit.line('review', band.chips, band.right) as never
+    const line = band ? (kit.line('review', band.chips, band.right) as never) : null
+    const card = stuck
+      ? (kit.card({
+          title: 'loopkeeper · review loop',
+          tone: 'warn',
+          children: [
+            kit.text(limitText(stuck), { bold: true, wrap: 'wrap' }),
+            kit.buttons([
+              {
+                key: 'review-more:' + stuck.name,
+                label: `Allow ${morePasses(stuck, await defaultsOf($))} more`,
+                plain: true,
+                onPress: async () => void (await grantMore($, stuck.name)),
+              },
+              { key: 'review-stop:' + stuck.name, label: 'Stop here', plain: true, onPress: async () => void (await setStatus($, stuck.name, 'stop', true)) },
+            ]),
+          ],
+        }) as never)
+      : null
+    const mine = [card, line].filter(Boolean)
     // Keep what the mods after this one draw in the band, under this line.
     const theirs = await next(e)
-    if (!theirs) return line
-    return Box({ flexDirection: 'column', children: [line, theirs] })
+    if (!theirs && mine.length === 1) return mine[0] as never
+    return Box({ flexDirection: 'column', children: (theirs ? [...mine, theirs] : mine) as never[] })
   })
 
   // The hub's Reviews row, above the later concerns' rows (next): `5: Reviews` and the status words, quiet. It
@@ -432,8 +467,15 @@ export function wireReview(on: On): void {
     const subjectButtons = (s: Subject) => [
       { key: 'ship:' + s.name, label: 'Mark shipped', plain: true, onPress: async () => void (await setStatus($, s.name, 'ship')) },
       { key: 'reopen:' + s.name, label: 'Reopen', plain: true, onPress: async () => void (await setStatus($, s.name, 'active')) },
-      { key: 'stop:' + s.name, label: 'Close', plain: true, onPress: async () => void (await setStatus($, s.name, 'stop')) },
+      { key: 'stop:' + s.name, label: 'Close', plain: true, onPress: async () => void (await setStatus($, s.name, 'stop', true)) },
     ]
+    const subjectButtonsOf = (s: Subject) =>
+      atLimit(s)
+        ? [
+            { key: 'more:' + s.name, label: `Allow ${morePasses(s, defaults)} more`, plain: true, onPress: async () => void (await grantMore($, s.name)) },
+            ...subjectButtons(s),
+          ]
+        : subjectButtons(s)
 
     // the nav bar leads every drawing of the pane
     const nav = kit.nav(navItems($, PANE_ID), 'reviews')
@@ -532,7 +574,7 @@ export function wireReview(on: On): void {
           left: [kit.text(o.name, { bold: true, wrap: 'truncate' }), kit.text(o.kind, { color: TONES.muted.fg }), kit.badge(st, STATE_TONE[st])],
           right: progressText(o),
         }),
-        kit.buttons(subjectButtons(o)),
+        kit.buttons(subjectButtonsOf(o)),
       ])
     })
 
@@ -545,7 +587,7 @@ export function wireReview(on: On): void {
       history,
       tiles,
       kit.stack([kit.section(`Items · ${items.length}`, open.length ? `${open.length} open` : 'none open'), ...itemRows]),
-      kit.buttons(subjectButtons(s)),
+      kit.buttons(subjectButtonsOf(s)),
       others.length ? kit.stack([kit.section(`Subjects · ${others.length}`), kit.list(otherRows)]) : null,
       kit.row({ left: [kit.text(defaultsLine(defaults), { color: TONES.muted.fg })], right: [kit.buttons([closePane])] }),
     ]) as never
@@ -576,7 +618,7 @@ async function onCycle($: EngineInterface, e: unknown): Promise<string> {
   const now = await nowMs($)
   const outcome = applyCycle(await read($, reviewSubjects), input, await defaultsOf($), now)
   if (!outcome.ok) {
-    if (outcome.reply.includes('past the limit')) toast($, `review ${input.subject}: cycle limit reached, surface to the user`)
+    if (outcome.reply.includes('has used its')) toast($, `review ${input.subject}: cycle limit reached, surface to the user`)
     return outcome.reply
   }
   const s = outcome.subject
@@ -597,7 +639,7 @@ async function onItem($: EngineInterface, e: unknown): Promise<string> {
   return outcome.reply
 }
 
-async function onCommand($: EngineInterface, args: unknown): Promise<{ text?: string }> {
+async function onCommand($: EngineInterface, args: unknown, fromPerson = true): Promise<{ text?: string }> {
   const { verb, rest } = parseArgs(args)
   if (verb === '' || verb === 'open' || verb === 'pane') {
     try {
@@ -636,6 +678,13 @@ async function onCommand($: EngineInterface, args: unknown): Promise<{ text?: st
     await save($, changed)
     return { text: `${s.name} is now kind ${kind} (${changed.doneBy === 'score' ? `done by score, target ${fmt(changed.target ?? 0)}` : 'done by items'}, max ${changed.maxCycles}).\n\n${subjectText(changed)}` }
   }
+  if (verb === 'more') {
+    if (!fromPerson) return { text: 'Only the user can allow more review passes.' }
+    const last = rest.length > 1 ? validMax(rest[rest.length - 1]) : undefined
+    const name = nameOf((last !== undefined ? rest.slice(0, -1) : rest).join(' '))
+    if (!name) return { text: 'Usage: /reviews more <subject> [n]' }
+    return { text: await grantMore($, name, last) }
+  }
   if (verb === 'target' || verb === 'max') {
     const isTarget = verb === 'target'
     const value = isTarget ? validTarget(rest[0]) : validMax(rest[0])
@@ -652,8 +701,11 @@ async function onCommand($: EngineInterface, args: unknown): Promise<{ text?: st
       const s = findSubject(await read($, reviewSubjects), name)
       if (!s) return { text: statusText(await read($, reviewSubjects), name) }
       if (isTarget && s.doneBy === 'items') return { text: `${s.name} is kind ${s.kind}, done by items: it has no score target. Use /reviews kind ${s.name} critic to score it.` }
+      const raises = !isTarget && value > s.maxCycles
+      if (raises && !fromPerson) return { text: 'Only the user can raise the limit of a review loop (/reviews max). Lowering it works from anyone.' }
       const changed: Subject = { ...s, ...(isTarget ? { target: value } : { maxCycles: value }), updatedAt: await nowMs($) }
       await save($, changed)
+      if (raises && atLimit(s)) await answer($, grantText(changed, value - s.maxCycles))
       return { text: (isTarget ? `Target for ${s.name} is now ${fmt(value)}.` : `Max cycles for ${s.name} is now ${value}.`) + '\n\n' + subjectText(changed) }
     }
     const d = await read($, reviewDefaults)
@@ -672,7 +724,8 @@ async function onCommand($: EngineInterface, args: unknown): Promise<{ text?: st
   if (verb === 'ship' || verb === 'reopen' || verb === 'stop') {
     const name = nameOf(rest.join(' '))
     if (!name) return { text: `Usage: /reviews ${verb} <subject>` }
-    return { text: await setStatus($, name, verb === 'ship' ? 'ship' : verb === 'stop' ? 'stop' : 'active') }
+    // the person's stop answers a loop at its limit, as the card's Stop here does
+    return { text: await setStatus($, name, verb === 'ship' ? 'ship' : verb === 'stop' ? 'stop' : 'active', verb === 'stop' && fromPerson) }
   }
   if (verb === 'band' || verb === 'context') {
     const isBand = verb === 'band'
@@ -698,8 +751,33 @@ async function onCommand($: EngineInterface, args: unknown): Promise<{ text?: st
   return { text: USAGE }
 }
 
-/** Ship, reopen or stop a subject. Reopening at the cycle limit grants one more cycle. */
-async function setStatus($: EngineInterface, name: string, status: Subject['status']): Promise<string> {
+/** What Claude is told after a grant. */
+const grantText = (s: Subject, added: number): string =>
+  `The user allowed ${added} more ${unitOf(s)}${added === 1 ? '' : 's'} for ${s.name} (now ${s.maxCycles}). Run the next ${wordOf(s)}.`
+
+/** Moves the answer atom on: stage sends Claude on with `text` when it sees seq change. */
+async function answer($: EngineInterface, text: string): Promise<void> {
+  await update($, reviewAnswered, a => ({ seq: a.seq + 1, text }))
+}
+
+/** Allow more passes for a subject at its limit (n, else the kind's default) and tell Claude to run the next. */
+async function grantMore($: EngineInterface, name: string, n?: number): Promise<string> {
+  const subjects = await read($, reviewSubjects)
+  const s = findSubject(subjects, name)
+  if (!s) return statusText(subjects, name)
+  const outcome = allowMore(s, n ?? morePasses(s, await defaultsOf($)))
+  if (!outcome.ok) return outcome.reply
+  const changed: Subject = { ...outcome.subject, updatedAt: await nowMs($) }
+  await save($, changed)
+  await answer($, grantText(changed, outcome.added))
+  return `Allowed ${outcome.added} more ${unitOf(changed)}${outcome.added === 1 ? '' : 's'} for ${changed.name} (max ${changed.maxCycles}).`
+}
+
+/**
+ * Ship, reopen or stop a subject. Reopening at the cycle limit grants one more cycle. With `answers`, stopping a
+ * subject at its limit also tells Claude (the card's Stop here and the pane's Close).
+ */
+async function setStatus($: EngineInterface, name: string, status: Subject['status'], answers = false): Promise<string> {
   const s = findSubject(await read($, reviewSubjects), name)
   if (!s) return statusText(await read($, reviewSubjects), name)
   const changed: Subject = { ...s, status, updatedAt: await nowMs($) }
@@ -709,6 +787,9 @@ async function setStatus($: EngineInterface, name: string, status: Subject['stat
     extra = ` with one more cycle (max ${changed.maxCycles})`
   }
   await save($, changed)
+  if (answers && status === 'stop' && atLimit(s)) {
+    await answer($, `The user stopped the review loop for ${s.name} at ${usedCycles(s)} ${unitOf(s)}s. Do not run another ${wordOf(s)}; report the open items and carry on with the task.`)
+  }
   const word = status === 'ship' ? 'Marked shipped' : status === 'stop' ? 'Closed' : 'Reopened'
   return `${word}: ${s.name}${extra}.`
 }

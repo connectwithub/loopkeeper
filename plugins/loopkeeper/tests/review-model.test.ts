@@ -3,6 +3,10 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import {
   LOG_FILE,
+  REVIEW_KEY,
+  allowMore,
+  atLimit,
+  morePasses,
   PRUNE_MS,
   SUBJECTS_PREFIX,
   USAGE,
@@ -114,7 +118,13 @@ describe('cycles', () => {
     expect(statusText(all)).toContain('not converging: surface to the user')
     const out = applyCycle(all, cycleInputOf({ subject: 'login_page', score: 8.9 }), D, T0 + 9)
     expect(out.ok).toBe(false)
-    if (!out.ok) expect(out.reply).toContain('Not recorded: cycle 5 is past the limit of 4')
+    if (!out.ok) {
+      expect(out.reply).toContain('Not recorded: login_page has used its 4 cycles')
+      expect(out.reply).toContain('what changed since the last cycle')
+      expect(out.reply).toContain('"Allow 4 more"')
+      expect(out.reply).toContain('/reviews more login_page')
+      expect(out.reply).toContain('/reviews max <n> login_page')
+    }
   })
 
   test('target and maxCycles count only on the first cycle', () => {
@@ -326,9 +336,9 @@ describe('items kinds', () => {
 
   test('not converging at the limit; the next round is refused with the pass word', () => {
     const all = rounds('plan', [{ items: [{ text: 'a', priority: 'p0' }] }, {}])
-    expect(statusText(all)).toContain('not converging: surface to the user. Do not run another validation pass; report the open items')
+    expect(statusText(all)).toContain('not converging: surface to the user. Do not run another validation pass; tell the user what changed since the last round')
     const out = applyCycle(all, cycleInputOf({ subject: 'PR-42' }), {}, T0 + 9)
-    expect(!out.ok && out.reply).toContain('Not recorded: round 3 is past the limit of 2')
+    expect(!out.ok && out.reply).toContain('has used its 2 rounds')
     expect(!out.ok && out.reply).toContain('Do not run another validation pass')
   })
 
@@ -470,7 +480,7 @@ describe('config layer', () => {
       all = { s: out.subject }
     }
     const refused = applyCycle(all, cycleInputOf({ subject: 's', score: 7.5 }), { kinds: KINDS_CONF }, T0 + 1)
-    expect(!refused.ok && refused.reply).toContain('Not recorded: cycle 3 is past the limit of 2')
+    expect(!refused.ok && refused.reply).toContain('has used its 2 cycles')
   })
 
   test('withKind and stored subjects use the config layer too', () => {
@@ -485,5 +495,48 @@ describe('config layer', () => {
     expect(text).toContain('Do not run more than maxCycles passes (critic 2, review 3, plan 5, qa 3)')
     expect(text).toContain('Score kinds aim for the target (default 8.0)')
     expect(contextText({ kinds: KINDS_CONF, maxCycles: 6, target: 9.5 })).toContain('(critic 6, review 6, plan 6, qa 6)')
+  })
+})
+
+describe('allowing more passes', () => {
+  const stuck = (kind: 'review' | 'plan' | 'critic' = 'critic') => {
+    const scores = kind === 'critic' ? [7, 7, 7, 7] : [undefined, undefined, undefined].slice(0, kind === 'plan' ? 2 : 3)
+    let all: Subjects = {}
+    for (const score of scores) {
+      const out = applyCycle(all, cycleInputOf({ subject: 's', kind, ...(score !== undefined ? { score } : {}), items: all.s ? [] : [{ text: 'a', priority: 'p1' }] }), {}, T0)
+      if (!out.ok) throw new Error(out.reply)
+      all = { s: out.subject }
+    }
+    return all.s!
+  }
+
+  test('atLimit and morePasses follow the kind', () => {
+    expect(atLimit(stuck('plan'))).toBe(true)
+    expect(morePasses(stuck('plan'), {})).toBe(2)
+    expect(morePasses(stuck('review'), {})).toBe(3)
+    expect(morePasses(stuck('critic'), {})).toBe(4)
+    expect(morePasses(stuck('plan'), { kinds: { plan: { maxCycles: 5 } } })).toBe(5)
+    expect(atLimit({ ...stuck('plan'), status: 'stop' })).toBe(false)
+    expect(atLimit({ ...stuck('plan'), maxCycles: 3 })).toBe(false)
+  })
+
+  test('allowMore adds n, caps at 20, and refuses outside the limit', () => {
+    const s = stuck('review')
+    const more = allowMore(s, 3)
+    expect(more.ok && more.subject.maxCycles).toBe(6)
+    expect(more.ok && more.added).toBe(3)
+    const capped = allowMore({ ...s, maxCycles: 18, cycles: Array.from({ length: 18 }, (_, i) => ({ cycle: i + 1, at: 0 })) }, 5)
+    expect(capped.ok && capped.subject.maxCycles).toBe(20)
+    expect(capped.ok && capped.added).toBe(2)
+    const full = allowMore({ ...s, maxCycles: 20, cycles: Array.from({ length: 20 }, (_, i) => ({ cycle: i + 1, at: 0 })) }, 3)
+    expect(!full.ok && full.reply).toContain('cap of 20')
+    expect(!allowMore({ ...s, status: 'stop' }, 3).ok).toBe(true)
+    expect(!allowMore({ ...s, maxCycles: 5 }, 3).ok).toBe(true)
+    expect(!allowMore({ ...s, items: [] , cycles: [...s.cycles.slice(0, 2), { ...s.cycles[2]!, verdict: 'ship' }] }, 3).ok).toBe(true)
+  })
+
+  test('REVIEW_KEY matches the band and pane keys only', () => {
+    for (const k of ['review-more:a', 'review-stop:a', 'more:a', 'stop:a b']) expect(REVIEW_KEY.test(k)).toBe(true)
+    for (const k of ['ship:a', 'reopen:a', 'close', 'decisions-cap-more']) expect(REVIEW_KEY.test(k)).toBe(false)
   })
 })

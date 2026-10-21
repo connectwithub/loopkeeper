@@ -104,10 +104,30 @@ test('a bare git push while on master asks', { timeoutMs: 20_000 }, async ($, on
   expect(w.asked.length).toBe(1)
 })
 
-test('git merge main asks', async ($, on) => {
-  const w = world(on, { answers: ['Merge'], run: gh(null) })
+test('git merge on the default branch asks', async ($, on) => {
+  const w = world(on, { answers: ['Merge'], run: gh(null, 'main') })
+  await startTurn($)
+  expect((await check($, bash('git merge --no-ff feature'))).decision).toBe('allow')
+  expect(w.asked).toEqual([MERGE_Q('merge with the default branch')])
+})
+
+test('git merge main on a feature branch is not a merge to the default branch: nothing is asked', async ($, on) => {
+  const w = world(on, { answers: ['Cancel'], run: gh(null, 'feature') })
   await startTurn($)
   expect((await check($, bash('git merge --no-ff main'))).decision).toBe('allow')
+  expect((await check($, bash('git merge origin/main'))).decision).toBe('allow')
+  expect(w.asked).toEqual([])
+})
+
+test('git merge main with the current branch unknown still asks (fail closed)', async ($, on) => {
+  const unknown = (argv: string[]): Run | undefined => (argv.join(' ') === 'git branch --show-current' ? { exitCode: 128, stdout: '' } : undefined)
+  const w = world(on, { answers: ['Cancel'], run: gh(null, 'feature', unknown) })
+  await startTurn($)
+  const r = await check($, bash('git merge --no-ff main'))
+  expect(r.decision).toBe('deny')
+  expect(r.reason).toContain('the user chose Cancel')
+  // a ref that names no default branch is not held, even with the current branch unknown
+  expect((await check($, bash('git merge feature-2'))).decision).toBe('allow')
   expect(w.asked).toEqual([MERGE_Q('merge with the default branch')])
 })
 

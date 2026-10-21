@@ -13,10 +13,16 @@ import { bandLineOf, bash, CWD, edit, linePlain, lk, projectGates, startTurn, wo
 
 const MERGE_Q = 'Merge now? (loopkeeper: push to the default branch)'
 const OVERRIDES = 'loopkeeper:gates:overrides:sess-1'
-/** The refusal with the gsd preset's gated Ship stage; the stage is named by its label. */
+/**
+ * The refusal on the terminal or the desktop, whatever the preset: the request waits on the card above the prompt (the
+ * terminal draws it too), or /lk approve answers it; the stage is named by its label.
+ */
 const gated = (what: string, stage: string) =>
-  `loopkeeper: shipping is gated (${what}). The pipeline is at ${stage}. Ask the user to review the work and run /lk approve at QA or Ship ` +
-  '(it opens the Ship gate; a waiting file budget comes first), or /lk gates ship ok.'
+  `loopkeeper: shipping is gated (${what}). The pipeline is at ${stage}. The user's yes is asked on the card above the prompt; ` +
+  "the user can also type /lk approve. Stop and wait for the user's answer; do not retry it another way."
+/** With nobody to ask (-p, no surface): the command only. */
+const gatedNone = (what: string, stage: string) =>
+  `loopkeeper: shipping is gated (${what}). The pipeline is at ${stage}. Ask the user to review the work and run /lk gates ship ok.`
 
 /** As the stage leaves its atoms in QA of the gsd preset, with its gated Ship stage ahead: the plan done, shipping held. */
 function held(w: World): void {
@@ -86,15 +92,10 @@ test('ship gate: the reason names the stages by their labels, from a custom pres
     { id: 'ship', label: 'Release', gate: true },
   ]
   w.atoms.stageApproved = []
-  expect((await check($, bash('git push'))).reason).toBe(
-    'loopkeeper: shipping is gated (git push). The pipeline is at Checks. Ask the user to review the work and run /lk approve at Checks or Release ' +
-      '(it opens the Release gate; a waiting file budget comes first), or /lk gates ship ok.',
-  )
-  // no gated ship stage: /lk approve cannot open shipping, so only ship ok is named
+  expect((await check($, bash('git push'))).reason).toBe(gated('git push', 'Checks'))
+  // no gated ship stage: /lk approve still answers the request (Allow this git push once), so the text is the same
   w.atoms.stageStages = [{ id: 'plan', label: 'Sketch' }, { id: 'qa', label: 'Checks' }]
-  expect((await check($, bash('git push'))).reason).toBe(
-    'loopkeeper: shipping is gated (git push). The pipeline is at Checks. Ask the user to review the work and run /lk gates ship ok.',
-  )
+  expect((await check($, bash('git push'))).reason).toBe(gated('git push', 'Checks'))
 })
 
 test('ship gate: open when stageShipOpen is true', async ($, on) => {
@@ -161,7 +162,7 @@ test('nobody to ask: held shipping is refused the same way, open shipping runs, 
   held(w)
   const r = await check($, bash('git push -u origin feature'))
   expect(r.decision).toBe('deny')
-  expect(r.reason).toBe(gated('git push', 'QA'))
+  expect(r.reason).toBe(gatedNone('git push', 'QA'))
   w.atoms.stageShipOpen = true
   expect((await check($, bash('git push -u origin feature'))).decision).toBe('allow')
   expect(w.asked).toEqual([])
@@ -263,4 +264,115 @@ test('the band has no ship chip when the ship gate is off', async ($, on) => {
   world(on, { files: projectGates({ shipGate: false }) })
   await startTurn($)
   expect(linePlain(await bandLineOf($, 'gates'))).toBe('gates  ● 0/10 files  ● merge gate')
+})
+
+// ---- The Ship approval is spent by the person's next message after something shipped under it -------------------
+
+/** The gsd preset, a small task moved to Ship and approved: the Ship gate open, the merge credit given. */
+async function atShip($: any, on: any, opts: Parameters<typeof world>[1] = {}): Promise<World> {
+  const w = world(on, opts)
+  w.store.set('loopkeeper:stage:preset:' + CWD, 'gsd')
+  await startTurn($)
+  await lk($, 'size small')
+  await lk($, 'ship')
+  expect(await lk($, 'approve')).toContain('Approved the Ship gate')
+  return w
+}
+const USED = 'Ship approval used: the next commit or push needs a fresh OK.'
+const submit = ($: any, text: string, origin?: unknown) => $.prompt.submit({ text, ...(origin ? { origin } : {}) } as never)
+
+test('a commit under the Ship approval marks it used; the person\'s next prompt spends it and the push is held', { timeoutMs: 30_000 }, async ($, on) => {
+  const w = await atShip($, on)
+  expect(w.state.get('stageShipUsed')).toBe(false)
+  // before anything shipped, a prompt such as "go ahead and push" spends nothing
+  await submit($, 'I ran /lk approve, go ahead and push')
+  expect(w.state.get('stageApproved')).toContain('ship')
+  expect((await check($, bash('git commit -m x'))).decision).toBe('allow')
+  expect(w.state.get('stageShipUsed')).toBe(true)
+  expect(w.state.get('stageApproved')).toContain('ship')
+  await submit($, 'thanks, now also tidy the README')
+  expect(w.state.get('stageShipUsed')).toBe(false)
+  expect(w.state.get('stageApproved')).not.toContain('ship')
+  expect(w.state.get('gateMergeCredit')).toBe(false)
+  expect(w.state.get('stageShipOpen')).toBe(false)
+  expect(w.logs.some((l: string) => l.includes(USED))).toBe(true)
+  expect((await check($, bash('git push -u origin feature'))).decision).toBe('deny')
+})
+
+test('with no live request, /lk approve at Ship after a spend re-approves it, resets the flag and restores the merge credit', { timeoutMs: 30_000 }, async ($, on) => {
+  const w = await atShip($, on)
+  await check($, bash('git commit -m x'))
+  await submit($, 'next thing')
+  expect(w.state.get('stageApproved')).not.toContain('ship')
+  expect(await lk($, 'approve')).toContain('Approved the Ship gate')
+  expect(w.state.get('stageApproved')).toContain('ship')
+  expect(w.state.get('stageShipUsed')).toBe(false)
+  expect(w.state.get('gateMergeCredit')).toBe(true)
+  expect((await check($, bash('git commit -m y'))).decision).toBe('allow')
+})
+
+test('after a held push the first /lk approve gives a once-grant (the flag stays false) and the second re-approves', { timeoutMs: 30_000 }, async ($, on) => {
+  const w = await atShip($, on)
+  await check($, bash('git commit -m x'))
+  await submit($, 'next thing')
+  expect((await check($, bash('git push -u origin feature'))).decision).toBe('deny')
+  expect(await lk($, 'approve')).toContain('Ship gate is still waiting')
+  expect(w.state.get('stageShipUsed')).toBe(false)
+  expect((await check($, bash('git push -u origin feature'))).decision).toBe('allow')
+  expect(w.state.get('stageShipUsed')).toBe(false)
+  expect(w.state.get('stageApproved')).not.toContain('ship')
+  expect(await lk($, 'approve')).toContain('Approved the Ship gate')
+  expect(w.state.get('stageApproved')).toContain('ship')
+})
+
+test('a plugin carry-on, an auto-continuation and a slash command do not spend the Ship approval', { timeoutMs: 30_000 }, async ($, on) => {
+  const w = await atShip($, on)
+  await check($, bash('git commit -m x'))
+  await submit($, 'Carry on with the task', { kind: 'plugin' })
+  await submit($, 'keep going', { kind: 'auto-continuation' })
+  await submit($, '/some-command now', { kind: 'composer' })
+  await submit($, '  /lk status')
+  expect(w.state.get('stageShipUsed')).toBe(true)
+  expect(w.state.get('stageApproved')).toContain('ship')
+  await submit($, 'a real message', { kind: 'composer' })
+  expect(w.state.get('stageApproved')).not.toContain('ship')
+})
+
+test('/lk gates ship ok still passes after the Ship approval is spent', { timeoutMs: 30_000 }, async ($, on) => {
+  const w = await atShip($, on)
+  await check($, bash('git commit -m x'))
+  await submit($, 'next thing')
+  expect((await check($, bash('git commit -m y'))).decision).toBe('deny')
+  expect(await lk($, 'gates ship ok')).toContain('shipping approved for this session')
+  expect((await check($, bash('git commit -m y'))).decision).toBe('allow')
+  expect(w.state.get('stageShipUsed')).toBe(false)
+})
+
+test('the turn\'s end saves the mark; a resumed session has it back', { timeoutMs: 30_000 }, async ($, on) => {
+  const w = await atShip($, on)
+  await check($, bash('git commit -m x'))
+  expect(w.state.get('stageShipUsed')).toBe(true)
+  await $.turn.complete({ turnId: 't1', answer: 'done', durationMs: 10, isAborted: false, usage: null, reason: 'answer' } as never)
+  const saved = w.store.get('loopkeeper:stage:project:' + CWD) as any
+  expect(saved.shipUsed).toBe(true)
+  expect(saved.approved).toContain('ship')
+})
+
+test('a resumed session restores stageShipUsed; older saved state reads as false', { timeoutMs: 30_000 }, async ($, on) => {
+  const key = 'loopkeeper:stage:project:' + CWD
+  const base = { stage: 'ship', at: 5, approved: ['validate-plan', 'ship'], verified: [], size: 'small', planVerdict: null, waived: [], filesTouched: [] }
+  const w = world(on)
+  w.store.set('loopkeeper:stage:preset:' + CWD, 'gsd')
+  w.store.set(key, { ...base, shipUsed: true })
+  await startTurn($)
+  expect(w.state.get('stageShipUsed')).toBe(true)
+  expect(w.state.get('stageCurrent')).toBe('ship')
+})
+
+test('older saved state (no shipUsed) resumes with the mark false', { timeoutMs: 30_000 }, async ($, on) => {
+  const w = world(on)
+  w.store.set('loopkeeper:stage:preset:' + CWD, 'gsd')
+  w.store.set('loopkeeper:stage:project:' + CWD, { stage: 'ship', at: 5, approved: ['validate-plan', 'ship'], verified: [], size: 'small', planVerdict: null, waived: [], filesTouched: [] })
+  await startTurn($)
+  expect(w.state.get('stageShipUsed')).toBe(false)
 })

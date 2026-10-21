@@ -155,10 +155,15 @@ test('push and merge targets', () => {
   expect(pushHitsDefault(['origin'], 'feature', d)).toBe(false)
   expect(pushHitsDefault(['origin', 'HEAD'], 'master', d)).toBe(true)
   expect(pushHitsDefault(['--all'], 'feature', d)).toBe(true)
-  expect(mergeHitsDefault(['main'], 'feature', d)).toBe(true)
-  expect(mergeHitsDefault(['origin/main'], 'feature', d)).toBe(true)
+  // a merge hits a default branch only when it is the current branch: merging main into a feature branch does not
+  expect(mergeHitsDefault(['main'], 'feature', d)).toBe(false)
+  expect(mergeHitsDefault(['origin/main'], 'feature', d)).toBe(false)
   expect(mergeHitsDefault(['feature-2'], 'main', d)).toBe(true)
   expect(mergeHitsDefault(['feature-2'], 'feature', d)).toBe(false)
+  // the current branch unknown (''): held when the args name a default branch (ADR 0009, fail closed)
+  expect(mergeHitsDefault(['main'], '', d)).toBe(true)
+  expect(mergeHitsDefault(['--no-ff', 'origin/master'], '', d)).toBe(true)
+  expect(mergeHitsDefault(['feature-2'], '', d)).toBe(false)
 })
 
 test('summarizeChecks buckets', () => {

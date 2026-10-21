@@ -198,8 +198,11 @@ test('the band shows <count>/<limit> files with the plan budget, a session raise
   expect(linePlain(await gates($))).toBe('gates  ● 2/23 files  ● merge gate  ● ship open   budget 23')
   w.atoms.gateSessionRaise = 30
   expect(linePlain(await gates($))).toBe('gates  ● 2/30 files  ● merge gate  ● ship open   raised 30')
-  // /lk gates max wins over all of them, and two of three files is near it
+  // /lk gates max wins over the base and the budget, but a session raise above it wins over it
   await lk($, 'gates max 3')
+  expect(linePlain(await gates($))).toBe('gates  ● 2/30 files  ● merge gate  ● ship open   raised 30')
+  // with no raise above it, max 3 wins over the budget of 23, and two of three files is near it
+  w.atoms.gateSessionRaise = 0
   l = await gates($)
   expect(linePlain(l)).toBe('gates  ● 2/3 files  ● merge gate  ● ship open   max 3')
   expect(l?.chips[0]?.color).toBe(TONES.warn.fg)
@@ -222,6 +225,9 @@ test('the pane hero says where the limit comes from, and off when the gates are 
   w.atoms.gateSessionRaise = 30
   expect(await hero()).toEqual(['On · 1/30 files this turn', 'raised for this session'])
   await lk($, 'gates max 3')
+  // a session raise above the max wins over it; without one the max wins over the budget
+  expect(await hero()).toEqual(['On · 1/30 files this turn', 'raised for this session'])
+  w.atoms.gateSessionRaise = 0
   expect(await hero()).toEqual(['On · 1/3 files this turn', 'max override for this session (/lk gates max)'])
   await lk($, 'gates off')
   expect(await hero()).toEqual(['Off for this session', 'no rule is enforced; /lk gates on turns them back on'])

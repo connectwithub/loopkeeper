@@ -43,7 +43,7 @@ describe('tools', () => {
     for (const score of [7, 7.5, 8, 8.2]) await cycle($, { subject: 'signup_form', score })
     expect(await status($, { subject: 'signup_form' })).toContain('not converging: surface to the user')
     expect(w.toasts.some(t => t.includes('not converging'))).toBe(true)
-    expect(await cycle($, { subject: 'signup_form', score: 8.6 })).toContain('Not recorded: cycle 5 is past the limit of 4')
+    expect(await cycle($, { subject: 'signup_form', score: 8.6 })).toContain('Not recorded: signup_form has used its 4 cycles')
   })
 
   test('target reached', async ($, on) => {
@@ -437,5 +437,93 @@ describe('config layer', () => {
     await start($)
     expect(await cycle($, { subject: 'hero', score: 5 })).toContain('cycle 1/4')
     expect(await status($, { subject: 'hero' })).toContain('target 9.0')
+  })
+})
+
+describe('allow more passes', () => {
+  const OTHER = { kind: 'plugin', name: 'x' }
+  const run = async ($: any, args: string, origin?: unknown): Promise<string> =>
+    String(((await $.command.run({ command: 'reviews', args, ...(origin ? { origin } : {}) } as never)) as { text?: string })?.text ?? '')
+  const answered = (w: any) => w.state.get('reviewAnswered') as { seq: number; text: string } | undefined
+  // a critic loop at 4/4 and a review loop at 3/3 with an open item
+  async function stuck($: any, kind: 'critic' | 'review' | 'plan' = 'critic') {
+    if (kind === 'critic') for (const score of [7, 7.5, 8, 8.2]) await cycle($, { subject: 'sf', score })
+    else for (let i = 0; i < (kind === 'review' ? 3 : 2); i++) await cycle($, { subject: 'sf', kind, items: i === 0 ? [{ text: 'a', priority: 'p1' }] : [] })
+  }
+
+  test('the band shows a card with Allow n more and Stop here; the pane has more:<name>', { timeoutMs: 30_000 }, async ($, on) => {
+    reviewWorld(on)
+    await start($)
+    await stuck($, 'review')
+    const ui = await $.ui.mount({ ...BAND })
+    expect(await ui.find({ type: 'Text', text: 'sf · 3/3 rounds used, not done (1 open p0/p1 item)' })).toBeDefined()
+    expect(await ui.find({ type: 'Button', props: { label: 'Allow 3 more' } })).toBeDefined()
+    expect(await ui.find({ type: 'Button', props: { label: 'Stop here' } })).toBeDefined()
+    await ui.unmount()
+    const pane = await $.ui.mount({ plugin: 'loopkeeper', component: 'Pane', requestId: PANE_ID, surface: 'terminal', viewport: { columns: 120, rows: 40 }, props: { title: 'Review loops', isFocused: true, bodyColumns: 100, placement: 'inline', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
+    expect(await pane.find({ type: 'Button', props: { label: 'Allow 3 more' } })).toBeDefined()
+    await pane.unmount()
+  })
+
+  test('the card press adds the kind default and bumps reviewAnswered with the grant text', { timeoutMs: 30_000 }, async ($, on) => {
+    const w = reviewWorld(on)
+    await start($)
+    await stuck($, 'plan')
+    const ui = await $.ui.mount({ ...BAND })
+    await ui.press({ key: 'review-more:sf' })
+    await ui.unmount()
+    expect(await status($, { subject: 'sf' })).toContain('round 2/4')
+    expect(answered(w)).toEqual({ seq: 1, text: 'The user allowed 2 more rounds for sf (now 4). Run the next validation pass.' })
+    // no card once there are passes left
+    const again = await $.ui.mount({ ...BAND })
+    expect(await again.find({ type: 'Button', props: { label: 'Stop here' } })).toBeUndefined()
+    await again.unmount()
+  })
+
+  test('Stop here closes the subject and bumps reviewAnswered with the stop text', { timeoutMs: 30_000 }, async ($, on) => {
+    const w = reviewWorld(on)
+    await start($)
+    await stuck($, 'critic')
+    const ui = await $.ui.mount({ ...BAND })
+    await ui.press({ key: 'review-stop:sf' })
+    await ui.unmount()
+    expect(await status($, { subject: 'sf' })).toContain('stopped')
+    expect(answered(w)).toEqual({
+      seq: 1,
+      text: 'The user stopped the review loop for sf at 4 cycles. Do not run another critic pass; report the open items and carry on with the task.',
+    })
+  })
+
+  test('/reviews more: the kind default or n, capped at 20, refused when not at the limit or not active', { timeoutMs: 40_000 }, async ($, on) => {
+    const w = reviewWorld(on)
+    await start($)
+    await cycle($, { subject: 'fresh', score: 5 })
+    expect(await reviews($, 'more fresh')).toContain('still has 3 cycles left')
+    expect(answered(w)?.seq ?? 0).toBe(0)
+    await stuck($, 'critic')
+    expect(await reviews($, 'more sf')).toContain('Allowed 4 more cycles for sf (max 8)')
+    expect(answered(w)?.seq).toBe(1)
+    for (const s of [8.3, 8.4, 8.5, 8.6]) await cycle($, { subject: 'sf', score: s })
+    expect(await reviews($, 'more sf 15')).toContain('Allowed 12 more cycles for sf (max 20)')
+    for (let i = 0; i < 12; i++) await cycle($, { subject: 'sf', score: 8.7 })
+    expect(await reviews($, 'more sf')).toContain('cap of 20')
+    await reviews($, 'stop sf')
+    expect(await reviews($, 'more sf')).toContain('stopped')
+    expect(await reviews($, 'more nothing')).toContain('No review for')
+  })
+
+  test('more and a max raise count only from the person; lowering max works from anyone', { timeoutMs: 30_000 }, async ($, on) => {
+    const w = reviewWorld(on)
+    await start($)
+    await stuck($, 'critic')
+    expect(await run($, 'more sf', OTHER)).toBe('Only the user can allow more review passes.')
+    expect(await run($, 'max 6 sf', OTHER)).toContain('Only the user can raise')
+    expect(await status($, { subject: 'sf' })).toContain('cycle 4/4')
+    expect(answered(w)?.seq ?? 0).toBe(0)
+    expect(await run($, 'max 3 sf', OTHER)).toContain('Max cycles for sf is now 3')
+    // the person raising a limit at the limit grants and carries on
+    expect(await run($, 'max 5 sf', { kind: 'composer' })).toContain('Max cycles for sf is now 5')
+    expect(answered(w)?.text).toBe('The user allowed 2 more cycles for sf (now 5). Run the next critic pass.')
+    expect(await run($, 'more sf', { kind: 'composer' })).toContain('still has 1 cycle left')
   })
 })

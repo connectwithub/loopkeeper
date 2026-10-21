@@ -49,6 +49,26 @@ export type LkGateLogRow = {
   detail: string
 }
 
+/**
+ * A refusal that waits for the user's answer: a card above the prompt and a row in the Gates pane, answered by a press
+ * or /lk approve. `what` is the fixed label the gates build (the protected path, the merge label, the ship command
+ * names, the files figure), never the raw command.
+ */
+export type LkGateRequest = {
+  id: string
+  kind: 'protected' | 'files' | 'merge' | 'ship'
+  // the protected path, the merge label, the ship command names, or 'files'
+  target: string
+  // protected: the ask rule's glob
+  glob?: string
+  what: string
+  // files: the limit "Raise to <n> files a turn" sets
+  raise?: number
+  // the main turn it was raised in (gateTurnSeq)
+  turn: number
+  time: number
+}
+
 /** One file Claude read, opened through an @-mention, edited or created; or one Glob/Grep search. */
 export type LkTouchEntry = {
   id: string
@@ -181,6 +201,9 @@ declare module 'claude-code' {
       stagePlanDone: boolean
       // stage: the current stage is ship and its gate is approved, or no ship stage is gated. Read by gates.
       stageShipOpen: boolean
+      // stage and gates: a commit or push passed on the Ship approval; the person's next message then ends the approval.
+      // Set by the gates, cleared and saved by the stage.
+      stageShipUsed: boolean
       // stage: the task's size, '' until set_stage or /lk size records it
       stageSize: '' | 'small' | 'large'
       // stage: the last plan validator's verdict for this task, or null. Also written by the review_cycle wrapper.
@@ -266,12 +289,30 @@ declare module 'claude-code' {
       gatePlanBy: string
       // gates: /lk gates ship ok for this session
       gateShipOk: boolean
-      // gates: protected paths allowed for the rest of the session
+      // gates and stage: protected paths allowed for the rest of the session (/lk gates allow, Allow this file)
       gateGrants: string[]
-      // gates: the last 20 decisions
+      // gates: the last 20 decisions (the stage adds a row for each answer to a request)
       gateLog: LkGateLogRow[]
-      // gates: the session's raise of the files-per-turn limit ("Raise to N for this session"), 0 for none
+      // gates and stage: the session's raise of the files-per-turn limit ("Raise to N for this session"), 0 for none
       gateSessionRaise: number
+      // gates: refusals waiting for the user's answer, newest last (at most 5, one per kind and target). Raised by the
+      // gates; answered and removed by the stage (a card or Gates pane press, /lk approve); expire on a stage move
+      // and after 3 main turns
+      gateRequests: LkGateRequest[]
+      // gates: the last request id given out (r<n>)
+      gateRequestSeq: number
+      // gates: main turns started this session (a request's turn)
+      gateTurnSeq: number
+      // gates and stage: ask globs allowed for the rest of the session (Allow all of <glob>); a deny rule never is
+      gateGlobGrants: string[]
+      // gates and stage: pushes and merges to the default branch allowed for the session (green CI still first)
+      gateMergeSession: boolean
+      // gates and stage: ship command names allowed for one call (Allow this … once); it covers that call's merge
+      // gate too, and the call that passes spends it
+      gateShipOnce: string[]
+      // gates: the person's last /lk gates allow|ship ok|merge ok|plan ok|max: seq counts them, text is the
+      // carry-on prompt the stage submits
+      gateAnswered: { seq: number; text: string }
       // gates and stage: the user's yes for the next push or merge to the default branch, spent by it. Set by the
       // Ship approval (stage: /lk approve, the Stage pane's Approve gate, the hub's a), /lk gates ship ok and /lk gates
       // merge ok; cleared by the stage on a move to a stage that is not ship, a reset and the stage-list fallback.
@@ -318,6 +359,8 @@ declare module 'claude-code' {
       reviewContext: boolean
       // review: defaults set with /reviews target and /reviews max
       reviewDefaults: { target?: number; maxCycles?: number }
+      // review: the person's last "more passes" answer: seq counts them, text is the carry-on prompt the stage submits
+      reviewAnswered: { seq: number; text: string }
 
       // ---- decisions (decisions.ts) ----------------------------------------------------
       // decisions: decisions recorded this session
@@ -346,6 +389,8 @@ declare module 'claude-code' {
       decisionKinds: [string, 'major' | 'minor' | 'you'][]
       // decisions: watch problems already logged this session, so each kind is logged once
       decisionLogged: string[]
+      // decisions: the watch-cap card: when the current pause began (0 when not paused) and whether Keep paused hid it
+      decisionCapCard: { since: number; hidden: boolean }
     }
   }
 }

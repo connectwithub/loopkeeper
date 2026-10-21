@@ -75,8 +75,9 @@ test('the ship gate holds at Plan and opens with stageShipOpen (no fallback ques
   const held = (await $.tool.check(bash('git commit -m "work"'))) as { decision: string; reason: string }
   expect(held.decision).toBe('deny')
   expect(held.reason).toBe(
-    // the default stages gate no Ship stage, so /lk approve cannot open shipping: only ship ok is named
-    'loopkeeper: shipping is gated (git commit). The pipeline is at Plan. Ask the user to review the work and run /lk gates ship ok.',
+    // the terminal shows the request's card above the prompt too; /lk approve answers it whatever the preset
+    'loopkeeper: shipping is gated (git commit). The pipeline is at Plan. The user\'s yes is asked on the card above the prompt; ' +
+      "the user can also type /lk approve. Stop and wait for the user's answer; do not retry it another way.",
   )
   expect(w.asked).toEqual([])
   w.atoms.stageShipOpen = true

@@ -4,7 +4,7 @@
 import { defaultConfig } from './config.ts'
 import { DISABLE_ENV, PLUGIN } from './names.ts'
 import { at } from './shell.ts'
-import type { LkGateConfig, LkProtectedRule, LkTouchEntry } from '../../types/index.d.ts'
+import type { LkGateConfig, LkGateRequest, LkProtectedRule, LkTouchEntry } from '../../types/index.d.ts'
 
 export const MOD = PLUGIN
 /** The /lk sub-command the gates own, as messages name it. */
@@ -263,6 +263,14 @@ export function matchProtected(rules: readonly LkProtectedRule[], path: string):
   return hits.find(r => r.action === 'deny') ?? hits[0]
 }
 
+/** Whether an ask rule matching `path` has its glob allowed for the session. A path a deny rule matches never is. */
+export function globGranted(rules: readonly LkProtectedRule[], globs: readonly string[], path: string): boolean {
+  if (globs.length === 0) return false
+  const hits = rules.filter(r => matchGlob(r.glob, path))
+  if (hits.some(r => r.action === 'deny')) return false
+  return hits.some(r => r.action === 'ask' && globs.includes(r.glob))
+}
+
 // ---- Files a Bash command writes ------------------------------------------------
 // Adapted from yash-gadodia/claude-mods scope-guard (MIT, Copyright (c) 2026 Yash Gadodia):
 // heredoc bodies and quoted strings blanked, then sed -i, a redirection, tee, cp/mv's
@@ -386,9 +394,12 @@ export function isAddAll(args: string[]): boolean {
 
 const branchName = (ref: string) => ref.replace(/^\+/, '').replace(/^refs\/heads\//, '')
 
-/** Whether `git merge <args>` merges into or from a default branch. */
+/**
+ * Whether `git merge <args>` merges into a default branch: only when the current branch is one (merging main into a
+ * feature branch is not). With the current branch unknown it fails closed (ADR 0009): held when the args name one.
+ */
 export function mergeHitsDefault(args: string[], current: string, defaults: readonly string[]): boolean {
-  if (current !== '' && defaults.includes(current)) return true
+  if (current !== '') return defaults.includes(current)
   return args
     .filter(a => !a.startsWith('-'))
     .map(a => a.replace(/^(?:origin|upstream)\//, ''))
@@ -443,7 +454,140 @@ export function parsePorcelain(text: string): string[] {
   }
   return out
 }
+// ---- Requests: refusals that wait for the user's answer -------------------------
+// Off the terminal a permission check cannot ask (ADR 0004), so a refusal that needs the user's yes becomes a request:
+// a card above the prompt (terminal and desktop), a row in the Gates pane (every surface), or /lk approve typed. The
+// gates raise it; the stage answers it (a press, /lk approve) and carries on (ADR 0012). Texts name the fixed label
+// (`what`), never the raw command.
 
+/** One answer: the request's first Allow, its session-wide Allow, or Deny. */
+export type RequestChoice = 'allow' | 'session' | 'deny'
+
+/** At most this many requests wait; a sixth drops the oldest. */
+export const REQUESTS_MAX = 5
+/** A request expires once this many main turns have started since it was raised. */
+export const REQUEST_TURNS = 3
+
+/** The key of a request's button, in the card and the Gates pane alike. */
+export const REQUEST_KEY = /^gate-request-(r\d+)-(allow|session|deny)$/
+export const requestKey = (id: string, choice: RequestChoice): string => `gate-request-${id}-${choice}`
+
+/** The request id and the answer a button key names, or null for another key. */
+export function parseRequestKey(key: unknown): { id: string; choice: RequestChoice } | null {
+  const m = REQUEST_KEY.exec(String(key ?? ''))
+  return m && m[1] && m[2] ? { id: m[1], choice: m[2] as RequestChoice } : null
+}
+
+/** The list with `req` added newest: one per kind and target (a new one replaces the old), at most REQUESTS_MAX. */
+export function addRequest(list: readonly LkGateRequest[], req: LkGateRequest): LkGateRequest[] {
+  return [...list.filter(r => !(r.kind === req.kind && r.target === req.target)), req].slice(-REQUESTS_MAX)
+}
+
+/** The requests still alive at main turn `turn`. */
+export function liveRequests(list: readonly LkGateRequest[], turn: number): LkGateRequest[] {
+  return list.filter(r => turn - r.turn < REQUEST_TURNS)
+}
+
+const isPush = (r: LkGateRequest) => r.what === 'push to the default branch'
+
+/** The buttons a request offers, in order; the first is what /lk approve answers. */
+export function requestChoices(r: LkGateRequest): Array<{ choice: RequestChoice; label: string }> {
+  const deny = { choice: 'deny' as const, label: 'Deny' }
+  if (r.kind === 'protected') {
+    const all = r.glob ? [{ choice: 'session' as const, label: `Allow all of ${r.glob} for this session` }] : []
+    return [{ choice: 'allow', label: 'Allow this file' }, ...all, deny]
+  }
+  if (r.kind === 'merge') {
+    return isPush(r)
+      ? [{ choice: 'allow', label: 'Allow this push' }, { choice: 'session', label: 'Allow pushes for this session' }, deny]
+      : [{ choice: 'allow', label: 'Allow this merge' }, { choice: 'session', label: 'Allow merges for this session' }, deny]
+  }
+  if (r.kind === 'ship') return [{ choice: 'allow', label: `Allow this ${r.what} once` }, { choice: 'session', label: 'Open shipping for this session' }, deny]
+  return [{ choice: 'allow', label: `Raise to ${r.raise ?? 0} files a turn for this session` }, deny]
+}
+
+/** The card's title and its two lines: what waits (bold) and why. */
+export function requestCard(r: LkGateRequest): { title: string; head: string; why: string } {
+  if (r.kind === 'protected') return { title: 'loopkeeper · protected path', head: r.target, why: `rule ${r.glob ?? '?'}: ask · Claude wants to edit it` }
+  if (r.kind === 'merge') return { title: 'loopkeeper · default branch', head: r.what, why: 'needs your yes before it runs' }
+  if (r.kind === 'ship') return { title: 'loopkeeper · ship gate', head: r.what, why: 'shipping is held by the pipeline' }
+  return { title: 'loopkeeper · files per turn', head: r.what, why: 'this turn reached its file limit' }
+}
+
+/** What an answer did, as the reply and the log say it. */
+export function answerText(r: LkGateRequest, choice: RequestChoice): string {
+  if (choice === 'deny') {
+    if (r.kind === 'protected') return `Denied the edit to ${r.target}.`
+    if (r.kind === 'merge') return `Denied the ${r.what}.`
+    if (r.kind === 'ship') return `Denied ${r.what}.`
+    return 'Denied more files this turn.'
+  }
+  if (r.kind === 'protected') return choice === 'session' && r.glob ? `Allowed all of ${r.glob} for this session.` : `Allowed ${r.target} for this session.`
+  if (r.kind === 'merge') {
+    if (choice === 'session') return `Allowed ${isPush(r) ? 'pushes' : 'merges'} to the default branch for this session.`
+    return `Allowed the ${r.what} once.`
+  }
+  if (r.kind === 'ship') return choice === 'session' ? 'Opened shipping for this session.' : `Allowed ${r.what} once.`
+  return `Raised the limit to ${r.raise ?? 0} files a turn for this session.`
+}
+
+/** The carry-on sentence after an Allow: the refused call runs again (ADR 0012's last sentence ends it). */
+export const RUN_AGAIN = 'Run the refused call again. Carry on with the task from where you stopped.'
+/** The carry-on sentence after a Deny. */
+export const DO_NOT_RETRY = 'Do not retry it; ask the user how to proceed.'
+
+/** The prompt the stage submits after an answer: fixed sentences and the request's label, never the raw command. */
+export function carryText(r: LkGateRequest, choice: RequestChoice): string {
+  const said = answerText(r, choice)
+  return `The user ${said.charAt(0).toLowerCase()}${said.slice(1)} ${choice === 'deny' ? DO_NOT_RETRY : RUN_AGAIN}`
+}
+
+/** Where a refusal's question waits: the terminal's dialog, the card above the prompt, the Gates pane, or nowhere (-p). */
+export type WaitPlace = 'terminal' | 'card' | 'pane' | 'none'
+
+/** The place for the surfaces drawing the session: AbovePrompt is raised only on the terminal and the desktop app. */
+export function waitPlace(surfaces: readonly string[]): WaitPlace {
+  if (surfaces.includes('terminal')) return 'terminal'
+  if (surfaces.includes('desktop')) return 'card'
+  return surfaces.length > 0 ? 'pane' : 'none'
+}
+
+const askedAt = (place: 'card' | 'pane'): string =>
+  `asked ${place === 'card' ? 'on the card above the prompt' : 'in the Gates pane (/lk gates)'}; the user can also type /lk approve`
+
+/** A protected `ask` path off the terminal: the card or pane, or (-p) the command. */
+export function protectedHeld(path: string, glob: string, place: 'card' | 'pane' | 'none'): string {
+  const head = `${MOD}: ${path} is protected (rule "${glob}": ask) and needs the user's yes`
+  if (place === 'none') return `${head}. Ask the user to run ${GATES_CMD} allow ${path}, which allows it for this session; do not edit it another way.`
+  return `${head}, ${askedAt(place)}. Stop and wait for the user's answer; do not edit it another way.`
+}
+
+/** A push or merge to the default branch off the terminal. */
+export function mergeHeld(what: string, place: 'card' | 'pane' | 'none'): string {
+  const head = `${MOD}: the ${what} was held: it needs the user's yes`
+  if (place === 'none') return `${head}. Ask the user to run ${GATES_CMD} merge ok, then run it again. Do not retry it another way.`
+  return `${head}, ${askedAt(place)}. Stop and wait for the user's answer; do not retry it another way.`
+}
+
+/** Shipping held by the pipeline, on any surface (the terminal shows the card too). */
+export function shipHeld(what: string, where: string, place: 'card' | 'pane' | 'none'): string {
+  const head = `${MOD}: shipping is gated (${what}). The pipeline is at ${where}.`
+  if (place === 'none') return `${head} Ask the user to review the work and run ${GATES_CMD} ship ok.`
+  return `${head} The user's yes is ${askedAt(place)}. Stop and wait for the user's answer; do not retry it another way.`
+}
+
+/** The files-per-turn limit off the terminal. */
+export function filesHeld(n: number, before: readonly string[], added: readonly string[], limit: number, place: 'card' | 'pane'): string {
+  return [
+    `${MOD} stopped this edit: this turn already touched ${n} files (${before.join(', ')}) and ${added.join(', ')} would exceed the limit of ${limit} files per turn, and more needs the user's yes, ${askedAt(place)}.`,
+    "Stop editing now. Summarise what changed so far, list the files you still intend to touch and why, and wait for the user's answer before continuing.",
+  ].join('\n')
+}
+
+/** A one-time yes another call spent first (two calls in parallel): held, with the same request raised again. */
+export function spentHeld(what: string): string {
+  return `${MOD}: the ${what} was held: the user's one-time yes was spent by another call. Stop and wait for the user's answer; do not retry it another way.`
+}
 
 // ---- What the person and Claude read --------------------------------------------
 
@@ -495,7 +639,7 @@ export function contextText(c: LkGateConfig, limit: number = c.maxFilesPerTurn):
   if (c.protected.length > 0) {
     const list = c.protected.map(r => `${r.glob} (${r.action})`).join(', ')
     lines.push(
-      `- Protected paths: ${list}. "deny" means ask the user to make the change; "ask" needs the user's yes first (the terminal asks; elsewhere the user runs ${GATES_CMD} allow <path>).`,
+      `- Protected paths: ${list}. "deny" means ask the user to make the change; "ask" needs the user's yes first (the terminal asks; elsewhere a card above the prompt or the Gates pane asks, and a refusal means stop and wait for the answer).`,
     )
   }
   if (c.requirePlan) {
@@ -506,7 +650,7 @@ export function contextText(c: LkGateConfig, limit: number = c.maxFilesPerTurn):
   }
   if (c.mergeGate) {
     lines.push(
-      `- Merges and pushes to the default branch are held${c.requireGreenCi ? ' until CI is green' : ''} and need the user's yes: the user's Ship approval (/lk approve) or ${GATES_CMD} merge ok covers the next one; otherwise the terminal asks.`,
+      `- Merges and pushes to the default branch are held${c.requireGreenCi ? ' until CI is green' : ''} and need the user's yes: the user's Ship approval (/lk approve) or ${GATES_CMD} merge ok covers the next one; otherwise the terminal, a card above the prompt or the Gates pane asks.`,
     )
   }
   if (c.shipGate) {

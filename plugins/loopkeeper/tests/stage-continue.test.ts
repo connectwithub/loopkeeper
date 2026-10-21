@@ -7,7 +7,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
-import { BAND as WORLD_BAND, CWD, PROJECT_CONFIG, USER_CONFIG, start, tool, world } from './world.ts'
+import { BAND as WORLD_BAND, CWD, PROJECT_CONFIG, USER_CONFIG, edit, pressBand, pressPane, start, tool, world } from './world.ts'
 import type { World, WorldOptions } from './world.ts'
 
 const TOOL = 'mcp__loopkeeper__set_stage'
@@ -517,4 +517,128 @@ test("another plugin's /lk approve is refused and changes nothing; the person's 
   const out = (await $.command.run({ command: 'lk', args: 'approve', origin: { kind: 'composer' } } as never)) as { text?: string }
   expect(out?.text).toBe(APPROVED_GATE)
   expect((await continued(w)).map(s => s.text)).toEqual([COMMAND_SENT])
+})
+
+// ---- A request's answer carries on too (a card press, /lk gates …) ---------------------------------------------------
+
+const DOCS = CWD + '/docs/decisions/a.md'
+const desk = (on: any, files: Record<string, string> = {}) => continueWorld(on, { surfaces: ['desktop'], files })
+
+test('a card press during a running turn submits at the main turn end, once', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = desk(on)
+  await start($)
+  const turn = await turnStart($)
+  expect((await $.tool.check(edit(DOCS))).decision).toBe('deny')
+  await pressBand($, 'gate-request-r1-allow')
+  expect((await continued(w)).length).toBe(0)
+  await turnComplete($, turn)
+  const sent = await continued(w)
+  expect(sent.map(x => x.text)).toEqual(['The user allowed docs/decisions/a.md for this session. Run the refused call again. ' + CARRY_ON])
+})
+
+test('a card press and /lk gates allow submit nothing with pipeline.continueOnApprove false', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = desk(on, { [PROJECT_CONFIG]: JSON.stringify({ pipeline: { continueOnApprove: false } }) })
+  await start($)
+  await $.tool.check(edit(DOCS))
+  await pressBand($, 'gate-request-r1-allow')
+  expect(w.state.get('gateGrants')).toEqual(['docs/decisions/a.md'])
+  await cmd($, 'gates allow docs/decisions/b.md')
+  expect((await continued(w)).length).toBe(0)
+})
+
+test('a press on a request that is gone changes nothing and submits nothing', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = desk(on)
+  await start($)
+  await $.tool.check(edit(DOCS))
+  await pressBand($, 'gate-request-r1-allow')
+  expect((await continued(w)).length).toBe(1)
+  await expect(pressBand($, 'gate-request-r1-allow')).rejects.toBeDefined()
+  expect((await continued(w)).length).toBe(1)
+})
+
+// ---- A review answer carries on too (allow more passes, stop here) -----------------------------------------------------
+
+const GRANT = 'The user allowed 2 more rounds for sf (now 4). Run the next validation pass.'
+const STOP = 'The user stopped the review loop for sf at 2 rounds. Do not run another validation pass; report the open items and carry on with the task.'
+
+// a plan loop at its 2/2 limit with an open p1 item
+async function stuck($: Engine): Promise<void> {
+  await start($)
+  for (let i = 0; i < 2; i++) await tool($, 'review_cycle', { subject: 'sf', kind: 'plan', items: i === 0 ? [{ text: 'a', priority: 'p1' }] : [] })
+}
+const reviews = async ($: Engine, args: string, origin?: unknown) =>
+  (await $.command.run({ command: 'reviews', args, ...(origin ? { origin } : {}) } as never)) as { text?: string }
+// a review answer's prompt is the review's own text (it ends with no "Carry on" sentence), so look for it
+const carried = async (w: World) => {
+  await w.clock.advance(5_000)
+  return w.submitted.map(x => x.text).filter(t => t === GRANT || t === STOP)
+}
+
+test('a review band press "Allow n more" submits one prompt with the grant text', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = desk(on)
+  await stuck($)
+  await pressBand($, 'review-more:sf')
+  expect(await carried(w)).toEqual([GRANT])
+})
+
+test('the Review pane press more:<name> submits one prompt', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = desk(on)
+  await stuck($)
+  await pressPane($, 'loopkeeper-review', 'more:sf')
+  expect(await carried(w)).toEqual([GRANT])
+})
+
+test('/reviews more submits one prompt after the timer; a plugin origin and a loop with passes left send none', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = desk(on)
+  await stuck($)
+  await tool($, 'review_cycle', { subject: 'fresh', score: 5 })
+  expect((await reviews($, 'more fresh')).text).toContain('still has')
+  expect((await reviews($, 'more sf', { kind: 'plugin', name: 'x' })).text).toBe('Only the user can allow more review passes.')
+  expect(await carried(w)).toEqual([])
+  expect((await reviews($, 'more sf')).text).toContain('Allowed 2 more')
+  expect(await carried(w)).toEqual([GRANT])
+})
+
+test('review-stop:<name> submits one prompt with the stop text', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = desk(on)
+  await stuck($)
+  await pressBand($, 'review-stop:sf')
+  expect(await carried(w)).toEqual([STOP])
+})
+
+test('/reviews stop from the user answers a loop at its limit like Stop here; from a plugin it closes without a prompt', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = desk(on)
+  await stuck($)
+  expect((await reviews($, 'stop sf', { kind: 'plugin', name: 'x' })).text).toBe('Closed: sf.')
+  expect(await carried(w)).toEqual([])
+  await reviews($, 'reopen sf')
+  await reviews($, 'max 2 sf')
+  expect((await reviews($, 'stop sf')).text).toBe('Closed: sf.')
+  expect(await carried(w)).toEqual([STOP])
+})
+
+test('a review answer submits nothing with pipeline.continueOnApprove false', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = desk(on, { [PROJECT_CONFIG]: JSON.stringify({ pipeline: { continueOnApprove: false } }) })
+  await stuck($)
+  await pressBand($, 'review-more:sf')
+  await reviews($, 'stop sf')
+  expect(await carried(w)).toEqual([])
+})
+
+test('a review answer during a running turn waits for the turn end, once', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = desk(on)
+  await stuck($)
+  const turn = await turnStart($)
+  await pressBand($, 'review-more:sf')
+  expect(await carried(w)).toEqual([])
+  await turnComplete($, turn)
+  expect(await carried(w)).toEqual([GRANT])
+})
+
+test('only one review prompt until the next main turn starts', { timeoutMs: 20_000 }, async ($, on) => {
+  const w = desk(on)
+  await stuck($)
+  await pressBand($, 'review-more:sf')
+  await reviews($, 'max 6 sf')
+  expect((await carried(w)).length).toBe(1)
 })

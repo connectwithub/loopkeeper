@@ -4,6 +4,8 @@
 - Date: 2026-10-11
 - Amended: 2026-10-11 (continue after approval also runs when the session draws on a surface, so desktop sessions hosted through the SDK get it)
 - Amended: 2026-10-12 (`/lk approve` and every Approve button also open the next stage's gate from the stage before it, moving into it; that outcome changed something, so it submits)
+- Amended: 2026-10-15 (a gate request's answer and the `/lk gates` commands carry on too; the text names the refused path, glob or command label)
+- Amended: 2026-10-20 (a review loop's Allow more or Stop here carries on too, through `reviewAnswered` and the stage's review hooks, under the same guards)
 
 ## Context and Problem Statement
 
@@ -47,3 +49,11 @@ Chosen option: 3, because the approval is the user's decision and needs no secon
 - Bad: the plugin starts a model turn the user did not type. The transcript shows it as the plugin's message, and SECURITY.md says so.
 - Bad: the delayed submit depends on the host accepting it a moment after the command answers. If every retry is refused, the user types the next prompt, as before.
 - Bad: the gates' and the stage's `turn.start` hooks share an identical matcher and rely on the engine not enforcing one hook per matcher. `plugins/loopkeeper/tests/stage-continue.test.ts` pins the text, the conditions and the turn tracking.
+
+## Amendment (2026-10-15)
+
+A gate that needs the user's yes raises a request (`gateRequests`) instead of only refusing, and its buttons are the user's answer. A press on a request button goes through the stage's `ui.press` hook (`element: REQUEST_KEY`), which applies the answer and calls `continueAfter` before `next(e)`, so the gates' own press handlers do nothing. A press is not a command, so its prompt goes at once. `/lk approve` answers the newest pending request first, through the same routine. The person's `/lk gates allow`, `ship ok`, `merge ok`, `plan ok` and `max <n>` also carry on when they change something: the gates write the outcome to `gateAnswered`, and the stage's `/lk` handler, which awaits `next(e)`, reads it and calls `continueAfter(..., fromCommand = true)`, so the same timer applies. The text is `carryText`: fixed words for the outcome (for example "The user allowed all of docs/decisions/** for this session. Run the refused call again. Carry on with the task from where you stopped."), with the refused path, glob or command label, never the raw Bash command. A denial says "Do not retry it; ask the user how to proceed." instead. The guards are unchanged: one prompt per turn, `pipeline.continueOnApprove`, the kill switch, a live surface, and the person only; another plugin's `/lk gates` command is refused and carries on nothing. `$.prompt.submit` still has one call site, `submitContinue` in `hooks/stage.ts`. A request expires on a stage move and after three main turns, so a press on a request that no longer waits changes nothing.
+
+## Amendment (2026-10-20)
+
+A review loop at its limit waits for the person. Its card's **Allow <n> more** and **Stop here**, the Review pane's buttons, `/reviews more` and `/reviews stop` answer it. A `/reviews max` that raises the limit is the person's too. The review concern writes the answer to `reviewAnswered` (`{ seq, text }`), and the stage carries on from it in two places: its `ui.press` hook for the review keys (`review-more:`, `review-stop:`, and the pane's `more:` and `stop:`), which runs after the press is applied, and its `command.run` hook for `reviews`, which runs after the command. Both call `continueAfter` with the same guards as above. The text is fixed and names the loop: "The user allowed 2 more passes for <name> (now 4). Run the next pass." for a grant, and "The user stopped the review loop for <name> at <n> passes. Do not run another pass; report the open items and carry on with the task." for a stop. A stop carries on only when the loop was at its limit. `$.prompt.submit` still has one call site, `submitContinue` in `hooks/stage.ts`.

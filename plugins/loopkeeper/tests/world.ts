@@ -416,3 +416,30 @@ export async function bandLineOf($: any, label: string, surface: 'terminal' | 'd
   await ui.unmount()
   return found
 }
+
+/** The person presses a button by its key on the band (AbovePrompt) of a surface; a press is the person. */
+export async function pressBand($: any, key: string, surface: 'terminal' | 'desktop' = 'desktop'): Promise<void> {
+  const ui = await $.ui.mount({ ...BAND, surface })
+  try {
+    await ui.press({ key })
+  } finally {
+    await ui.unmount()
+  }
+}
+
+/** The person presses a button by its key in a loopkeeper pane (`id` is the pane's requestId, e.g. loopkeeper-gates). */
+export async function pressPane($: any, id: string, key: string, surface: 'terminal' | 'desktop' = 'desktop'): Promise<void> {
+  const ui = await $.ui.mount({
+    plugin: 'loopkeeper',
+    component: 'Pane',
+    requestId: id,
+    surface,
+    viewport: { columns: 120, rows: 40 },
+    props: { title: id, isFocused: true, bodyColumns: 80, placement: 'inline', scroll: { offset: 0, bodyRows: 30 }, view: {} },
+  })
+  try {
+    await ui.press({ key })
+  } finally {
+    await ui.unmount()
+  }
+}

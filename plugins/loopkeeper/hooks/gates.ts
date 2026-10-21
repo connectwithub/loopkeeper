@@ -4,20 +4,23 @@
 //      override when set, otherwise the largest of the base (changeControl.maxFilesPerTurn), the approved plan's file
 //      budget (stageBudget, written by the stage) and the session raise ("Raise to N for this session").
 //   2. Protected paths: globs that are denied, or need the user's yes once per path per session (the terminal asks;
-//      elsewhere the user runs `/lk gates allow <path>`).
+//      elsewhere a request card asks: Allow this file, Allow all of <glob> for this session, Deny).
 //   3. A plan before edits (requirePlan): the stage's stagePlanDone, ExitPlanMode, or `/lk gates plan ok`. Plan
 //      material (the scratchpad under /tmp/claude-*, and changeControl.planPaths) is exempt from this gate and rule 1.
 //   4. A ship gate: commits, pushes, PRs, releases and publishes wait for the stage's stageShipOpen or
 //      `/lk gates ship ok` (ADR 0004: the stage is always there, so there is no one-question fallback).
 //   5. A merge gate: merges and pushes to the default branch wait for green CI and a yes. The user's Ship approval
-//      (or `/lk gates ship ok` or `merge ok`) is that yes for the next one; otherwise the terminal asks. `git commit
-//      --amend` on shared branches and (opt-in) `git add -A` / `git add .` are refused.
+//      (or `/lk gates ship ok` or `merge ok`) is that yes for the next one; otherwise the terminal asks, and elsewhere
+//      a request card. `git commit --amend` on shared branches and (opt-in) `git add -A` / `git add .` are refused.
 //
 // Every verdict is given at tool.check, after the settings rules and the hooks beneath, so a call they already refuse
 // is never asked about twice. A question is put only in the terminal: off it (the desktop app, mobile, VS Code) a
-// dialog from a permission check is never answered, so the refusal names the command that lets the call through. A
-// hook that throws fails closed. CLAUDE_MODS_DISABLE=loopkeeper (or all) turns the gates off; the band says so and
-// /lk gates still answers.
+// dialog from a permission check is never answered, so the refusal raises a request (gateRequests): a card above the
+// prompt on the desktop, a row in the Gates pane everywhere. The ship gate raises one on every surface. The stage
+// answers it (a press, /lk approve) and carries on; its answers reach the gates through the grant atoms, read on
+// every check. A one-time yes (the merge credit, a ship once-grant) is spent last, only by a call every rule let
+// through. A hook that throws fails closed. CLAUDE_MODS_DISABLE=loopkeeper (or all) turns the gates off; the band says
+// so and /lk gates still answers.
 //
 // The Files pane lives in files.ts. The seam: Bash writes that pass the gates are recorded here into filesTouched and
 // filesActivity.last (the atoms the pane reads), because only the gates parse Bash for the files it writes.
@@ -26,6 +29,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
 import {
+  addRequest,
   bandModel,
   bashTargets,
   checkLayer,
@@ -33,13 +37,17 @@ import {
   describeRules,
   editPath,
   failClosedReason,
+  filesHeld,
   filesOptions,
   gitActions,
   GATES_CMD,
+  globGranted,
   isPlanMaterial,
   limitOf,
   limitSource,
+  liveRequests,
   matchProtected,
+  mergeHeld,
   mergeHitsDefault,
   mergeLayers,
   MOD,
@@ -48,15 +56,23 @@ import {
   parsePorcelain,
   planPathsText,
   PROJECT_LABEL,
+  protectedHeld,
   pushHitsDefault,
   raiseTo,
+  requestCard,
+  requestChoices,
+  requestKey,
+  RUN_AGAIN,
   sectionLayer,
   shipCommands,
+  shipHeld,
+  spentHeld,
   summarizeChecks,
   USAGE,
   USER_LABEL,
+  waitPlace,
 } from './lib/gateRules.ts'
-import type { GitAction, Layer } from './lib/gateRules.ts'
+import type { GitAction, Layer, WaitPlace } from './lib/gateRules.ts'
 import { TONES, makeKit, shortPath } from './lib/kit.ts'
 import type { Elements, Kit, Tone } from './lib/kit.ts'
 import { joinText, projectConfigPath, storeKey, subOf, userConfigPath } from './lib/names.ts'
@@ -64,7 +80,7 @@ import { HUB_ID, HUB_ROWS, PANES } from './lib/panes.ts'
 import { bare, cdTargets, prNumber, resolveDir } from './lib/shell.ts'
 import { DEFAULT_STAGES, killSwitchOn, stageForRole } from './lib/stageModel.ts'
 import type { Stage } from './lib/stageModel.ts'
-import type { LkFilesLive, LkGateConfig, LkGateLogRow, LkNext, LkTouchEntry } from '../types/index.d.ts'
+import type { LkFilesLive, LkGateConfig, LkGateLogRow, LkGateRequest, LkNext, LkTouchEntry } from '../types/index.d.ts'
 
 const PANE_ID = 'loopkeeper-gates'
 const CONTEXT_BLOCK = 'changeControl'
@@ -102,10 +118,21 @@ const gateSessionRaise = atom({ plugin: 'loopkeeper', key: 'gateSessionRaise' } 
 // The user's yes for the next push or merge to the default branch, spent by it: the Ship approval (stage.ts sets it
 // and clears it on leaving the ship stage), /lk gates ship ok or /lk gates merge ok.
 const gateMergeCredit = atom({ plugin: 'loopkeeper', key: 'gateMergeCredit' } as const, false)
+// Requests: refusals waiting for the user's answer (a card, the Gates pane, /lk approve). Raised here; answered by the
+// stage, which writes the grants below and removes the request. Grants are read from these atoms on every check.
+const gateRequests = atom({ plugin: 'loopkeeper', key: 'gateRequests' } as const, [] as LkGateRequest[])
+const gateRequestSeq = atom({ plugin: 'loopkeeper', key: 'gateRequestSeq' } as const, 0)
+const gateTurnSeq = atom({ plugin: 'loopkeeper', key: 'gateTurnSeq' } as const, 0)
+const gateGlobGrants = atom({ plugin: 'loopkeeper', key: 'gateGlobGrants' } as const, [] as string[])
+const gateMergeSession = atom({ plugin: 'loopkeeper', key: 'gateMergeSession' } as const, false)
+const gateShipOnce = atom({ plugin: 'loopkeeper', key: 'gateShipOnce' } as const, [] as string[])
+// The person's last /lk gates allow|ship ok|merge ok|plan ok|max: the stage's /lk handler submits its text (ADR 0012)
+const gateAnswered = atom({ plugin: 'loopkeeper', key: 'gateAnswered' } as const, { seq: 0, text: '' } as { seq: number; text: string })
 // Declared by stage.ts too, with the same defaults: one value (ADR 0004).
 const stageCurrent = atom({ plugin: 'loopkeeper', key: 'stageCurrent' } as const, 'plan')
 const stagePlanDone = atom({ plugin: 'loopkeeper', key: 'stagePlanDone' } as const, false)
 const stageShipOpen = atom({ plugin: 'loopkeeper', key: 'stageShipOpen' } as const, true)
+const stageShipUsed = atom({ plugin: 'loopkeeper', key: 'stageShipUsed' } as const, false)
 const stageBudget = atom({ plugin: 'loopkeeper', key: 'stageBudget' } as const, 0)
 const stagePlanFiles = atom({ plugin: 'loopkeeper', key: 'stagePlanFiles' } as const, null as number | null)
 // the pipeline's stages: which ones are gated, and their labels for the deny texts
@@ -118,7 +145,8 @@ const filesTouched = atom({ plugin: 'loopkeeper', key: 'filesTouched' } as const
 const filesActivity = atom({ plugin: 'loopkeeper', key: 'filesActivity' } as const, { live: [], last: '' } as LkFilesLive)
 
 // ---- The module's own copy, so parallel tool.check calls count against one Set -------------------------------
-// Decisions read and change these synchronously; every change is mirrored to $.state.
+// Decisions read and change these synchronously; every change is mirrored to $.state. Grants are not here: the stage
+// writes them too, so they are read from their atoms on every check and added with update().
 
 type Mem = {
   turnId: string
@@ -127,7 +155,6 @@ type Mem = {
   turnUnlimited: boolean
   turnFired: boolean
   sessionFiles: Set<string>
-  grants: Set<string>
   aborting: string
 }
 
@@ -138,7 +165,6 @@ const fresh = (): Mem => ({
   turnUnlimited: false,
   turnFired: false,
   sessionFiles: new Set(),
-  grants: new Set(),
   aborting: '',
 })
 
@@ -276,16 +302,21 @@ async function setOverride($: EngineInterface, patch: Layer): Promise<void> {
 
 type Limit = { limit: number; source: 'max' | 'budget' | 'raise' | 'base'; base: number; budget: number; raise: number; slack: number }
 
-/** The files-per-turn limit before this turn's extras; a session override (`/lk gates max`) wins over the rest. */
+/** The files-per-turn limit before this turn's extras; a session override (`/lk gates max`) wins over the rest, except
+ *  a session raise above it (the request card's "Raise to <n>", which cannot rewrite the override). */
 async function limitNow($: EngineInterface, config: LkGateConfig): Promise<Limit> {
   const sources = await read($, gateSources)
+  const raise = await read($, gateSessionRaise)
+  const max = sources.maxFilesPerTurn === 'session' ? config.maxFilesPerTurn : null
+  // only the raise beats the override: the base and the plan budget never do, so the raise stands in for it
+  const raised = max !== null && raise > max
   const parts = {
-    max: sources.maxFilesPerTurn === 'session' ? config.maxFilesPerTurn : null,
+    max: raised ? raise : max,
     base: config.maxFilesPerTurn,
     budget: await read($, stageBudget),
-    raise: await read($, gateSessionRaise),
+    raise,
   }
-  return { limit: limitOf(parts), source: limitSource(parts), base: parts.base, budget: parts.budget, raise: parts.raise, slack: config.planSlack }
+  return { limit: limitOf(parts), source: raised ? 'raise' : limitSource(parts), base: parts.base, budget: parts.budget, raise: parts.raise, slack: config.planSlack }
 }
 
 // ---- Memory and the log --------------------------------------------------------------------------------------
@@ -300,7 +331,6 @@ async function hydrate($: EngineInterface): Promise<void> {
     turnUnlimited: await read($, gateTurnUnlimited),
     turnFired: await read($, gateTurnFired),
     sessionFiles: new Set(await read($, gateSessionFiles)),
-    grants: new Set(await read($, gateGrants)),
     aborting: '',
   }
 }
@@ -313,9 +343,14 @@ async function persistTurn($: EngineInterface): Promise<void> {
   await update($, gateTurnFired, () => mem.turnFired)
 }
 
+// A new conversation (/clear, /resume, /branch): the session's grants and requests start over
 async function persistSession($: EngineInterface): Promise<void> {
   await update($, gateSessionFiles, () => [...mem.sessionFiles])
-  await update($, gateGrants, () => [...mem.grants])
+  await update($, gateGrants, () => [])
+  await update($, gateGlobGrants, () => [])
+  await update($, gateMergeSession, () => false)
+  await update($, gateShipOnce, () => [])
+  await update($, gateRequests, () => [])
   await update($, gatePlanOk, () => false)
   await update($, gatePlanBy, () => '')
   await update($, gateLog, () => [])
@@ -353,6 +388,48 @@ async function isInteractive($: EngineInterface): Promise<boolean> {
   return (await askPlace($)) === 'terminal'
 }
 
+/** Where a refusal's request waits for the user (lib/gateRules.ts waitPlace): the card, the Gates pane, or nowhere. */
+async function gatePlace($: EngineInterface): Promise<WaitPlace> {
+  try {
+    return waitPlace(await $.session.surfaces())
+  } catch {
+    return 'none'
+  }
+}
+
+/**
+ * Raise a request the user answers with a press or /lk approve: newest last, one per kind and target, in the main turn
+ * running now. A failure leaves the refusal standing without its card.
+ */
+async function raiseGateRequest($: EngineInterface, req: Omit<LkGateRequest, 'id' | 'turn' | 'time'>): Promise<void> {
+  try {
+    const seq = await update($, gateRequestSeq, n => n + 1)
+    const turn = await read($, gateTurnSeq)
+    const time = Date.now()
+    const full: LkGateRequest = { ...req, id: `r${seq}`, turn, time }
+    await update($, gateRequests, list => addRequest(list, full))
+  } catch {
+    // the refusal stands; /lk gates still lets the user answer
+  }
+}
+
+/** A main turn starts: count it, and let requests raised REQUEST_TURNS main turns ago or earlier expire. */
+async function startRequestTurn($: EngineInterface): Promise<void> {
+  const turn = await update($, gateTurnSeq, n => n + 1)
+  const list = await read($, gateRequests)
+  if (liveRequests(list, turn).length !== list.length) await update($, gateRequests, l => liveRequests(l, turn))
+}
+
+/** Drop the requests a grant or a pass now covers. */
+async function dropGateRequests($: EngineInterface, covered: (r: LkGateRequest) => boolean): Promise<void> {
+  try {
+    const list = await read($, gateRequests)
+    if (list.some(covered)) await update($, gateRequests, l => l.filter(r => !covered(r)))
+  } catch {
+    // a stale card answers nothing; the stage says so
+  }
+}
+
 /** The label picked, or null when nobody could be asked, the question was dismissed, or the answer is not an option. */
 async function ask($: EngineInterface, question: string, options: readonly string[]): Promise<string | null> {
   if (!(await isInteractive($))) return null
@@ -382,7 +459,9 @@ async function planSatisfied($: EngineInterface): Promise<boolean> {
   return (await read($, stagePlanDone)) === true
 }
 
-async function decideEdit($: EngineInterface, paths: string[], tool: string, agentId?: unknown): Promise<string | null> {
+// `reserved` collects the paths this call newly counted against the turn, so a Bash call a later check refuses can
+// release them (releaseTurnFiles).
+async function decideEdit($: EngineInterface, paths: string[], tool: string, agentId?: unknown, reserved?: string[]): Promise<string | null> {
   if (paths.length === 0) return null
   await hydrate($)
   const config = await ensureConfig($)
@@ -412,7 +491,10 @@ async function decideEdit($: EngineInterface, paths: string[], tool: string, age
         how
   }
 
-  // 2. Protected paths
+  // 2. Protected paths. The grants are read from their atoms each time: the stage writes them when the user answers.
+  const asks = rel.some(p => matchProtected(config.protected, p)?.action === 'ask')
+  const grants = asks ? await read($, gateGrants) : []
+  const globGrants = asks ? await read($, gateGlobGrants) : []
   for (const p of rel) {
     const rule = matchProtected(config.protected, p)
     if (!rule) continue
@@ -420,17 +502,22 @@ async function decideEdit($: EngineInterface, paths: string[], tool: string, age
       await fire($, { rule: 'protected', target: p, outcome: 'denied', detail: `matches ${rule.glob} (deny)` })
       return `${MOD}: ${p} is a protected path (rule "${rule.glob}": deny). Do not edit it or reach it another way. Ask the user to make this change themselves or to change the rule.`
     }
-    if (mem.grants.has(p)) continue
-    // off the terminal nobody can be asked: the user grants the path with /lk gates allow, as Allow for session does
-    if (!(await isInteractive($))) {
+    if (grants.includes(p) || globGranted(config.protected, globGrants, p)) {
+      await dropGateRequests($, r => r.kind === 'protected' && r.target === p)
+      continue
+    }
+    // off the terminal nobody can be asked: a request waits for the user's answer (the card, the Gates pane, or
+    // /lk approve); a -p run names the command
+    const place = await gatePlace($)
+    if (place !== 'terminal') {
       await fire($, { rule: 'protected', target: p, outcome: 'denied', detail: `${rule.glob}: needs the user's yes (no terminal to ask)` })
-      return `${MOD}: ${p} is protected (rule "${rule.glob}": ask) and needs the user's yes. Ask the user to run ${GATES_CMD} allow ${p}, which allows it for this session; do not edit it another way.`
+      await raiseGateRequest($, { kind: 'protected', target: p, glob: rule.glob, what: p })
+      return protectedHeld(p, rule.glob, place)
     }
     const answer = await ask($, `${MOD}: ${p} is protected (rule "${rule.glob}"). Allow this ${tool} edit?`, ASK_PROTECTED)
     mem.turnFired = true
     if (answer === 'Allow for session') {
-      mem.grants.add(p)
-      await update($, gateGrants, () => [...mem.grants])
+      await update($, gateGrants, list => (list.includes(p) ? list : [...list, p]))
       await record($, { rule: 'protected', target: p, outcome: 'allowed', detail: `${rule.glob}: allowed for session` })
       continue
     }
@@ -486,13 +573,12 @@ async function decideEdit($: EngineInterface, paths: string[], tool: string, age
       $.ui.invalidate('prompt.context')
       await record($, { rule: 'files', target: added.join(', '), outcome: 'allowed', detail: `past ${n} files: raised to ${figure} for this session` })
     } else if (place === 'app') {
-      // off the terminal nobody can be asked: the user raises the limit for the session instead
+      // off the terminal nobody can be asked: a request offers the session raise (the turn ends, so a per-turn
+      // answer would do nothing)
       await fire($, { rule: 'files', target: added.join(', '), outcome: 'denied', detail: `past ${n} files: needs the user's yes (no terminal to ask)` })
+      await raiseGateRequest($, { kind: 'files', target: 'files', what: `more than ${lim.limit} files this turn`, raise: figure })
       scheduleAbort($)
-      return [
-          `${MOD} stopped this edit: this turn already touched ${n} files (${before.join(', ')}) and ${added.join(', ')} would exceed the limit of ${lim.limit} files per turn, and more needs the user's yes.`,
-          `Stop editing now. Summarise what changed so far, list the files you still intend to touch and why, and ask the user to raise the limit for this session with ${GATES_CMD} max <n> before continuing.`,
-        ].join('\n')
+      return filesHeld(n, before, added, lim.limit, (await gatePlace($)) === 'card' ? 'card' : 'pane')
     } else {
       const why = !interactive ? 'no one to ask (non-interactive session)' : answer === 'Stop' ? 'the user chose Stop' : 'the question was dismissed'
       await fire($, { rule: 'files', target: added.join(', '), outcome: 'denied', detail: `past ${n} files: ${why}` })
@@ -504,10 +590,18 @@ async function decideEdit($: EngineInterface, paths: string[], tool: string, age
     }
   }
   for (const p of added) mem.turnFiles.add(p)
+  if (reserved) reserved.push(...added)
   for (const p of rel) mem.sessionFiles.add(p)
   await persistTurn($)
   await update($, gateSessionFiles, () => [...mem.sessionFiles])
   return null
+}
+
+/** Release the paths decideEdit counted for a call a later check refused: that call touched nothing. */
+async function releaseTurnFiles($: EngineInterface, paths: readonly string[]): Promise<void> {
+  if (paths.length === 0) return
+  for (const p of paths) mem.turnFiles.delete(p)
+  await persistTurn($)
 }
 
 // ---- Bash: the ship gate ---------------------------------------------------------------------------------------
@@ -520,30 +614,45 @@ async function shipOk($: EngineInterface): Promise<boolean> {
   return true
 }
 
-/** ADR 0004: shipping waits for the stage's stageShipOpen or /lk gates ship ok; there is no fallback question. */
-async function shipGate($: EngineInterface, config: LkGateConfig, shell: string): Promise<string | null> {
+// The one-time yes a Bash call passed on, spent last (spendOnce) once every check on the call passed: `ship` the
+// command names a ship once-grant covered, `merge` the merge label the merge credit covered, `covered` the merge label
+// the once-grant covered too.
+type Spend = { ship: string[]; merge: string; covered: string }
+
+/**
+ * ADR 0004: shipping waits for the stage's stageShipOpen or /lk gates ship ok; there is no fallback question. A held
+ * call raises a request on every surface (the terminal draws the card too); "Allow this … once" lets one call of those
+ * command names through.
+ */
+async function shipGate($: EngineInterface, config: LkGateConfig, shell: string, spend: Spend): Promise<string | null> {
   if (!config.shipGate) return null
   const hits = shipCommands(shell)
   if (hits.length === 0) return null
   const what = hits.join(', ')
   if (await shipOk($)) return null
-  if ((await read($, stageShipOpen)) === true) return null
+  if ((await read($, stageShipOpen)) === true) {
+    const ship = stageForRole(await stagesNow($), 'ship')
+    if (ship && ship.gate === true && (await read($, stageCurrent)) === ship.id) spend.shipStage = true
+    return null
+  }
+  const once = await read($, gateShipOnce)
+  if (once.length > 0 && hits.every(h => once.includes(h))) {
+    spend.ship = hits
+    return null
+  }
   const stage = await read($, stageCurrent)
   const stages = await stagesNow($)
   const here = stages.find(s => s.id === stage)
   const where = here ? here.label || here.id : stage !== '' ? stage : 'an unknown stage'
   await fire($, { rule: 'ship', target: what, outcome: 'denied', detail: `pipeline at ${where}` })
-  // /lk approve opens a gated ship stage from it or the stage before; with none gated, only ship ok opens shipping
-  const gate = gatedStage(stages, 'ship')
-  const how = gate
-    ? `run /lk approve at ${approveFrom(gate)} (it opens the ${gate.label} gate; a waiting file budget comes first), or ${GATES_CMD} ship ok.`
-    : `run ${GATES_CMD} ship ok.`
-  return `${MOD}: shipping is gated (${what}). The pipeline is at ${where}. Ask the user to review the work and ${how}`
+  await raiseGateRequest($, { kind: 'ship', target: what, what })
+  const place = await gatePlace($)
+  return shipHeld(what, where, place === 'terminal' ? 'card' : place)
 }
 
 // ---- Bash: merge gate, amend, add-all --------------------------------------------------------------------------
 
-async function gitGate($: EngineInterface, config: LkGateConfig, actions: GitAction[], shell: string, command: string): Promise<string | null> {
+async function gitGate($: EngineInterface, config: LkGateConfig, actions: GitAction[], shell: string, command: string, spend: Spend): Promise<string | null> {
   if (actions.length === 0) return null
   const dir = await runDir($, command)
   const branches = await gitBranches($, dir)
@@ -602,14 +711,28 @@ async function gitGate($: EngineInterface, config: LkGateConfig, actions: GitAct
     }
   }
 
-  // the user's yes given ahead: the Ship approval, /lk gates ship ok or /lk gates merge ok covers this one call
-  if (await spendMergeCredit($)) {
-    await record($, { rule: 'merge', target: what, outcome: 'allowed', detail: 'covered by the Ship approval or /lk gates merge ok' })
+  // pushes and merges allowed for the session (the card's second answer)
+  if ((await read($, gateMergeSession)) === true) {
+    await record($, { rule: 'merge', target: what, outcome: 'allowed', detail: 'allowed for this session' })
+    await dropGateRequests($, r => r.kind === 'merge')
     return null
   }
-  if (!(await isInteractive($))) {
+  // a ship once-grant this call passed the ship gate on covers its merge gate too: one press is enough
+  if (spend.ship.length > 0) {
+    spend.covered = what
+    return null
+  }
+  // the user's yes given ahead: the Ship approval, /lk gates ship ok or /lk gates merge ok covers this one call. It is
+  // spent last (spendOnce), only when every other check on the call passed.
+  if ((await read($, gateMergeCredit)) === true) {
+    spend.merge = what
+    return null
+  }
+  const place = await gatePlace($)
+  if (place !== 'terminal') {
     await fire($, { rule: 'merge', target: what, outcome: 'denied', detail: "needs the user's yes (no terminal to ask)" })
-    return `${MOD}: the ${what} was held: it needs the user's yes. Ask the user to approve the Ship gate (/lk approve) or to run ${GATES_CMD} merge ok, then run it again. Do not retry it another way.`
+    await raiseGateRequest($, { kind: 'merge', target: what, what })
+    return mergeHeld(what, place)
   }
   const answer = await ask($, `Merge now? (${MOD}: ${what})`, ASK_MERGE)
   mem.turnFired = true
@@ -623,15 +746,53 @@ async function gitGate($: EngineInterface, config: LkGateConfig, actions: GitAct
   return `${MOD}: the ${what} was held: ${why}. Do not retry it another way; ask the user when to merge.`
 }
 
-/** Spends the merge credit: true when there was one. One update reads and clears it, so two calls in parallel
- *  cannot both pass on it. */
-async function spendMergeCredit($: EngineInterface): Promise<boolean> {
+/**
+ * Spends the one-time yes the call passed on, as the very last step: the ship once-grant (which covered the merge gate
+ * too) or the merge credit. One update reads and clears each, so two calls in parallel cannot both pass on it. The
+ * refusal when another call spent it first, else null.
+ */
+async function spendOnce($: EngineInterface, spend: Spend): Promise<string | null> {
+  if (spend.ship.length > 0) {
+    let had = false
+    await update($, gateShipOnce, once => {
+      had = spend.ship.every(h => once.includes(h))
+      return had ? [] : once
+    })
+    const what = spend.ship.join(', ')
+    if (!had) {
+      await fire($, { rule: 'ship', target: what, outcome: 'denied', detail: 'the once-grant was spent by another call' })
+      await raiseGateRequest($, { kind: 'ship', target: what, what })
+      return spentHeld(what)
+    }
+    await record($, { rule: 'ship', target: what, outcome: 'allowed', detail: 'allowed once by the user' })
+    if (spend.covered !== '') await record($, { rule: 'merge', target: spend.covered, outcome: 'allowed', detail: 'covered by the ship once-grant' })
+    await dropGateRequests($, r => r.kind === 'ship' || (spend.covered !== '' && r.kind === 'merge'))
+    await markShipUsed($, spend)
+    return null
+  }
+  if (spend.merge === '') {
+    await markShipUsed($, spend)
+    return null
+  }
   let had = false
   await update($, gateMergeCredit, credit => {
     had = credit === true
     return false
   })
-  return had
+  if (!had) {
+    await fire($, { rule: 'merge', target: spend.merge, outcome: 'denied', detail: 'the credit was spent by another call' })
+    await raiseGateRequest($, { kind: 'merge', target: spend.merge, what: spend.merge })
+    return spentHeld(spend.merge)
+  }
+  await record($, { rule: 'merge', target: spend.merge, outcome: 'allowed', detail: 'covered by the Ship approval or /lk gates merge ok' })
+  await dropGateRequests($, r => r.kind === 'merge')
+  await markShipUsed($, spend)
+  return null
+}
+
+/** A call that passed on the Ship approval and went through: the stage ends the approval at the person's next message. */
+async function markShipUsed($: EngineInterface, spend: Spend): Promise<void> {
+  if (spend.shipStage) await update($, stageShipUsed, () => true)
 }
 
 async function gitBranches($: EngineInterface, dir: string): Promise<{ current: string; defaults: string[] }> {
@@ -680,6 +841,33 @@ async function runDir($: EngineInterface, command: string): Promise<string> {
     dir = nextDir
   }
   return dir
+}
+
+/**
+ * A Bash call through every rule: the ship gate, the git rules and the merge gate, then the files it writes. A
+ * one-time yes it passed on is spent last, only when every other check passed (2.5); the files counted for a call
+ * that is then refused are released, and its writes are recorded only once it passes.
+ */
+async function decideBash($: EngineInterface, command: string, agentId: unknown): Promise<string | null> {
+  const config = await ensureConfig($)
+  const shell = bare(command)
+  const spend: Spend = { ship: [], merge: '', covered: '', shipStage: false }
+  let why = await shipGate($, config, shell, spend)
+  if (why === null) why = await gitGate($, config, gitActions(shell), shell, command, spend)
+  if (why !== null) return why
+  // absolute against where the command runs; decideEdit then places them against the project root
+  const dir = await runDir($, command)
+  const targets = bashTargets(command, dir).map(t => absoluteIn(t, dir))
+  const reserved: string[] = []
+  why = await decideEdit($, targets, 'Bash', agentId, reserved)
+  if (why !== null) return why
+  why = await spendOnce($, spend)
+  if (why !== null) {
+    await releaseTurnFiles($, reserved)
+    return why
+  }
+  if (targets.length > 0) await recordBashWrites($, targets, dir)
+  return null
 }
 
 // ---- The Files pane seam: Bash writes the gates let through ------------------------------------------------------
@@ -892,12 +1080,53 @@ async function gatesView($: EngineInterface): Promise<GatesView> {
 
 const OUTCOME_TONE: Record<GatesView['log'][number]['outcome'], Tone> = { allowed: 'ok', asked: 'warn', denied: 'danger' }
 
+// A press runs nothing here: the stage's ui.press hook answers the request before the press reaches this closure.
+const pressedByStage = (): undefined => undefined
+
+/** A request's answers as kit buttons, with no hotkeys (several cards and rows can be drawn at once). */
+function requestButtons(kit: Kit, r: LkGateRequest): unknown {
+  return kit.buttons(requestChoices(r).map(c => ({ key: requestKey(r.id, c.choice), label: c.label, plain: true, onPress: pressedByStage })))
+}
+
+/** The card above the prompt: the newest request, what waits and why, and its answers. */
+function requestCardOf(kit: Kit, r: LkGateRequest, count: number): unknown {
+  const card = requestCard(r)
+  return kit.card({
+    title: card.title,
+    right: count > 1 ? `1 of ${count}` : undefined,
+    tone: 'warn',
+    children: [kit.text(card.head, { bold: true, wrap: 'wrap' }), kit.text(card.why, { color: TONES.muted.fg, wrap: 'wrap' }), requestButtons(kit, r)],
+  })
+}
+
+/** The Gates pane's card of every waiting request, newest first, each with its answers. */
+function requestsCardOf(kit: Kit, list: readonly LkGateRequest[]): unknown {
+  if (list.length === 0) return null
+  return kit.card({
+    tone: 'warn',
+    children: [
+      kit.header('Waiting for you', String(list.length)),
+      ...list
+        .slice()
+        .reverse()
+        .map(r => {
+          const card = requestCard(r)
+          return kit.stack([
+            kit.text(card.head, { bold: true, wrap: 'wrap' }),
+            kit.text(`${card.title.replace(/^loopkeeper · /, '')} · ${card.why}`, { color: TONES.muted.fg, wrap: 'wrap' }),
+            requestButtons(kit, r),
+          ])
+        }),
+    ],
+  })
+}
+
 /**
  * The pane: the nav bar, a hero (shield, GATES, on or off and the files this turn, where the limit comes from),
  * tiles, then cards for the rules, the protected paths, this turn's files and the decisions. Long values wrap; only
  * the labels beside them keep their width.
  */
-function gatesPane(kit: Kit, ui: Elements, nav: unknown, v: GatesView, buttons: unknown): unknown {
+function gatesPane(kit: Kit, ui: Elements, nav: unknown, v: GatesView, buttons: unknown, waiting: unknown = null): unknown {
   const quiet = TONES.muted.fg
   const box = (props: Record<string, unknown>, children: unknown[]): unknown =>
     ui.Box({ ...props, children: children.filter(c => c !== null && c !== undefined && c !== '') })
@@ -992,7 +1221,7 @@ function gatesPane(kit: Kit, ui: Elements, nav: unknown, v: GatesView, buttons: 
     ],
   })
 
-  return kit.page([nav, hero, kit.tiles(v.tiles), rules, guarded, turn, decisions, buttons])
+  return kit.page([nav, hero, waiting, kit.tiles(v.tiles), rules, guarded, turn, decisions, buttons].filter(c => c !== null && c !== undefined))
 }
 
 // ---- /lk gates …, and the shared /lk words ---------------------------------------------------------------------
@@ -1016,8 +1245,10 @@ async function allowPath($: EngineInterface, raw: string, fromPerson: boolean): 
   await hydrate($)
   const usage = `usage: ${GATES_CMD} allow <path>`
   if (raw === '') {
-    const grants = [...mem.grants]
-    return { text: grants.length > 0 ? `Protected paths allowed for this session: ${grants.join(', ')}. ${usage}` : `No protected path is allowed for this session. ${usage}` }
+    const grants = await read($, gateGrants)
+    const globs = await read($, gateGlobGrants)
+    const all = [...grants, ...globs.map(g => `all of ${g}`)]
+    return { text: all.length > 0 ? `Protected paths allowed for this session: ${all.join(', ')}. ${usage}` : `No protected path is allowed for this session. ${usage}` }
   }
   if (!fromPerson) return { text: 'Only the user can allow a protected path.' }
   const config = await ensureConfig($)
@@ -1025,10 +1256,21 @@ async function allowPath($: EngineInterface, raw: string, fromPerson: boolean): 
   const p = normalizePath(raw, root)
   const rule = matchProtected(config.protected, p)
   if (rule?.action === 'deny') return { text: `${p} matches rule "${rule.glob}": deny. A deny rule cannot be granted; change the rule to edit it.` }
-  mem.grants.add(p)
-  await update($, gateGrants, () => [...mem.grants])
+  // added to what is there: a grant the stage wrote (a card's answer) is kept
+  await update($, gateGrants, list => (list.includes(p) ? list : [...list, p]))
   await record($, { rule: 'protected', target: p, outcome: 'allowed', detail: `granted by ${GATES_CMD} allow` })
+  await dropGateRequests($, r => r.kind === 'protected' && r.target === p)
+  await answered($, `The user allowed ${p} for this session. ${RUN_AGAIN}`)
   return { text: rule ? `${p} is allowed for this session (rule "${rule.glob}": ask).` : `${p} is allowed for this session; no protected rule matches it now.` }
+}
+
+/** The person's answer through /lk gates: the stage's /lk handler reads it after the chain and carries on (ADR 0012). */
+async function answered($: EngineInterface, text: string): Promise<void> {
+  try {
+    await update($, gateAnswered, a => ({ seq: a.seq + 1, text }))
+  } catch {
+    // the answer stands; the user types the next prompt
+  }
 }
 
 /**
@@ -1047,7 +1289,9 @@ async function gatesCommand($: EngineInterface, rest: string[], fromPerson: bool
   }
   if (verb === 'files') return null
   if (verb === 'text') return { text: (await statusLines($)).join('\n') }
+  // the words that loosen a gate are the user's, as the grants are; those that tighten one may come from anyone
   if (verb === 'off') {
+    if (!fromPerson) return { text: 'Only the user can turn the gates off.' }
     await update($, gateEnabled, () => false)
     $.ui.invalidate('prompt.context')
     return { text: `gates off for this session: no rule is enforced. ${GATES_CMD} on to resume.` }
@@ -1073,12 +1317,16 @@ async function gatesCommand($: EngineInterface, rest: string[], fromPerson: bool
   if (verb === 'max') {
     const n = Number(rest[1])
     if (!Number.isInteger(n) || n < 1 || n > 1000) return { text: `usage: ${GATES_CMD} max <n> (a whole number from 1 to 1000)` }
+    if (!fromPerson) return { text: 'Only the user can change the files-per-turn limit.' }
     await setOverride($, { maxFilesPerTurn: n })
     await loadConfig($)
+    await dropGateRequests($, r => r.kind === 'files')
+    await answered($, `The user set the files-per-turn limit to ${n} for this session. ${RUN_AGAIN}`)
     return { text: `maxFilesPerTurn is ${n} for this session.` }
   }
   if (verb === 'plan') {
     if (value === 'required' && (toggle === 'on' || toggle === 'off')) {
+      if (toggle === 'off' && !fromPerson) return { text: 'Only the user can turn requirePlan off.' }
       await setOverride($, { requirePlan: toggle === 'on' })
       await loadConfig($)
       return { text: `requirePlan is ${toggle} for this session${toggle === 'on' ? ': edits wait for an approved plan' : ''}.` }
@@ -1088,7 +1336,9 @@ async function gatesCommand($: EngineInterface, rest: string[], fromPerson: bool
       return { text: planPathsText(config.planPaths, (await read($, gateSources)).planPaths ?? 'default') }
     }
     if (value !== 'ok') return { text: `usage: ${GATES_CMD} plan ok | plan required on|off | plan paths` }
+    if (!fromPerson) return { text: 'Only the user can approve the plan.' }
     await update($, gatePlanOk, () => true)
+    await answered($, `The user approved the plan for this session: edits may go ahead. ${RUN_AGAIN}`)
     await update($, gatePlanBy, () => `${GATES_CMD} plan ok`)
     $.ui.invalidate('prompt.context')
     // the pipeline's plan gate is a separate approval: say so while it is still pending
@@ -1102,6 +1352,7 @@ async function gatesCommand($: EngineInterface, rest: string[], fromPerson: bool
   }
   if (verb === 'ship') {
     if (value === 'gate' && (toggle === 'on' || toggle === 'off')) {
+      if (toggle === 'off' && !fromPerson) return { text: 'Only the user can turn the ship gate off.' }
       await setOverride($, { shipGate: toggle === 'on' })
       await loadConfig($)
       return { text: `shipGate is ${toggle} for this session.` }
@@ -1112,12 +1363,16 @@ async function gatesCommand($: EngineInterface, rest: string[], fromPerson: bool
     await update($, gateShipOk, () => true)
     // the no-pipeline form of the Ship approval: it covers the next push or merge to the default branch too
     await update($, gateMergeCredit, () => true)
+    await dropGateRequests($, r => r.kind === 'ship' || r.kind === 'merge')
+    await answered($, `The user opened shipping for this session, and the next push or merge to the default branch. ${RUN_AGAIN}`)
     return { text: 'shipping approved for this session: commits, pushes and publishes may go ahead, and the next push or merge to the default branch is covered.' }
   }
   if (verb === 'merge') {
     if (value !== 'ok') return { text: `usage: ${GATES_CMD} merge ok` }
     if (!fromPerson) return { text: 'Only the user can allow a push or merge to the default branch.' }
     await update($, gateMergeCredit, () => true)
+    await dropGateRequests($, r => r.kind === 'merge')
+    await answered($, `The user allowed the next push or merge to the default branch. ${RUN_AGAIN}`)
     return { text: 'The next push or merge to the default branch is allowed (once).' }
   }
   if (verb === 'allow') return allowPath($, rest.slice(1).join(' ').trim(), fromPerson)
@@ -1373,6 +1628,7 @@ export function wireGates(on: On): void {
       mem.turnUnlimited = false
       mem.turnFired = false
       await persistTurn($)
+      await startRequestTurn($)
     } catch {
       // The count starts over on the next turn.
     }
@@ -1424,17 +1680,7 @@ export function wireGates(on: On): void {
     if (below.decision === 'deny') return next(e)
     let why: string | null = null
     try {
-      const config = await ensureConfig($)
-      const shell = bare(command)
-      why = await shipGate($, config, shell)
-      if (why === null) why = await gitGate($, config, gitActions(shell), shell, command)
-      if (why === null) {
-        // absolute against where the command runs; decideEdit then places them against the project root
-        const dir = await runDir($, command)
-        const targets = bashTargets(command, dir).map(t => absoluteIn(t, dir))
-        why = await decideEdit($, targets, 'Bash', e.agentId)
-        if (why === null && targets.length > 0) await recordBashWrites($, targets, dir)
-      }
+      why = await decideBash($, command, e.agentId)
     } catch (err) {
       return { decision: 'deny', reason: refusedReason(err) }
     }
@@ -1463,17 +1709,27 @@ export function wireGates(on: On): void {
   on('command.run', { command: 'lk' }, async ($, e, next) => lk($, e, next)).catch(($, e, next) => lkFailed($, e, next))
   on('command.run', { command: 'loopkeeper' }, async ($, e, next) => lk($, e, next)).catch(($, e, next) => lkFailed($, e, next))
 
-  // The band, one kit line: `gates  ● 3/10 files  ● plan ok  ● merge gate  ● ship held   budget 23`.
+  // The band, one kit line: `gates  ● 3/10 files  ● plan ok  ● merge gate  ● ship held   budget 23`. Under it, the
+  // newest request's card, drawn with the band off too; its presses are the stage's (a ui.press hook in stage.ts).
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const props = (e.props ?? {}) as { hasSurvey?: boolean }
-    if (props.hasSurvey === true || !(await read($, gateBand))) return next(e)
-    const model = await bandNow($)
+    if (props.hasSurvey === true) return next(e)
+    const shown = await read($, gateBand)
+    const requests = await read($, gateRequests)
+    const newest = requests[requests.length - 1]
+    if (!shown && !newest) return next(e)
     const { Box } = $.ui.resolve(e)
     const kit = makeKit($.ui.resolve(e) as unknown as Elements, e.surface)
-    const mine = kit.line('gates', model.chips, model.right) as ReturnType<typeof Box>
+    const parts: unknown[] = []
+    if (shown) {
+      const model = await bandNow($)
+      parts.push(kit.line('gates', model.chips, model.right))
+    }
+    if (newest) parts.push(requestCardOf(kit, newest, requests.length))
     const theirs = await next(e)
-    if (theirs === null || theirs === undefined) return mine
-    return Box({ flexDirection: 'column', children: [mine, theirs] })
+    const all = theirs === null || theirs === undefined ? parts : [...parts, theirs]
+    if (all.length === 1) return all[0] as ReturnType<typeof Box>
+    return Box({ flexDirection: 'column', children: all as ReturnType<typeof Box>[] })
   })
 
   // The hub's Gates row, above the later concerns' rows (next): `2: Gates` and the band's words, quiet. It shows
@@ -1541,6 +1797,7 @@ export function wireGates(on: On): void {
           },
         },
       ]),
+      requestsCardOf(kit, liveRequests(await read($, gateRequests), await read($, gateTurnSeq))),
     ) as never
   })
 }

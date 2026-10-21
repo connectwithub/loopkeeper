@@ -70,11 +70,13 @@ An atom is a value the engine keeps for the plugin. Every atom is declared with 
 `plugins/loopkeeper/types/index.d.ts` lists every atom under its concern. In short:
 
 - **stage**: the stage list and current stage, the stage history, the size, the plan verdict, the approved and verified gates, the approval mode, the hold, the file budget and its limits; for continuing after approval, the config switch (`stageContinueOnApprove`), whether a main turn runs (`stageTurnRunning`), the prompt held for that turn's end (`stageContinuePending`) and `session.start`'s `isInteractive` (`stageInteractive`; with no surface attached either, nothing continues); the other mods' commands the hub may link to (`stageHubCommands`); the `pipeline.nextHint` switch (`stageNextHint`); whether the focus hint has shown this session (`stageFocusHinted`, redeclared in all six concern files).
-- **gates**: the merged config and its sources, the turn's files, the turn's extra allowances, the session's grants and files, the plan and ship approvals, the gates' log.
+- **gates**: the merged config and its sources, the turn's files, the turn's extra allowances, the session's grants and files, the plan and ship approvals, the Ship approval used by a commit or push (`stageShipUsed`, redeclared by the stage), the gates' log.
 - **files**: the activity list, the touched files, the listing and git status, the pane's view settings.
 - **routing**: the mode and loop switches, the role table, the last decisions, the spawn counts.
-- **review**: the subjects, their cycles and items, the band switch.
+- **review**: the subjects, their cycles and items, the band switch, and the answer to a grant or a stop (`reviewAnswered`, `{ seq, text }`, which the stage reads to carry on).
 - **decisions**: the entries and counts, the target log, the pending majors, the watch settings and its cap.
+
+A review loop's grant or stop reaches Claude the way an approval does: the review concern bumps `reviewAnswered`, and the stage's `ui.press` and `command.run` hooks for it submit the carry-on prompt through `continueAfter` ([ADR 0012](adr/0012-continue-after-approval.md)).
 
 Writes that two concerns may race on use `update` (compare and set). The Bash write targets are an example: the gates and the Files pane both write `filesTouched` and `filesActivity` that way ([ADR 0001](adr/0001-one-hooks-module-six-concerns.md)).
 
@@ -114,7 +116,7 @@ A press on an other-mods button takes one of two paths, by the press's surface. 
 
 ## Continue after approval
 
-After a user approval that changed something, the stage submits one framed prompt with `$.prompt.submit` ([ADR 0012](adr/0012-continue-after-approval.md)). From `/lk approve` it is sent from a `$.clock.after` timer, because the host refuses a submit from inside a `command.run` hook. The stage tracks the main turn with a `turn.start` hook and a `turn.complete` hook (matcher `{}`): while a main turn runs, the prompt is kept in `stageContinuePending` and sent at that turn's end if the stage has not moved. A `turn.complete` that carries an `agentId` is a subagent's and changes nothing.
+After a user approval that changed something, the stage submits one framed prompt with `$.prompt.submit` ([ADR 0012](adr/0012-continue-after-approval.md)); `submitContinue` is the only call site. A press on a gate request's button is answered on the stage's `ui.press` hook (`element: REQUEST_KEY`) before the press goes on, and `/lk approve` answers the newest request first. The stage's `/lk` handler wraps `/lk gates …`: it awaits the gates' answer, which the gates write to `gateAnswered`, and carries on after it. From `/lk approve` and from a `/lk gates` command the prompt is sent from a `$.clock.after` timer, because the host refuses a submit from inside a `command.run` hook; a press is not a command, so its prompt goes at once. The stage tracks the main turn with a `turn.start` hook and a `turn.complete` hook (matcher `{}`): while a main turn runs, the prompt is kept in `stageContinuePending` and sent at that turn's end if the stage has not moved. A `turn.complete` that carries an `agentId` is a subagent's and changes nothing.
 
 ## The next-step line
 

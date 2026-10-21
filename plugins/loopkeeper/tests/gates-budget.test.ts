@@ -135,19 +135,23 @@ test('the stage clears its budget: a session raise outlives it, so the limit is 
   expect(w.asked).toEqual([ASK(10), ASK(20)])
 })
 
-test('/lk gates max <n> wins over the base, the plan budget and the session raise', SLOW, async ($, on) => {
+test('/lk gates max <n> wins over the base, the plan budget and a smaller session raise; a larger raise wins over it', SLOW, async ($, on) => {
   const log = optionsLog()
   const w = world(on, { answers: ['Raise to 20 for this session', 'Stop'], tool: log.tool })
   await startTurn($)
   expect(await editAll($, files(1, 11))).toEqual(Array(11).fill('allow'))
-  approvePlan(w, 13)
-  expect(await lk($, 'gates max 5')).toBe('maxFilesPerTurn is 5 for this session.')
-  expect(await lk($, 'gates text')).toContain('Files per turn: 5 (/lk gates max, for this session)')
+  approvePlan(w, 20)
+  // max 21 sits between the raise (20) and the budget (30): it is the limit
+  expect(await lk($, 'gates max 21')).toBe('maxFilesPerTurn is 21 for this session.')
+  expect(await lk($, 'gates text')).toContain('Files per turn: 21 (/lk gates max, for this session)')
   await $.turn.start({ text: 'next', turnId: 't2' })
-  expect(await editAll($, files(1, 5, 'lib'))).toEqual(Array(5).fill('allow'))
-  expect(await decision($, `${CWD}/lib/f6.ts`)).toBe('deny')
-  expect(w.asked).toEqual([ASK(10), ASK(5)])
-  expect(log.opts[1]).toEqual(['Allow 1 more', 'Allow rest of turn', 'Raise to 15 for this session', 'Stop'])
+  expect(await editAll($, files(1, 21, 'lib'))).toEqual(Array(21).fill('allow'))
+  expect(await decision($, `${CWD}/lib/f22.ts`)).toBe('deny')
+  expect(w.asked).toEqual([ASK(10), ASK(21)])
+  expect(log.opts[1]).toEqual(['Allow 1 more', 'Allow rest of turn', 'Raise to 31 for this session', 'Stop'])
+  // a session raise above the override (the request card's Raise, which cannot rewrite it) wins; the budget does not
+  w.atoms.gateSessionRaise = 25
+  expect(await lk($, 'gates text')).toContain('Files per turn: 25 (raised for this session)')
 })
 
 test('Raise under a /lk gates max override raises the override too, so the label stays true', SLOW, async ($, on) => {

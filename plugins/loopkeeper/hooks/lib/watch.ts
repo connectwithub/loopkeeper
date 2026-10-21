@@ -6,7 +6,9 @@
 // and the user's recurring preferences. Major decisions wait on the band with Record and Skip;
 // minor ones are appended to the log at once (by: claude) and summed up in one toast. Anything
 // already in the log, skipped before, recorded this turn or waiting is left out. Preferences are
-// merged per project into $.store and shown in the pane.
+// merged per project into $.store and shown in the pane. When the hourly cap (watchMaxPerHour)
+// pauses the watch, a card above the prompt (and a line in the pane) offers to allow that many
+// more calls or to keep it paused.
 //
 // This module is pure: no `$`, no atoms. The mods engine follows `$` only into functions of the
 // file that holds the hook and reads atoms only from consts of that file, so the engine side (the
@@ -322,6 +324,29 @@ export function majorCard(
       k.buttons([
         { key: 'decisions-record', label: 'Record', hotkey: 'r', plain: true, onPress: onRecord },
         { key: 'decisions-skip', label: 'Skip', hotkey: 's', plain: true, onPress: onSkip },
+      ]),
+    ],
+  })
+}
+
+/** The words of the cap card and the pane's cap line: how many calls the last hour holds. */
+export function capText(calls: number): string {
+  return `Decision watch paused: ${calls} call${calls === 1 ? '' : 's'} in the last hour`
+}
+
+/**
+ * The band card while the hourly cap pauses the watch: Allow <max> more (the hour's calls are cleared) and
+ * Keep paused (the card hides until the window frees up). No hotkeys: the major card beside it holds r and s.
+ */
+export function capCard(k: Kit, calls: number, max: number, onMore: () => unknown, onKeep: () => unknown): unknown {
+  return k.card({
+    title: 'loopkeeper · decision watch',
+    tone: 'warn',
+    children: [
+      k.text(capText(calls), { bold: true, wrap: 'wrap' }),
+      k.buttons([
+        { key: 'decisions-cap-more', label: `Allow ${max} more`, plain: true, onPress: onMore },
+        { key: 'decisions-cap-keep', label: 'Keep paused', plain: true, onPress: onKeep },
       ]),
     ],
   })
