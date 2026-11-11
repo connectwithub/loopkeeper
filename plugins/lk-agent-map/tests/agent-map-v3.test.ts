@@ -256,14 +256,18 @@ test('/lk-agents cap shows, sets and saves caps over the config files', async ($
   expect((await spawn($, { toolUseId: 'tu-3', description: 'x', type: 'Plan', model: 'opus' })).deny).toContain('concurrency cap reached (2/2)')
 })
 
+// ASK_NOTE: in the waiting tests below the ask comes from a $.tool.check under the call's id, set after the call
+// started. The check the call runs itself (2.1.312+; 2.1.294 runs none in a test) finds no verdict yet and allows it:
+// an ask there opens a dialog no one answers in a test, and the call is refused at once.
 test('an ask auto-approved within the grace never shows as waiting', async ($, on) => {
   const world = setup(on)
   await start($)
   await spawn($, { toolUseId: 'tu-1', description: 'builder', type: 'general-purpose', model: 'sonnet' })
-  world.verdicts.set('Bash', 'ask')
   world.callMs = 1_000
   const running = $.tool.call({ tool: 'Bash', agentId: 'agent-tu-1', tool_use_id: 'tu-b', command: 'ls' })
   await world.clock.settle()
+  // The ask comes from the check below (see ASK_NOTE)
+  world.verdicts.set('Bash', 'ask')
   await $.tool.check({ tool: 'Bash', input: { command: 'ls' }, tool_use_id: 'tu-b' })
   await world.clock.advance(1_000)
   await running
@@ -276,10 +280,11 @@ test('an outstanding ask shows after the grace, and at once when a permission di
   const world = setup(on)
   await start($)
   await spawn($, { toolUseId: 'tu-1', description: 'builder', type: 'general-purpose', model: 'sonnet' })
-  world.verdicts.set('Bash', 'ask')
   world.callMs = 60_000
   void $.tool.call({ tool: 'Bash', agentId: 'agent-tu-1', tool_use_id: 'tu-b', command: 'rm -rf x' })
   await world.clock.settle()
+  // The asks come from the checks below (see ASK_NOTE)
+  world.verdicts.set('Bash', 'ask')
   await $.tool.check({ tool: 'Bash', input: { command: 'rm -rf x' }, tool_use_id: 'tu-b' })
   await world.clock.advance(3_900)
   expect(await mapText($)).not.toContain('waiting')
@@ -287,8 +292,8 @@ test('an outstanding ask shows after the grace, and at once when a permission di
   expect(await mapText($)).toContain('⏸ waiting: Bash')
 
   void $.tool.call({ tool: 'Edit', agentId: 'agent-tu-1', tool_use_id: 'tu-e', file_path: '/a' })
-  world.verdicts.set('Edit', 'ask')
   await world.clock.settle()
+  world.verdicts.set('Edit', 'ask')
   await $.tool.check({ tool: 'Edit', input: { file_path: '/a' }, tool_use_id: 'tu-e' })
   expect(await mapText($)).not.toContain('waiting: Bash, Edit')
   await $.classic.PermissionRequest({ tool_name: 'Edit', tool_input: { file_path: '/a' }, agent_id: 'agent-tu-1', hook_event_name: 'PermissionRequest' })
@@ -299,19 +304,22 @@ test('once a permission dialog has been seen, a long auto-approved command never
   const world = setup(on)
   await start($)
   await spawn($, { toolUseId: 'tu-1', description: 'builder', type: 'general-purpose', model: 'sonnet' })
-  world.verdicts.set('Bash', 'ask')
   world.callMs = 1_000
   // An earlier ask that did open a dialog: PermissionRequest is the signal from now on
   const first = $.tool.call({ tool: 'Bash', agentId: 'agent-tu-1', tool_use_id: 'tu-a', command: 'rm x' })
   await world.clock.settle()
+  // The asks come from the checks below (see ASK_NOTE)
+  world.verdicts.set('Bash', 'ask')
   await $.tool.check({ tool: 'Bash', input: { command: 'rm x' }, tool_use_id: 'tu-a' })
   await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'rm x' }, agent_id: 'agent-tu-1', hook_event_name: 'PermissionRequest' })
   await world.clock.advance(1_000)
   await first
 
   world.callMs = 60_000
+  world.verdicts.delete('Bash')
   const running = $.tool.call({ tool: 'Bash', agentId: 'agent-tu-1', tool_use_id: 'tu-b', command: 'npm run build' })
   await world.clock.settle()
+  world.verdicts.set('Bash', 'ask')
   await $.tool.check({ tool: 'Bash', input: { command: 'npm run build' }, tool_use_id: 'tu-b' })
   // The classifier approved it without a dialog: it runs for a minute
   await world.clock.advance(30_000)

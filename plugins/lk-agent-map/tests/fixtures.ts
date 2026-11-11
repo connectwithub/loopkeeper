@@ -61,6 +61,8 @@ export function setup(on: any) {
     callMs: 0,
     /** What an Agent tool call returns to its caller, by tool_use_id (the default is empty). */
     agentResults: new Map<string, string>(),
+    /** A whole answer for an Agent tool call, by tool_use_id, in place of agentResults (an errored one, say). */
+    agentAnswers: new Map<string, unknown>(),
     /** The answer to $.ui.ask (an AskUserQuestion call); null means no one can be asked. */
     askAnswer: null as string | null,
     /** Every question $.ui.ask put to the person. */
@@ -113,7 +115,7 @@ export function setup(on: any) {
       return { result: { answers: { [e.questions?.[0]?.question ?? '']: world.askAnswer } } }
     }
     calls.push(e)
-    if (e.tool === 'Agent' || e.tool === 'Task') return { result: world.agentResults.get(e.tool_use_id) ?? '' }
+    if (e.tool === 'Agent' || e.tool === 'Task') return world.agentAnswers.get(e.tool_use_id) ?? { result: world.agentResults.get(e.tool_use_id) ?? '' }
     if (e.tool === 'TaskStop') {
       return world.stopAnswer ?? { result: { message: 'stopped', task_id: e.task_id, task_type: 'local_agent' } }
     }

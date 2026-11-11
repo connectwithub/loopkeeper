@@ -10,6 +10,13 @@ All notable changes to lk-agent-map are recorded here. The format follows [Keep 
   icon warning `UNREAD_ASSET_REFERENCED`, and their line numbers match the code again. No code change.
 - The command is now `/lk-agents` (was `/agent-map`): every loopkeeper command starts with `lk-`.
 
+### Fixed
+
+- An Agent call refused before it starts an agent no longer counts its refusal as subagent results put into the main
+  context. From Claude Code 2.1.312 the permission check runs inside the tool call and refuses with an errored result
+  (`isError`), not a deny; such a call now only leaves the Planned list. An agent that started and then failed still
+  counts what its error put into the caller's context.
+
 ## [0.6.3] - 2026-10-14
 
 ### Changed

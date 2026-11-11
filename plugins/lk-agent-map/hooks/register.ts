@@ -947,9 +947,9 @@ export const register: Register = (on, options) => {
         }
         if ((tool === 'Agent' || tool === 'Task') && toolUseId && r) {
           const res = r as { deny?: unknown; isError?: unknown }
-          // A refused call never spawns: it leaves the planned list
+          // A refused call never spawns: it leaves the plan, and with no agent started (2.1.312+ refuses inside the call: isError) counts nothing
           if (res.deny || res.isError) await dropPending($, toolUseId)
-          await noteReturned($, toolUseId, id, estimateTokens(resultText(r)))
+          if (!res.deny && (res.isError !== true || agentOfCall.has(toolUseId))) await noteReturned($, toolUseId, id, estimateTokens(resultText(r)))
         }
         if (tool === 'TaskStop') await noteStop($, e, r, id)
       } catch {

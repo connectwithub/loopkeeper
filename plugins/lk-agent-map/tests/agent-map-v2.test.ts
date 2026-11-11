@@ -103,10 +103,12 @@ test('/lk-agents merges $.agent.list(): missed forks and teammates appear, a par
 test('a call put to the person shows ⏸ waiting on its agent until it runs', async ($, on) => {
   const world = setup(on)
   await oneAgent($)
-  world.verdicts.set('Bash', 'ask')
   world.callMs = 10_000
   const running = $.tool.call({ tool: 'Bash', agentId: 'agent-tu-1', tool_use_id: 'tu-bash', command: 'rm -rf build' })
   await world.clock.settle()
+  // The ask comes from this check under the call's id. The check the call runs itself (2.1.312+) found no verdict yet
+  // and allowed it: an ask there opens a dialog no one answers in a test, and the call is refused at once.
+  world.verdicts.set('Bash', 'ask')
   const verdict = await $.tool.check({ tool: 'Bash', input: { command: 'rm -rf build' }, tool_use_id: 'tu-bash' })
   expect(verdict.decision).toBe('ask')
   // 0.3.0: the mark waits out the 4 s grace, so an auto-approved ask never flickers
