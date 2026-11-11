@@ -14,6 +14,10 @@ All notable changes to the loopkeeper core plugin are recorded here. The format 
 - The band's `Approve plan · n files` button is now the Approve button of the Validate plan gate's card. The key and label are unchanged. A press approves the gate and no longer answers a pending gates request first; `/lk approve` typed still does.
 - `/lk waive` is described as what it does: it marks the current stage's verifier as satisfied by the user.
 
+### Fixed
+
+- A small task's file limit counted a file whose edit was refused or failed, so the next file could push the task back to Plan. From Claude Code 2.1.312 the permission check runs inside the tool call: a refusal comes back as an errored result, not a `deny`, and the path is reserved during the call. The growth guard now looks the path up once the call settles and releases it on a `deny`, an errored result or a throw.
+
 ## [0.2.0] - 2026-10-15
 
 ### Added

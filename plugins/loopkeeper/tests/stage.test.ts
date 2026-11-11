@@ -637,12 +637,41 @@ test('/lk small-max and size large lift the limit; the guard leaves a refusal fr
   // the check refuses locked.ts beneath the guard, then the refused call settles: its reservation is released
   const locked = editOf('locked.ts')
   expect(((await $.tool.check(locked as never)) as { reason?: string }).reason).toBe('locked')
-  expect(((await $.tool.call({ tool: 'Edit', file_path: 'locked.ts', old_string: 'a', new_string: 'b', tool_use_id: locked.tool_use_id } as never)) as { deny?: string }).deny).toBe('locked')
+  // 2.1.294 answers with the world's tool stub ({ deny }); from 2.1.312 the permission check runs inside the call and
+  // refuses it there, so the call resolves errored ({ isError, text }) and never reaches the stub
+  const refused = (await $.tool.call({ tool: 'Edit', file_path: 'locked.ts', old_string: 'a', new_string: 'b', tool_use_id: locked.tool_use_id } as never)) as { deny?: string; text?: string }
+  expect(refused.deny ?? refused.text).toBe('locked')
   expect((await $.tool.check(editOf('a.ts') as never)).decision).toBe('allow')
   expect((await $.tool.check(editOf('b.ts') as never)).decision).toBe('deny')
   expect(await cmd($, 'size large')).toContain('Sized large')
   expect((await $.tool.check(editOf('b.ts') as never)).decision).toBe('allow')
   expect(await cmd($, 'size medium')).toBe('Usage: /lk size small|large')
+})
+
+test('an edit that fails (isError) is not counted, whether checked first or reserved inside the call', async ($, on) => {
+  // the tool answers an error (old_string not found, say): nothing was edited, so the file is not one the task touched
+  stageWorld(on, null, GSD, {}, { tool: e => (String(e.file_path).startsWith('nomatch') ? { result: 'Error: no match', isError: true } : undefined) })
+  await start($)
+  await cmd($, 'small-max 1')
+  await cmd($, 'size small')
+  const call = (file: string, id: string) =>
+    $.tool.call({ tool: 'Edit', file_path: file, old_string: 'a', new_string: 'b', tool_use_id: id } as never) as Promise<{ isError?: boolean }>
+  // checked, then called under the same id: the check reserves the path and the failed call releases it
+  const failed = editOf('nomatch-1.ts')
+  expect((await $.tool.check(failed as never)).decision).toBe('allow')
+  expect(await cmd($, 'status')).toContain('Size: small (1/1 files)')
+  expect((await call('nomatch-1.ts', failed.tool_use_id)).isError).toBe(true)
+  expect(await cmd($, 'status')).toContain('Size: small (0/1 files)')
+  // a call with no check before it: from 2.1.312 the check runs inside the call and reserves the path there, so the
+  // hook looks the path up once the call settles (2.1.294 raises no check on a test's $.tool.call: nothing reserved)
+  expect((await call('nomatch-2.ts', 'u-inside-1')).isError).toBe(true)
+  expect(await cmd($, 'status')).toContain('Size: small (0/1 files)')
+  // refused by the rules beneath inside the call (from 2.1.312): released the same way
+  await call('locked.ts', 'u-inside-2')
+  expect(await cmd($, 'status')).toContain('Size: small (0/1 files)')
+  // the one file this small task may touch is still free
+  expect((await $.tool.check(editOf('a.ts') as never)).decision).toBe('allow')
+  expect((await $.tool.check(editOf('b.ts') as never)).decision).toBe('deny')
 })
 
 test('a guarded call that throws releases its reserved path and leaves no reservation behind', async ($, on) => {

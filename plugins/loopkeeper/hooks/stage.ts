@@ -773,7 +773,7 @@ async function pushBack($: EngineInterface): Promise<void> {
 }
 
 // What the guard decided for one edit: the refusal, or the new path it reserved in the touched list (released again
-// when a hook or rule beneath refuses the edit).
+// when the edit is refused, by a hook or rule beneath, or fails).
 type Guarded = { held?: { decision: 'deny'; reason: string }; reserved?: string }
 
 async function guardEdit($: EngineInterface, input: unknown): Promise<Guarded> {
@@ -802,7 +802,7 @@ async function releaseEdit($: EngineInterface, path: string): Promise<void> {
   await persist($)
 }
 
-// Release a reserved path, in turn with the guard's checks, for an edit that did not happen (refused, or its call threw)
+// Release a reserved path, in turn with the guard's checks, for an edit that did not happen (refused, failed or threw)
 async function releaseReserved($: EngineInterface, path: string): Promise<void> {
   const undo = guardChain.then(() => releaseEdit($, path))
   guardChain = undo.catch(() => undefined)
@@ -1910,7 +1910,7 @@ export function wireStage(on: On): void {
   // The growth guard: a small task may touch only so many files, in the main loop and subagents alike.
   // CLAUDE_MODS_DISABLE=loopkeeper turns it off (ADR 0009); the band says so.
   // It judges before the hooks beneath, so the gates never count (or ask about) a file it refuses; a path it reserved
-  // is released when the call is refused (the tool.call hook below), so a refused file is not one the task touched.
+  // is released when the call is refused or fails (the tool.call hook below): that file is not one the task touched.
   on('tool.check', { tool: GUARDED_TOOLS }, async ($, e, next) => {
     if (e.tool_use_id === undefined || (await read($, stageDisabled))) return next(e)
     const run = guardChain.then(() => guardEdit($, e.input))
@@ -1929,20 +1929,20 @@ export function wireStage(on: On): void {
     return next(e)
   })
 
-  // The map entry goes however the call ends; a call that throws did not edit, so its path is released too and the
-  // rejection goes on to the .catch handler, which replays it through next(e).
+  // The map entry goes once the call settles: from Claude Code 2.1.312 the check that reserves runs inside the call. A
+  // call that did not edit ({ deny }, isError or a throw) releases its path; a throw goes on to the .catch handler.
   on('tool.call', { tool: GUARDED_TOOLS }, async ($, e, next) => {
     const id = e.tool_use_id
-    const path = id === undefined ? undefined : reservedFor.get(id)
+    let edited = false
     try {
       const r = await next(e)
-      if (path !== undefined && (r as { deny?: unknown } | null)?.deny !== undefined) await releaseReserved($, path)
+      const o = (r ?? {}) as { deny?: unknown; isError?: unknown }
+      edited = o.deny === undefined && o.isError !== true
       return r
-    } catch (err) {
-      if (path !== undefined) await releaseReserved($, path)
-      throw err
     } finally {
+      const path = id === undefined ? undefined : reservedFor.get(id)
       if (id !== undefined) reservedFor.delete(id)
+      if (path !== undefined && !edited) await releaseReserved($, path)
     }
   }).catch(($, e, next) => next(e))
 
