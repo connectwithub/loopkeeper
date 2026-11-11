@@ -2,6 +2,18 @@
 
 All notable changes to the loopkeeper core plugin are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- A held stage gate shows a card above the prompt, like the gates' request cards, with **Approve**, **Reject** and the command to type instead. It covers the Validate plan gate (while it waits for the user, or after a move past it was refused), the Ship gate (while it holds shipping and no ship request's card asks), any other gate stage, a verifier stage after a move out of it was refused, and the next stage's gate after a move jumped past it. Approve runs `/lk approve`'s path for that gate (`/lk waive`'s for a verifier); the card shows with the stage band off too.
+- `/lk reject [note]`, which the card's Reject runs. Nothing moves and the gate stays closed. The Stage pane's history notes it as `rejected`, and Claude gets one carry-on prompt not to move past it. Rejecting the Validate plan gate also holds the plan, so only the user's approval opens it; `/lk status` then reads `Plan approval: held after your rejection`. Only the person can run it.
+
+### Changed
+
+- The band's `Approve plan · n files` button is now the Approve button of the Validate plan gate's card. The key and label are unchanged. A press approves the gate and no longer answers a pending gates request first; `/lk approve` typed still does.
+- `/lk waive` is described as what it does: it marks the current stage's verifier as satisfied by the user.
+
 ## [0.2.0] - 2026-10-15
 
 ### Added

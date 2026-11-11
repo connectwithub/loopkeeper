@@ -1,5 +1,5 @@
 // Stage concern: the stage machine, ported from pipeline-stage's register.ts onto lib/stageModel.ts.
-// Owns the stage words of /lk (a stage id or label, next, back, approve, waive, reset, preset, size, small-max,
+// Owns the stage words of /lk (a stage id or label, next, back, approve, reject, waive, reset, preset, size, small-max,
 // approval, auto, stage, which opens the stepper pane, help, and /lk alone, which opens the hub) and its own line of the
 // shared words (status, reload, band, on, off, loop); set_stage; the tool-call heuristics; the growth guard; the hold
 // pattern; the 30 s tick; the file budget approved with the plan; the band's first line; the hub's frame and its
@@ -52,6 +52,7 @@ import {
   findSubject,
   fitBand,
   gateAhead,
+  gateCard,
   indexOf,
   isPlanMaterial,
   killSwitchOn,
@@ -75,6 +76,7 @@ import {
   presetNames,
   presetStages,
   projectKey,
+  rejectAnswer,
   roleOf,
   savedOf,
   shipOpen,
@@ -92,7 +94,7 @@ import {
   wantsHold,
 } from './lib/stageModel.ts'
 import { REVIEW_KEY } from './lib/reviewModel.ts'
-import type { Approval, By, Config, Limits, Size, Stage, Transition, Verdict } from './lib/stageModel.ts'
+import type { Approval, By, Config, GateCard, Held, Limits, Size, Stage, Transition, Verdict } from './lib/stageModel.ts'
 import type { LkGateConfig, LkGateLogRow, LkGateRequest, LkNext, LkSubject } from '../types/index.d.ts'
 
 // ---- State: everything a drawing reads lives in $.state, so it survives a hot reload ---------------------------
@@ -118,6 +120,11 @@ const stageApproval = atom({ plugin: 'loopkeeper', key: 'stageApproval' } as con
 const stageHoldPlan = atom({ plugin: 'loopkeeper', key: 'stageHoldPlan' } as const, false)
 // true once a held prompt's task was sized: sizing the next task spends the hold
 const stageHoldBound = atom({ plugin: 'loopkeeper', key: 'stageHoldBound' } as const, false)
+// The hold came from the user's rejection of the plan gate (/lk reject), not from a prompt: only its wording differs
+const stageHoldRejected = atom({ plugin: 'loopkeeper', key: 'stageHoldRejected' } as const, false)
+// The last forward move the stage machine refused, and the stage whose gate card the user rejected (the gate card)
+const stageHeld = atom({ plugin: 'loopkeeper', key: 'stageHeld' } as const, null as Held | null)
+const stageRejected = atom({ plugin: 'loopkeeper', key: 'stageRejected' } as const, '')
 // a validator that completed in the stage before a requiresAgent stage: that stage's id, and who it was
 const stageCarry = atom({ plugin: 'loopkeeper', key: 'stageCarry' } as const, '')
 const stageCarryBy = atom({ plugin: 'loopkeeper', key: 'stageCarryBy' } as const, '')
@@ -240,7 +247,7 @@ const TOOL_DESCRIPTION = [
 ].join(' ')
 
 const USAGE =
-  'Usage: /lk [stage | help | <stage-id> | next | back | approve | status | preset <name> | size small|large | ' +
+  'Usage: /lk [stage | help | <stage-id> | next | back | approve | reject [note] | status | preset <name> | size small|large | ' +
   'small-max <n> | approval auto|ask | waive | reset | reload | auto on|off | band [stage] on|off]. With no argument it ' +
   'opens the loopkeeper hub; /lk stage opens the Stage pane and /lk help lists the keys (a custom stage named stage ' +
   'or help is reached with next, back or set_stage).'
@@ -354,6 +361,7 @@ async function applyStages($: EngineInterface, list: Stage[], name: string, note
   const gates = list.filter(s => s.gate === true).map(s => s.id)
   await update($, stageApproved, a => a.filter(id => gates.includes(id)))
   await update($, stageVerified, v => v.filter(id => ids.includes(id)))
+  await clearHeld($)
   const first = list[0]?.id ?? 'plan'
   if (!ids.includes(await read($, stageCurrent))) {
     await update($, stageCurrent, () => first)
@@ -403,11 +411,18 @@ async function applyConfig($: EngineInterface, config: Config, cc: unknown): Pro
 
 // The per-task state a new task, a reset or a fresh session starts without. The file budget goes with the plan.
 async function clearTask($: EngineInterface): Promise<void> {
+  await clearHeld($)
   await update($, stageSize, () => '' as Size)
   await update($, stageVerdict, () => null)
   await update($, stageWaived, () => [])
   await update($, stageFilesTouched, () => [])
   await clearBudget($)
+}
+
+// The gate card's state goes with a move, a new task, /lk reset and a stage-list change
+async function clearHeld($: EngineInterface): Promise<void> {
+  await update($, stageHeld, () => null)
+  await update($, stageRejected, () => '')
 }
 
 async function clearBudget($: EngineInterface): Promise<void> {
@@ -507,7 +522,15 @@ async function moveTo($: EngineInterface, target: string, by: By, note?: string)
   const list = await read($, stageStages)
   const from = await read($, stageCurrent)
   const check = checkMove(list, await read($, stageApproved), from, target, await read($, stageVerified))
-  if (!check.ok) return { ok: false, text: check.message, reason: check.reason }
+  if (!check.ok) {
+    // a gate or a verifier held a forward move: the gate card asks the user, and a card they rejected comes back
+    if ((check.reason === 'gate' || check.reason === 'agent') && check.gate) {
+      const held: Held = { stage: check.gate.id, target: findStage(list, target)?.id ?? target, reason: check.reason }
+      await update($, stageHeld, () => held)
+      await update($, stageRejected, () => '')
+    }
+    return { ok: false, text: check.message, reason: check.reason }
+  }
   const at = await safeNow($)
   const entry: Transition = { stage: check.stage.id, at, by }
   const trimmed = typeof note === 'string' ? note.trim().slice(0, 200) : ''
@@ -517,6 +540,7 @@ async function moveTo($: EngineInterface, target: string, by: By, note?: string)
   const carried = await read($, stageCarry)
   const carriedBy = await read($, stageCarryBy)
   await update($, stageCurrent, () => id)
+  await clearHeld($)
   // Claude moving back re-gates: the approvals of the gates after the target go, and the merge credit with them
   if (by === 'tool' && indexOf(list, id) < indexOf(list, from)) {
     await update($, stageApproved, a => approvedAfterBack(list, id, a))
@@ -647,6 +671,7 @@ async function sizeTask($: EngineInterface, want: 'small' | 'large', by: By, not
   if (await read($, stageHoldPlan)) {
     if (await read($, stageHoldBound)) {
       await update($, stageHoldPlan, () => false)
+      await update($, stageHoldRejected, () => false)
       await update($, stageHoldBound, () => false)
     } else await update($, stageHoldBound, () => true)
   }
@@ -683,7 +708,7 @@ async function sizeTask($: EngineInterface, want: 'small' | 'large', by: By, not
   if (gate?.gate === true && hold) {
     const moved = await moveTo($, gate.id, by, 'small task')
     if (!moved.ok) return { ok: false, text: head + moved.text, reason: moved.reason }
-    return { ok: true, text: head + smallHeldReply(gate.label) }
+    return { ok: true, text: head + smallHeldReply(gate.label, await read($, stageHoldRejected)) }
   }
   if (build) {
     const moved = await moveTo($, build.id, by, 'small task')
@@ -709,6 +734,7 @@ async function recordVerdict($: EngineInterface, ok: boolean, by: By, note?: str
   const validated = gate.requiresAgent ? (await read($, stageVerified)).includes(gate.id) : true
   const who = validated ? verifiedBy(await read($, stageHistory), gate.id) : 'no validator'
   await update($, stageVerdict, () => ({ ok, by: who, at }))
+  await update($, stageRejected, () => '')
   const mode = await read($, stageApproval)
   const hold = await read($, stageHoldPlan)
   let opened = false
@@ -725,7 +751,7 @@ async function recordVerdict($: EngineInterface, ok: boolean, by: By, note?: str
     budget = await approveBudget($, 'validator')
   }
   await persist($)
-  return { ok: true, text: head + verdictReply({ ok, validated, who, approval: mode, hold, opened, budget }) }
+  return { ok: true, text: head + verdictReply({ ok, validated, who, approval: mode, hold, rejected: hold && (await read($, stageHoldRejected)), opened, budget }) }
 }
 
 // A small task that would touch one file more than it may: refused, and the stage machine goes back to Plan with the
@@ -877,10 +903,20 @@ async function approveGate($: EngineInterface): Promise<MoveOutcome> {
   if (!stage) return { ok: false, text: 'No current stage.' }
   const asked = await approveRequest($)
   if (asked) return asked
+  return approveStageGate($)
+}
+
+// /lk approve's own part, after any request: the gate, budget or gate ahead described above. The gate card's Approve
+// calls it directly, so a press approves the gate its card names and never a gates request.
+async function approveStageGate($: EngineInterface): Promise<MoveOutcome> {
+  const list = await read($, stageStages)
+  const stage = list[indexOf(list, await read($, stageCurrent))]
+  if (!stage) return { ok: false, text: 'No current stage.' }
   const isPlanGate = roleOf(stage) === 'validate-plan'
   const isShip = roleOf(stage) === 'ship'
   if (isPlanGate && stage.gate === true) {
     await update($, stageHoldPlan, () => false)
+    await update($, stageHoldRejected, () => false)
     await update($, stageHoldBound, () => false)
   }
   if (stage.gate !== true || (await read($, stageApproved)).includes(stage.id)) {
@@ -940,6 +976,7 @@ async function openGateAhead($: EngineInterface, stage: Stage, next: Stage): Pro
   const isPlanGate = roleOf(next) === 'validate-plan'
   if (isPlanGate) {
     await update($, stageHoldPlan, () => false)
+    await update($, stageHoldRejected, () => false)
     await update($, stageHoldBound, () => false)
   }
   await derive($)
@@ -967,6 +1004,7 @@ async function resetPipeline($: EngineInterface): Promise<MoveOutcome> {
   await update($, stageVerified, () => [])
   await clearTask($)
   await update($, stageHoldPlan, () => false)
+  await update($, stageHoldRejected, () => false)
   await update($, stageHoldBound, () => false)
   await update($, stageCarry, () => '')
   await update($, stageCarryBy, () => '')
@@ -1033,7 +1071,7 @@ async function statusText($: EngineInterface): Promise<string> {
   if (needs.length > 0) lines.push('Verifier: ' + needs.map(s => s.label + (done.includes(s.id) ? ' satisfied' : ' needed')).join(', '))
   lines.push(sizeLine(state.size, (await read($, stageFilesTouched)).length, await read($, stageSmallMax)))
   if (stageForRole(list, 'validate-plan')) lines.push(planMaterialLine(await read($, stagePlanPaths)))
-  lines.push(approvalLine(await read($, stageApproval), await read($, stageHoldPlan)))
+  lines.push(approvalLine(await read($, stageApproval), await read($, stageHoldPlan), await read($, stageHoldRejected)))
   lines.push('Continue after approval: ' + ((await read($, stageContinueOnApprove)) ? 'on' : 'off'))
   lines.push(verdictLine(await read($, stageVerdict)))
   lines.push(budgetLine(state.planFiles, state.budget, budgetWaits(state), await read($, stageLimits)))
@@ -1055,6 +1093,70 @@ async function waive($: EngineInterface): Promise<MoveOutcome> {
   await update($, stageVerified, v => (v.includes(stage.id) ? v : [...v, stage.id]))
   await persist($)
   return { ok: true, text: 'Marked the ' + stage.label + ' verifier as satisfied by the user.' }
+}
+
+// ---- The gate card: a held gate or verifier, answered above the prompt --------------------------------------------
+
+// The card for the state now (lib/stageModel.ts gateCard), or null. A live ship request hides the Ship gate's card:
+// the request's own card asks then.
+async function gateCardNow($: EngineInterface): Promise<GateCard | null> {
+  const live = liveRequests(await read($, gateRequests), await read($, gateTurnSeq))
+  return gateCard({
+    ...(await nextState($)),
+    held: await read($, stageHeld),
+    rejected: await read($, stageRejected),
+    shipAsked: live.some(r => r.kind === 'ship'),
+  })
+}
+
+// /lk reject, and the gate card's Reject: the person's no to the card that applies now (`card` when a press already
+// read it). Nothing moves; the gate stays closed, or the verifier stays required. The card hides until something new
+// happens (lib/stageModel.ts gateCard). The Validate plan gate also takes the plan hold, so a validator's verdict no
+// longer opens it by itself: only the user's approval does, and that clears the hold. A history note, and one
+// carry-on prompt that tells Claude not to move past it.
+async function rejectGate($: EngineInterface, note = '', card?: GateCard | null): Promise<MoveOutcome> {
+  const shown = card === undefined ? await gateCardNow($) : card
+  const list = await read($, stageStages)
+  if (!shown) return { ok: false, text: 'Nothing at ' + labelOf(list, await read($, stageCurrent)) + ' waits for your answer.' }
+  const words = note.replace(/\s+/g, ' ').trim().slice(0, 200)
+  const answer = rejectAnswer(shown, list, words)
+  if (shown.kind !== 'verifier' && roleOf(findStage(list, shown.stage)) === 'validate-plan') {
+    // bound to the task re-sized next, or spent by the user's approval
+    await update($, stageHoldPlan, () => true)
+    await update($, stageHoldBound, () => false)
+    await update($, stageHoldRejected, () => true)
+  }
+  await update($, stageHeld, () => null)
+  await update($, stageRejected, () => shown.stage)
+  const at = await safeNow($)
+  const entry: Transition = { stage: shown.stage, at, by: 'command', note: 'rejected by the user' + (words ? ': ' + words : ''), event: 'rejected' }
+  await update($, stageHistory, h => capHistory([...h, entry]))
+  await persist($)
+  return { ok: true, text: answer.text, changed: true, carry: answer.carry }
+}
+
+// A press on the gate card's Approve or Reject: the person's answer to the card it was drawn for, through the same
+// functions as /lk approve (approveStageGate: the gate, or the gate ahead), /lk waive (a verifier) and /lk reject. A
+// card that no longer applies (answered, or the stage moved) changes nothing.
+async function pressGateCard($: EngineInterface, drawn: GateCard, choice: 'approve' | 'reject'): Promise<void> {
+  const now = await gateCardNow($)
+  if (!now || now.kind !== drawn.kind || now.stage !== drawn.stage) {
+    toast($, 'That gate is no longer waiting.')
+    return
+  }
+  let outcome: MoveOutcome
+  if (choice === 'reject') {
+    outcome = await rejectGate($, '', now)
+    toast($, outcome.text)
+  } else {
+    if (now.kind === 'verifier') {
+      // /lk waive answers no continue prompt; from the card the move Claude tried goes on
+      const waived = await waive($)
+      outcome = waived.ok ? { ...waived, changed: true } : waived
+    } else outcome = await approveStageGate($)
+    tell($, outcome)
+  }
+  await continueAfter($, outcome, 'The user pressed ' + (choice === 'approve' ? now.approve : now.reject) + '.')
 }
 
 // A completed Agent call that matches the current stage's requiresAgent satisfies it
@@ -1393,6 +1495,12 @@ async function ownCommand($: EngineInterface, args: string, fromPerson: boolean)
     await continueAfter($, outcome, 'The user ran /lk approve.', true)
     return { text: outcome.text }
   }
+  if (verb === 'reject') {
+    if (!fromPerson) return { text: 'Only the person can reject a gate.' }
+    const outcome = await rejectGate($, words.slice(1).join(' '))
+    await continueAfter($, outcome, 'The user ran /lk reject.', true)
+    return { text: outcome.text }
+  }
   if (verb === 'reset') return { text: (await resetPipeline($)).text }
   if (verb === 'preset') return { text: (await choosePreset($, arg)).text }
   if (verb === 'waive') return { text: (await waive($)).text }
@@ -1408,7 +1516,7 @@ async function ownCommand($: EngineInterface, args: string, fromPerson: boolean)
     return { text: 'A small task may now touch at most ' + n + ' file' + (n === 1 ? '' : 's') + ' (this session).' }
   }
   if (verb === 'approval') {
-    if (!arg) return { text: approvalLine(await read($, stageApproval), await read($, stageHoldPlan)) + '. Usage: /lk approval auto|ask' }
+    if (!arg) return { text: approvalLine(await read($, stageApproval), await read($, stageHoldPlan), await read($, stageHoldRejected)) + '. Usage: /lk approval auto|ask' }
     if (arg !== 'auto' && arg !== 'ask') return { text: 'Usage: /lk approval auto|ask' }
     await update($, stageApproval, () => arg)
     // ADR 0005: one approval mode for all of loopkeeper, kept per project
@@ -1582,7 +1690,7 @@ export function wireStage(on: On): void {
         await $.command.register({
           name,
           description: 'loopkeeper: stage, gates, routing, review loops and decisions',
-          argumentHint: '[stage | help | status | <stage> | next | back | approve | size small|large | preset <name> | approval auto|ask | gates … | routes | on | off | reload | band]',
+          argumentHint: '[stage | help | status | <stage> | next | back | approve | reject | size small|large | preset <name> | approval auto|ask | gates … | routes | on | off | reload | band]',
           immediate: true,
         })
       } catch {
@@ -1741,6 +1849,7 @@ export function wireStage(on: On): void {
       if (fromPerson && wantsHold((e as { text?: unknown }).text)) {
         await update($, stageHoldPlan, () => true)
         await update($, stageHoldBound, () => false)
+        await update($, stageHoldRejected, () => false)
         toast($, PLUGIN + ': plan approval will wait for you (asked in the prompt)')
       }
     } catch {
@@ -1850,9 +1959,33 @@ export function wireStage(on: On): void {
   // any warning. Under it, while the plan or its file budget waits for the user, the approve button.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const props = (e.props ?? {}) as { hasSurvey?: boolean; bodyColumns?: number }
-    if (props.hasSurvey === true || !(await read($, stageBand))) return next(e)
+    if (props.hasSurvey === true) return next(e)
+    const shown = await read($, stageBand)
+    // the gate card shows with the band off too, as the gates' request card does
+    const card = await gateCardNow($)
+    if (!shown && !card) return next(e)
     const els = $.ui.resolve(e) as unknown as Elements
     const k = makeKit(els, e.surface)
+    const cardEl = card
+      ? k.card({
+          title: card.title,
+          tone: 'warn',
+          children: [
+            k.text(card.head, { bold: true, wrap: 'wrap' }),
+            k.text(card.why, { color: TONES.muted.fg, wrap: 'wrap' }),
+            k.buttons([
+              { key: 'stage-approve', label: card.approve, plain: true, onPress: async () => pressGateCard($, card, 'approve') },
+              { key: 'stage-reject', label: card.reject, plain: true, onPress: async () => pressGateCard($, card, 'reject') },
+            ]),
+            k.text(card.commands, { color: TONES.muted.fg, wrap: 'wrap' }),
+          ],
+        })
+      : null
+    if (!shown) {
+      const theirs = await next(e)
+      if (!theirs) return cardEl as never
+      return els.Box({ flexDirection: 'column', children: [cardEl, theirs] }) as never
+    }
     const state = await budgetState($)
     const warnings = [await read($, stageVersionNote), (await read($, stageDisabled)) ? DISABLED_NOTE : ''].filter(Boolean)
     const segs = fitBand(
@@ -1876,27 +2009,25 @@ export function wireStage(on: On): void {
       height: 1,
       children: segs.map(s => k.text(s.text, { color: s.tone ? TONES[s.tone].fg : undefined, bold: s.bold === true ? true : undefined, wrap: 'truncate' })),
     })
+    // the budget's button; a gate that waits has its card (a plan gate's Approve keeps the label `Approve plan · n files`)
     const button = bandButton({ ...state, approval: await read($, stageApproval), hold: await read($, stageHoldPlan) })
-    const mine = button
-      ? els.Box({
-          flexDirection: 'column',
-          children: [
-            line,
-            k.buttons([
-              {
-                key: 'stage-approve',
-                label: button.label,
-                plain: true,
-                onPress: async () => {
-                  const outcome = button.kind === 'plan' ? await approveGate($) : ((await approveRequest($)) ?? (await approveWaitingBudget($)))
-                  tell($, outcome)
-                  await continueAfter($, outcome, 'The user pressed ' + button.label + '.')
-                },
+    const budgetEl =
+      button?.kind === 'budget'
+        ? k.buttons([
+            {
+              key: 'stage-approve',
+              label: button.label,
+              plain: true,
+              onPress: async () => {
+                const outcome = (await approveRequest($)) ?? (await approveWaitingBudget($))
+                tell($, outcome)
+                await continueAfter($, outcome, 'The user pressed ' + button.label + '.')
               },
-            ]),
-          ],
-        })
-      : line
+            },
+          ])
+        : null
+    const below = [budgetEl, cardEl].filter(x => x !== null)
+    const mine = below.length > 0 ? els.Box({ flexDirection: 'column', children: [line, ...below] }) : line
     const theirs = await next(e)
     if (!theirs) return mine as never
     return els.Box({ flexDirection: 'column', children: [mine, theirs] }) as never
@@ -2016,11 +2147,13 @@ export function wireStage(on: On): void {
         ? ['verified', 'ok']
         : h.event === 'approved'
           ? ['gate open', 'ok']
-          : h.event === 'ship-attempt'
-            ? ['ship', 'warn']
-            : h.by === 'resume'
-              ? ['resume', 'muted']
-              : ['moved', 'info']
+          : h.event === 'rejected'
+            ? ['rejected', 'warn']
+            : h.event === 'ship-attempt'
+              ? ['ship', 'warn']
+              : h.by === 'resume'
+                ? ['resume', 'muted']
+                : ['moved', 'info']
     const historyRows =
       recent.length === 0
         ? [k.text('nothing yet', { color: TONES.muted.fg })]

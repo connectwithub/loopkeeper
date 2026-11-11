@@ -14,9 +14,13 @@ export type LkTransition = {
   by: 'tool' | 'command' | 'auto' | 'resume'
   note?: string
   // a note rather than a move: a shipping command met by a ship gate, a verifier that satisfied requiresAgent,
-  // or a gate opened without /lk approve (a small task's waiver or a validator's consistent verdict)
-  event?: 'ship-attempt' | 'verified' | 'approved'
+  // a gate opened without /lk approve (a small task's waiver or a validator's consistent verdict), or a gate or
+  // verifier the user rejected (/lk reject, or the gate card's Reject)
+  event?: 'ship-attempt' | 'verified' | 'approved' | 'rejected'
 }
+
+/** A forward move the stage machine refused: the stage that held it, where it was going, and why. */
+export type LkHeld = { stage: string; target: string; reason: 'gate' | 'agent' }
 
 /** What a plan validator found, recorded through set_stage or by the review_cycle wrapper. */
 export type LkVerdict = { ok: boolean; by: string; at: number }
@@ -214,6 +218,15 @@ declare module 'claude-code' {
       stageHoldPlan: boolean
       // stage: set once a held prompt's task is sized; sizing the next task spends the hold
       stageHoldBound: boolean
+      // stage: the plan hold came from the user's rejection of the plan gate (/lk reject or the gate card's Reject),
+      // not from a prompt; only the hold's wording reads it. Cleared wherever the hold is.
+      stageHoldRejected: boolean
+      // stage: the last forward move the stage machine refused (a gate or a verifier held it), or null; the gate card
+      // above the prompt reads it. Cleared by a move, a new task, /lk reset and a stage-list change.
+      stageHeld: LkHeld | null
+      // stage: the stage whose gate card the user rejected, '' for none; the card hides until a move, a recorded
+      // verdict, a new refused move or a new task
+      stageRejected: string
       // stage: a validator that completed just before a requiresAgent stage: that stage's id, or ''
       stageCarry: string
       // stage: who that validator was (subagent_type: description)

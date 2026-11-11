@@ -15,8 +15,9 @@ export type Stage = { id: string; label: string; gate?: boolean; requiresAgent?:
 export type By = 'tool' | 'command' | 'auto' | 'resume'
 // An entry with an event is a note, not a move: 'ship-attempt' is a shipping command met by a ship gate,
 // 'verified' is a verifier agent that satisfied the stage's requiresAgent, 'approved' a gate opened without
-// the user's /lk approve (a small task's waiver or a validator's verdict). None counts as entering the stage.
-export type Transition = { stage: string; at: number; by: By; note?: string; event?: 'ship-attempt' | 'verified' | 'approved' }
+// the user's /lk approve (a small task's waiver or a validator's verdict), 'rejected' a gate or verifier the user
+// rejected (/lk reject, or the gate card's Reject). None counts as entering the stage.
+export type Transition = { stage: string; at: number; by: By; note?: string; event?: 'ship-attempt' | 'verified' | 'approved' | 'rejected' }
 // The task's size: '' until Claude or the user sizes it
 export type Size = '' | 'small' | 'large'
 // Whether a plan validator's verdict may open the plan gate by itself ('auto') or the user approves plans ('ask')
@@ -785,9 +786,11 @@ export function smallReply(stageLabel: string, max: number): string {
   )
 }
 
-export function smallHeldReply(stageLabel: string): string {
+// `rejected`: the hold came from the user's rejection of the plan gate (/lk reject), not from a prompt
+export function smallHeldReply(stageLabel: string, rejected = false): string {
   return (
-    'Small task, but this prompt asked to wait for approval: the verifier is waived and the pipeline waits in ' +
+    'Small task, but ' + (rejected ? 'the user rejected this plan' : 'this prompt asked to wait for approval') +
+    ': the verifier is waived and the pipeline waits in ' +
     stageLabel + '. Ask the user to run /lk approve.'
   )
 }
@@ -820,6 +823,8 @@ export function verdictReply(input: {
   who: string
   approval: Approval
   hold: boolean
+  // the hold came from the user's rejection of the plan gate, not from a prompt
+  rejected?: boolean
   opened: boolean
   budget?: string
 }): string {
@@ -837,7 +842,7 @@ export function verdictReply(input: {
       (input.budget ? ' ' + input.budget : '')
     )
   }
-  const why = input.hold ? 'this prompt asked to wait' : 'approval mode ask'
+  const why = input.hold ? (input.rejected ? 'the user rejected this plan' : 'this prompt asked to wait') : 'approval mode ask'
   return (
     'Recorded: plan consistent (validated by ' + input.who + '). The user approves plans themselves here (' + why +
     '): ask them to run /lk approve.'
@@ -850,8 +855,8 @@ export function sizeLine(size: Size, touched: number, max: number): string {
   return 'Size: ' + (size === 'large' ? 'large' : 'unsized')
 }
 
-export function approvalLine(approval: Approval, hold: boolean): string {
-  return 'Plan approval: ' + (hold ? 'held by this prompt' : approval)
+export function approvalLine(approval: Approval, hold: boolean, rejected = false): string {
+  return 'Plan approval: ' + (hold ? (rejected ? 'held after your rejection' : 'held by this prompt') : approval)
 }
 
 export function verdictLine(v: Verdict | null): string {
@@ -994,6 +999,154 @@ export function nextStep(s: NextState): string {
     text += ' Small task: the ' + gate.label + ' gate is waived.'
   }
   return text
+}
+
+// ---- The gate card ------------------------------------------------------------------------------------------------
+// The card above the prompt for a stage gate or verifier that waits for the user, drawn by the stage in the shape of
+// the gates' request card (lib/gateRules.ts requestCard): which gate is held and why, Approve and Reject, and the
+// command typed instead. Approve runs /lk approve's path for a gate (/lk waive's for a verifier); Reject runs
+// /lk reject. One card at most, decided on the current stage; the first case that applies wins.
+
+// A forward move the stage machine refused (checkMove): the stage that held it, where it was going, and why
+export type Held = { stage: string; target: string; reason: 'gate' | 'agent' }
+
+export type GateCardState = NextState & {
+  // the last refused forward move, or null
+  held: Held | null
+  // the stage whose card the user rejected ('' for none): it hides until a move, a verdict or a new refused move
+  rejected: string
+  // a gates request for shipping is live: its own card asks
+  shipAsked: boolean
+}
+
+// gate: the current stage's own gate; ahead: the next stage's gate, met by a move that jumped past it; verifier: the
+// current stage's requiresAgent, met by a move out of it
+export type GateCardKind = 'gate' | 'ahead' | 'verifier'
+
+export type GateCard = {
+  kind: GateCardKind
+  // the stage whose gate or verifier the card answers
+  stage: string
+  title: string
+  // what waits (bold) and why (quiet)
+  head: string
+  why: string
+  approve: string
+  reject: string
+  // the commands typed instead, as the card's last line says them
+  commands: string
+}
+
+export const GATE_REJECT_LABEL = 'Reject'
+export const GATE_COMMANDS = 'or type /lk approve · /lk reject'
+export const VERIFIER_COMMANDS = 'or type /lk waive · /lk reject'
+
+// The card for the state now, or null.
+// 0. A planned budget waits: none (its own button asks, and /lk approve answers the budget first).
+// 1. The current stage's gate is not approved: Validate plan while it waits for the user (approval ask, a prompt's
+//    hold) or after a move past it was refused (in auto mode it otherwise waits for the validator); Ship while it
+//    holds shipping and no ship request's card asks; any other gate always.
+// 2. The current stage needs a verifier and a move out of it was refused for that.
+// 3. A move jumped past the next stage's gate and was refused there, and /lk approve would open it (approveAhead).
+// A card the user rejected stays hidden.
+export function gateCard(s: GateCardState): GateCard | null {
+  const i = Math.max(0, indexOf(s.stages, s.current))
+  const cur = s.stages[i]
+  if (!cur) return null
+  const button = bandButton(s)
+  if (button?.kind === 'budget') return null
+  const held = s.held
+  const heldAt = (id: string, reason: Held['reason']): boolean => held !== null && held.stage === id && held.reason === reason
+  const after = s.stages[i + 1]
+  const toward = (held ? findStage(s.stages, held.target) : undefined)?.label ?? after?.label
+  if (cur.gate === true && !s.approved.includes(cur.id)) {
+    if (s.rejected === cur.id) return null
+    const tried = heldAt(cur.id, 'gate') && toward ? 'Claude tried to move on to ' + toward + '; ' : ''
+    const base = { kind: 'gate' as const, stage: cur.id, title: 'loopkeeper · ' + cur.label + ' gate', reject: GATE_REJECT_LABEL, commands: GATE_COMMANDS }
+    const role = roleOf(cur)
+    if (role === 'validate-plan') {
+      let why: string
+      // a hold comes from a prompt that asked to wait, or from a rejection of this gate
+      if (button?.kind === 'plan') why = s.hold ? 'the plan waits for your own approval' : 'plan approval is ask: every plan waits for your yes'
+      else if (tried) why = 'no validator has found the plan consistent'
+      else return null
+      return {
+        ...base,
+        head: 'The plan' + (s.planFiles !== null ? ' · ' + s.planFiles + ' files planned' : '') + (after ? ' → ' + after.label : ''),
+        why: tried + why,
+        approve: button?.label ?? (s.planFiles !== null ? 'Approve plan · ' + s.planFiles + ' files' : 'Approve plan'),
+      }
+    }
+    if (role === 'ship') {
+      if (!s.shipGate || s.shipOk || s.shipAsked) return null
+      return { ...base, head: 'Commit, push or open a PR', why: tried + 'the ' + cur.label + ' gate holds shipping until you approve it', approve: 'Approve ' + cur.label + ' gate' }
+    }
+    return {
+      ...base,
+      head: cur.label + (toward ? ' → ' + toward : ''),
+      why: tried + (after ? 'the ' + cur.label + ' gate holds the move to ' + after.label + ' until you approve it' : 'the ' + cur.label + ' gate waits for your approval'),
+      approve: 'Approve ' + cur.label + ' gate',
+    }
+  }
+  if (cur.requiresAgent && !s.verified.includes(cur.id) && heldAt(cur.id, 'agent') && s.rejected !== cur.id) {
+    return {
+      kind: 'verifier',
+      stage: cur.id,
+      title: 'loopkeeper · ' + cur.label + ' verifier',
+      head: cur.label + (toward ? ' → ' + toward : ''),
+      why: 'Claude tried to move on' + (toward ? ' to ' + toward : '') + ' before a verifier subagent checked the work',
+      approve: 'Approve without a verifier',
+      reject: GATE_REJECT_LABEL,
+      commands: VERIFIER_COMMANDS,
+    }
+  }
+  const ahead = approveAhead(s)
+  if (ahead && heldAt(ahead.id, 'gate') && s.rejected !== ahead.id) {
+    return {
+      kind: 'ahead',
+      stage: ahead.id,
+      title: 'loopkeeper · ' + ahead.label + ' gate',
+      head: cur.label + ' → ' + (toward ?? ahead.label),
+      why: 'Claude tried to move past ' + ahead.label + '; approving opens its gate and moves there',
+      approve: 'Approve ' + ahead.label + ' gate',
+      reject: GATE_REJECT_LABEL,
+      commands: GATE_COMMANDS,
+    }
+  }
+  return null
+}
+
+// What a rejection answers and the carry-on prompt it sends: the gate stays closed (or the verifier stays required)
+// and nothing moves. `note` is the person's own words from /lk reject, one line.
+export function rejectAnswer(card: GateCard, stages: readonly Stage[], note = ''): { text: string; carry: string } {
+  const stage = findStage(stages, card.stage)
+  const label = stage?.label ?? card.stage
+  const said = note ? ' Their note: ' + note : ''
+  if (card.kind === 'verifier') {
+    return {
+      text: 'Kept the ' + label + ' verifier: a verifier subagent checks the work before the pipeline moves on.',
+      carry: 'The user did not approve moving past ' + label + ' without a verifier: ' + VERIFIER_HINT + '.' + said,
+    }
+  }
+  const role = roleOf(stage)
+  if (role === 'validate-plan') {
+    return {
+      text: 'Rejected the ' + label + ' gate; the plan waits for your approval (/lk approve).',
+      carry:
+        'The user rejected the plan at the ' + label + ' gate. Do not move past it: ask the user what to change, ' +
+        'revise the plan and have it validated again; only the user can approve it now.' + said,
+    }
+  }
+  if (role === 'ship') {
+    return {
+      text: 'Rejected the ' + label + ' gate; shipping stays held.',
+      carry: 'The user rejected the ' + label + ' gate. Do not commit, push or open a PR; ask the user what to change first.' + said,
+    }
+  }
+  return {
+    text: 'Rejected the ' + label + ' gate; the pipeline stays where it is.',
+    carry: 'The user rejected the ' + label + ' gate. Do not move past it; ask the user what to change.' + said,
+  }
 }
 
 // ---- Plan review passes (the review_cycle wrapper) --------------------------------------------
