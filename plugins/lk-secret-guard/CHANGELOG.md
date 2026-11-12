@@ -2,12 +2,13 @@
 
 All notable changes to lk-secret-guard are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.4.0] - 2026-11-12
 
 ### Changed
 
 - The command is now `/lk-secrets` (was `/secret-guard`), so every loopkeeper command starts with `lk-` and none clashes with a command Claude Code ships. Subcommands keep their words (`/lk-secrets off`).
 - The README's notes for directory reviewers cover the icon warning `UNREAD_ASSET_REFERENCED`.
+- The README's notes for directory reviewers add the warning `USES_HOOKS`, name all four `plugin.json` fields the directory reads or checks (`documentationUrl`, `supportUrl`, `privacyPolicyUrl` and `types`), and their line numbers match the code.
 
 ## [0.3.1] - 2026-10-11
 

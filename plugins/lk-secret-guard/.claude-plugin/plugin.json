@@ -1,7 +1,7 @@
 {
   "name": "lk-secret-guard",
   "displayName": "loopkeeper Secret Guard",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "A seatbelt for secrets: stops credential-shaped strings and your private deny-list of words before Claude writes them into files or shell commands.",
   "author": {
     "name": "connectwithub"

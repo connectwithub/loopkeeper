@@ -2,23 +2,7 @@
 
 All notable changes to the loopkeeper core plugin are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
-
-### Added
-
-- A held stage gate shows a card above the prompt, like the gates' request cards, with **Approve**, **Reject** and the command to type instead. It covers the Validate plan gate (while it waits for the user, or after a move past it was refused), the Ship gate (while it holds shipping and no ship request's card asks), any other gate stage, a verifier stage after a move out of it was refused, and the next stage's gate after a move jumped past it. Approve runs `/lk approve`'s path for that gate (`/lk waive`'s for a verifier); the card shows with the stage band off too.
-- `/lk reject [note]`, which the card's Reject runs. Nothing moves and the gate stays closed. The Stage pane's history notes it as `rejected`, and Claude gets one carry-on prompt not to move past it. Rejecting the Validate plan gate also holds the plan, so only the user's approval opens it; `/lk status` then reads `Plan approval: held after your rejection`. Only the person can run it.
-
-### Changed
-
-- The band's `Approve plan · n files` button is now the Approve button of the Validate plan gate's card. The key and label are unchanged. A press approves the gate and no longer answers a pending gates request first; `/lk approve` typed still does.
-- `/lk waive` is described as what it does: it marks the current stage's verifier as satisfied by the user.
-
-### Fixed
-
-- A small task's file limit counted a file whose edit was refused or failed, so the next file could push the task back to Plan. From Claude Code 2.1.312 the permission check runs inside the tool call: a refusal comes back as an errored result, not a `deny`, and the path is reserved during the call. The growth guard now looks the path up once the call settles and releases it on a `deny`, an errored result or a throw.
-
-## [0.2.0] - 2026-10-15
+## [0.2.0] - 2026-11-12
 
 ### Added
 
@@ -27,6 +11,8 @@ All notable changes to the loopkeeper core plugin are recorded here. The format 
 - `/lk-decisions` shows **Record** and **Skip** on each pending major decision, and **Record all** when there are two or more.
 - The decision watch's hourly cap shows a card above the prompt, and a line in the pane: `Decision watch paused: <n> calls in the last hour`, with **Allow <n> more** and **Keep paused**. The card shows once per pause.
 - A review loop that has used every pass and is not done shows a card above the prompt, with **Allow <n> more** (the kind's default) and **Stop here**. The Review pane has **Allow <n> more** beside Reopen and Close, and `/lk-reviews more <subject> [n]` allows `n` more. Each grant or stop sends Claude one carry-on prompt, under the ADR 0012 guards. A limit cannot go past 20 passes.
+- A held stage gate shows a card above the prompt, like the gates' request cards, with **Approve**, **Reject** and the command to type instead. It covers the Validate plan gate (while it waits for the user, or after a move past it was refused), the Ship gate (while it holds shipping and no ship request's card asks), any other gate stage, a verifier stage after a move out of it was refused, and the next stage's gate after a move jumped past it. Approve runs `/lk approve`'s path for that gate (`/lk waive`'s for a verifier); the card shows with the stage band off too.
+- `/lk reject [note]`, which the card's Reject runs. Nothing moves and the gate stays closed. The Stage pane's history notes it as `rejected`, and Claude gets one carry-on prompt not to move past it. Rejecting the Validate plan gate also holds the plan, so only the user's approval opens it; `/lk status` then reads `Plan approval: held after your rejection`. Only the person can run it.
 
 ### Changed
 
@@ -37,10 +23,12 @@ All notable changes to the loopkeeper core plugin are recorded here. The format 
 - A raise from a request card replaces a `/lk gates max` value when it is higher.
 - The loop rules (GSD mode) add rule 8: at QA or Ship, a request that does not finish this ship (a commit, push, PR, merge, its deploy, or a fix that unblocks them) is new work, a question included; when unsure, it is new. Claude calls `set_stage` plan with a size before any work, and in a long session offers a handoff first.
 - Refusal texts name only steps that work: `/lk approve`, the surface's card or Gates pane, or with `-p` the command. "run /lk approve at QA or Ship" is gone.
-- The README's reviewer notes are refreshed: the carry-on prompt, the stage's `ui.press` hook, and the line numbers.
+- The README's reviewer notes are refreshed: the carry-on prompt, the stage's `ui.press` hook, the stage-gate cards and Allow buttons, the `USES_HOOKS` warning, and the line numbers.
 - A review loop's limit is raised only by the person: `/lk-reviews more`, a card's or a pane's **Allow <n> more**, and a `/lk-reviews max` that raises a loop's limit. A model's own call is refused ("Only the user can …"). Lowering `max` works from anyone. The past-limit refusal and the not-converging line now say to report what changed and to ask for more passes, instead of asking how to proceed.
 - A backward move by Claude (`set_stage` to an earlier stage) drops the approvals of the gates after the target and the merge credit. Leaving QA or Ship backwards tells Claude that new work starts at Plan, and says when the Ship approval was dropped. `/lk back` keeps the approvals.
 - The Ship approval is spent by the person's next message after a commit or push used it. Messages that start with `/`, plugin prompts and auto-continuations do not spend it. `/lk approve` at Ship re-approves it, and the flag is saved with the task.
+- The band's `Approve plan · n files` button is now the Approve button of the Validate plan gate's card. The key and label are unchanged. A press approves the gate and no longer answers a pending gates request first; `/lk approve` typed still does.
+- `/lk waive` is described as what it does: it marks the current stage's verifier as satisfied by the user.
 
 ### Fixed
 
@@ -49,6 +37,7 @@ All notable changes to the loopkeeper core plugin are recorded here. The format 
 - After a refusal, `/lk approve` at Execute, Plan or QA answered "has no gate to approve" and left the request pending. It now answers the request.
 - "Ship has no gate to approve; ... allowed" granted the push credit with no carry-on. A new credit now carries on.
 - A backward `set_stage` move kept the approvals of the gates after the target, Ship included. It drops them now (see Changed).
+- A small task's file limit counted a file whose edit was refused or failed, so the next file could push the task back to Plan. From Claude Code 2.1.312 the permission check runs inside the tool call: a refusal comes back as an errored result, not a `deny`, and the path is reserved during the call. The growth guard now looks the path up once the call settles and releases it on a `deny`, an errored result or a throw.
 
 ## [0.1.1] - 2026-10-14
 

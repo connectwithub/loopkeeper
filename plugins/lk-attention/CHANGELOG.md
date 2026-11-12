@@ -2,12 +2,12 @@
 
 All notable changes to lk-attention are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.4.0] - 2026-11-12
 
 ### Changed
 
 - The command is now `/lk-attention` (was `/attention`): every loopkeeper command starts with `lk-`.
-- The README's notes for directory reviewers cover the icon warning `UNREAD_ASSET_REFERENCED` and the sound files it names.
+- The README's notes for directory reviewers cover the icon warning `UNREAD_ASSET_REFERENCED` and the sound files it names, add `USES_HOOKS`, name all four `plugin.json` fields (`documentationUrl`, `supportUrl`, `privacyPolicyUrl`, `types`), and their line numbers match the code.
 
 ## [0.3.1] - 2026-10-11
 

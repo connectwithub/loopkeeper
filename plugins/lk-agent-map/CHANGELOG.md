@@ -2,12 +2,13 @@
 
 All notable changes to lk-agent-map are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.7.0] - 2026-11-12
 
 ### Changed
 
-- The README's notes for directory reviewers name every finding code they explain, add `MOD_CALL_NAMED_IN_TEXT` and the
-  icon warning `UNREAD_ASSET_REFERENCED`, and their line numbers match the code again. No code change.
+- The README's notes for directory reviewers name every finding code they explain, add `MOD_CALL_NAMED_IN_TEXT`, the
+  icon warning `UNREAD_ASSET_REFERENCED` and `USES_HOOKS`, name all four `plugin.json` fields (`documentationUrl`, `supportUrl`,
+  `privacyPolicyUrl`, `types`), and their line numbers match the code again.
 - The command is now `/lk-agents` (was `/agent-map`): every loopkeeper command starts with `lk-`.
 
 ### Fixed

@@ -51,7 +51,7 @@ A held gate shows a card above the prompt (terminal and desktop app) with **Appr
 
 ## Continue after approval
 
-A slash command starts no model turn. So after a user approval that changed something, loopkeeper submits one prompt, framed as the plugin's message, and Claude carries on. The approvals that count are `/lk approve`, the band's `Approve plan · n files` and `Approve budget · n files`, the Stage pane's `Approve gate`, and the hub's Approve. The prompt reads:
+A slash command starts no model turn. So after a user approval that changed something, loopkeeper submits one prompt, framed as the plugin's message, and Claude carries on. A rejection (`/lk reject`, or the card's Reject) submits the same kind of prompt, telling Claude not to move past the gate; a note typed after `/lk reject` is included in it. The approvals that count are `/lk approve`, the band's `Approve plan · n files` and `Approve budget · n files`, the Stage pane's `Approve gate`, and the hub's Approve. The prompt reads:
 
 ```
 The user ran /lk approve. <what was approved> Carry on with the task from where you stopped.

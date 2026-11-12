@@ -1,7 +1,7 @@
 {
   "name": "lk-token-budget",
   "displayName": "loopkeeper Token Budget",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Stop runaway token spend: budgets per session and per subagent with warn, deny-agents or stop actions, plus a prompt-cache countdown, cold-cache pings and keep-warm.",
   "author": {
     "name": "connectwithub"

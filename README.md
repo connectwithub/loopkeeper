@@ -218,6 +218,7 @@ Claude Code 2.1.294 lets a plugin bind keys only inside its own panes and band, 
 | --- | --- |
 | `/lk approve` | Approves the gate or the file budget that waits, from that stage or the one before it, and tells Claude to carry on. |
 | `/lk waive` | Waives the gate for the current task. |
+| `/lk reject [note]` | Rejects the gate or verifier that the gate card shows. Nothing moves: the gate stays closed, and Claude is told not to move past it. |
 | `/lk approval auto\|ask` | `auto` (the default): a validator subagent's consistent verdict opens the plan gate. `ask`: the gate waits for you every time. Kept per project. |
 
 **Gates**

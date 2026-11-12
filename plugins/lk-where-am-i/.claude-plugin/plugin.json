@@ -1,7 +1,7 @@
 {
   "name": "lk-where-am-i",
   "displayName": "loopkeeper Where Am I",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Know where the session is at a glance: repo, branch, worktree, uncommitted and unpushed work, usage windows and the prompt cache in one line above the prompt.",
   "author": {
     "name": "connectwithub"

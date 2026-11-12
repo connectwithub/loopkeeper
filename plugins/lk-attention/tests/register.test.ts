@@ -11,6 +11,8 @@ type World = {
   audio: unknown[]
   opened: string[]
   closed: string[]
+  /** tool_use_ids whose next permission check (the one inside their $.tool.call) answers allow: the user approved. */
+  approved: Set<string>
 }
 
 type Opts = {
@@ -51,7 +53,7 @@ function ask(id: string, question = 'Which database?') {
 }
 
 function world(on: On, o: Opts = {}) {
-  const w: World = { saved: new Map(), toasts: [], runs: [], audio: [], opened: [], closed: [] }
+  const w: World = { saved: new Map(), toasts: [], runs: [], audio: [], opened: [], closed: [], approved: new Set() }
   if (o.settings !== undefined) w.saved.set('settings', o.settings)
   const clock = mock.clock(on, { now: 1_000_000 })
   const files = o.files ?? {}
@@ -93,7 +95,14 @@ function world(on: On, o: Opts = {}) {
     if (o.hold) await o.hold
     return { result: 'ok' }
   })
-  on('tool.check', () => ({ decision: 'ask' }))
+  // 2.1.294 raises no permission check on a test's $.tool.call, so a test fires tool.check itself and it answers ask.
+  // From 2.1.312 the call runs the check inside itself and takes an ask as a shown dialog (PermissionRequest fires);
+  // a test that models an approved call marks its id in w.approved, and that one check answers allow
+  on('tool.check', (_$, e) => {
+    const id = (e as { tool_use_id?: string }).tool_use_id
+    if (id !== undefined && w.approved.delete(id)) return { decision: 'allow' }
+    return { decision: 'ask' }
+  })
   on('turn.complete', () => ({ text: '' }))
   on('prompt.submit', ($, e) => ({ text: e.text }))
   on('agent.spawn', () => ({ model: 'claude-test', agentId: 'ag1' }))
@@ -392,6 +401,8 @@ test('auto mode: a main-loop ask approved within the grace raises nothing', asyn
   await start($)
   await $.tool.check({ tool: 'Bash', input: { command: 'npm test' }, tool_use_id: 'auto1' } as never)
   await clock.advance(1_500)
+  // the user approves: the check inside the call (2.1.312+) answers allow, not a shown dialog
+  w.approved.add('auto1')
   await $.tool.call({ tool: 'Bash', command: 'npm test', tool_use_id: 'auto1' } as never)
   await clock.advance(10_000)
   expect(w.toasts).toEqual([])
@@ -491,8 +502,9 @@ test('an approved long-running tool (progress drawn within the grace) raises no 
   })
   const { w, clock } = world(on, { hold, settings: { permissionSignal: 'grace' } })
   await start($)
-  const call = $.tool.call({ tool: 'Bash', command: 'npm test', tool_use_id: 'long1' } as never)
   await $.tool.check({ tool: 'Bash', input: { command: 'npm test' }, tool_use_id: 'long1' } as never)
+  w.approved.add('long1')
+  const call = $.tool.call({ tool: 'Bash', command: 'npm test', tool_use_id: 'long1' } as never)
   await clock.advance(2_000)
   const ui = await $.ui.mount({
     plugin: 'lk-attention',
@@ -518,8 +530,9 @@ test('default dialog mode: a bare ask raises nothing; a shown dialog raises at o
   on('classic.PermissionRequest', () => ({}))
   await start($)
   expect(await text($)).toContain('signal dialog')
-  const call = $.tool.call({ tool: 'Bash', command: 'npm test', tool_use_id: 'dlg1' } as never)
   await $.tool.check({ tool: 'Bash', input: { command: 'npm test' }, tool_use_id: 'dlg1' } as never)
+  w.approved.add('dlg1')
+  const call = $.tool.call({ tool: 'Bash', command: 'npm test', tool_use_id: 'dlg1' } as never)
   await clock.advance(120_000)
   expect(w.toasts).toEqual([])
   expect((await band($)).text).toBe(null)

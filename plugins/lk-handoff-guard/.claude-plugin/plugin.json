@@ -1,7 +1,7 @@
 {
   "name": "lk-handoff-guard",
   "displayName": "loopkeeper Handoff Guard",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Never lose a session to the context limit: it watches context fill, writes a handoff into .claude/brain/ in time, then clears and resumes from it.",
   "author": {
     "name": "connectwithub"
